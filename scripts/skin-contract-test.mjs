@@ -553,6 +553,19 @@ async function uiTests(pageUrl, seen) {
     const cdp = await connectChrome(debugPort)
     await cdp.send('Page.enable')
     await cdp.send('Runtime.enable')
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 900,
+      deviceScaleFactor: 1,
+      mobile: false,
+    })
+    const shot = async (name) => {
+      const dir = process.env.SKIN_SHOTS
+      if (!dir) return
+      const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' })
+      fs.mkdirSync(dir, { recursive: true })
+      fs.writeFileSync(path.join(dir, name), Buffer.from(data, 'base64'))
+    }
     const loaded = new Promise((resolve) => cdp.on('Page.loadEventFired', resolve))
     await cdp.send('Page.navigate', { url: pageUrl })
     await loaded
@@ -583,12 +596,12 @@ async function uiTests(pageUrl, seen) {
     await waitPage(`document.querySelector('#auth-form')`, 'login dialog')
     await evalJson(`document.querySelector('[data-action="show-register"]').click()`)
     await waitPage(`document.querySelector('#auth-form')?.dataset.mode === 'register'`, 'register form')
-    await evalJson(`
+    await evalJson(`{
       const form = document.querySelector('#auth-form')
       form.username.value = 'ui-user'
       form.password.value = 'ui-pass'
       form.requestSubmit()
-    `)
+    }`)
     await waitPage(
       `document.querySelector('.v6-account-label')?.textContent === 'ui-user' && localStorage.getItem('uid')`,
       'TC0 register leaves the user logged in',
@@ -601,12 +614,12 @@ async function uiTests(pageUrl, seen) {
 
     await evalJson(`document.querySelector('[data-action="open-login"]').click()`)
     await waitPage(`document.querySelector('#auth-form')`, 'login again')
-    await evalJson(`
+    await evalJson(`{
       const form = document.querySelector('#auth-form')
       form.username.value = 'ui-user'
       form.password.value = 'wrong-pass'
       form.requestSubmit()
-    `)
+    }`)
     await waitPage(
       `document.querySelector('#auth-error')?.textContent.includes('用户名或密码错误')`,
       'TC0 bad login message',
@@ -615,24 +628,26 @@ async function uiTests(pageUrl, seen) {
       !(await evalJson(`localStorage.getItem('uid')`)),
       'TC0 bad login must not set uid',
     )
-    await evalJson(`
+    await evalJson(`{
       const form = document.querySelector('#auth-form')
       form.username.value = 'ui-user'
       form.password.value = 'ui-pass'
       form.requestSubmit()
-    `)
+    }`)
     await waitPage(`document.querySelector('.v6-account-label')?.textContent === 'ui-user'`, 'TC0 login self')
+    await shot('skin_logged_in_catalog.png')
 
     await evalJson(`location.hash = '#/console/keys'`)
     await waitPage(`document.querySelector('[data-action="create-key"]')`, 'keys page')
     await evalJson(`document.querySelector('[data-action="create-key"]').click()`)
     await waitPage(`document.querySelector('#key-form')`, 'create key dialog')
-    await evalJson(`
+    await evalJson(`{
       const form = document.querySelector('#key-form')
       form.name.value = 'UI Key'
       form.requestSubmit()
-    `)
+    }`)
     await waitPage(`document.querySelector('#created-key')?.value.startsWith('sk-')`, 'TC1 key shown once')
+    await shot('skin_key_shown_once.png')
     const revealed = await evalJson(`({
       secret: document.querySelector('#created-key').value,
       copy: Boolean(document.querySelector('[data-action="copy"][data-copy]')),
@@ -651,11 +666,11 @@ async function uiTests(pageUrl, seen) {
       `document.querySelector('#model-count')?.dataset.catalogSource === 'platform'`,
       'TC2 platform catalog',
     )
-    await evalJson(`
+    await evalJson(`{
       const input = document.getElementById('model-search')
       input.value = 'gpt-test-b'
       input.dispatchEvent(new Event('input', { bubbles: true }))
-    `)
+    }`)
     await waitPage(
       `document.querySelectorAll('[data-model-id]').length === 1 && document.querySelector('[data-model-id="gpt-test-b"]')`,
       'TC2 filter',
@@ -673,18 +688,18 @@ async function uiTests(pageUrl, seen) {
 
     await evalJson(`document.querySelector('[data-action="choose-model"]').click()`)
     await waitPage(`document.querySelector('#chat-models-form')`, 'model switcher')
-    await evalJson(`
+    await evalJson(`{
       document.querySelectorAll('[name="chat-model"]').forEach((input) => { input.checked = input.value === 'gpt-test-a' })
       document.getElementById('chat-models-form').requestSubmit()
-    `)
+    }`)
     await waitPage(`document.querySelector('[data-chat-model="gpt-test-a"]')`, 'TC3 switched model')
-    await evalJson(`
+    await evalJson(`{
       const box = document.getElementById('chat-stream')
       box.checked = false
       box.dispatchEvent(new Event('change', { bubbles: true }))
       document.getElementById('chat-prompt').value = 'hello sync'
       document.getElementById('chat-form').requestSubmit()
-    `)
+    }`)
     await waitPage(
       `document.body.innerText.includes('sync:gpt-test-a') && document.querySelector('[aria-label="发送消息"]')`,
       'TC3 non-stream response',
@@ -694,17 +709,17 @@ async function uiTests(pageUrl, seen) {
     assert(uiChats.some((item) => item.body.stream === true && item.body.model === 'gpt-test-b'), 'TC3 stream model id')
     assert(uiChats.some((item) => item.body.stream === false && item.body.model === 'gpt-test-a'), 'TC3 non-stream model id')
 
-    await evalJson(`
+    await evalJson(`{
       const select = document.getElementById('chat-key')
       select.value = '__paste'
       select.dispatchEvent(new Event('change', { bubbles: true }))
-    `)
+    }`)
     await waitPage(`document.querySelector('#paste-key-form')`, 'paste key')
-    await evalJson(`
+    await evalJson(`{
       const form = document.querySelector('#paste-key-form')
       form.secret.value = 'sk-not-a-real-key'
       form.requestSubmit()
-    `)
+    }`)
     await waitPage(`document.getElementById('chat-key')?.value === 'pasted'`, 'bad key selected')
     await evalJson(`
       document.getElementById('chat-prompt').value = 'fail please'
@@ -714,10 +729,12 @@ async function uiTests(pageUrl, seen) {
       `document.querySelector('.v6-chat-error')?.textContent.includes('无效的令牌')`,
       'TC3 readable chat error',
     )
+    await shot('skin_chat_stream_and_error.png')
     console.log('ui contract checks passed')
   } finally {
     launched.chrome.kill('SIGKILL')
-    fs.rmSync(dataDir, { recursive: true, force: true })
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    fs.rmSync(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   }
 }
 
