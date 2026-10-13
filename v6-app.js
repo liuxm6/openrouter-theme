@@ -74,6 +74,8 @@
       '<path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
     'log-in':
       '<path d="m10 17 5-5-5-5"/><path d="M15 12H3"/><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>',
+    'log-out':
+      '<path d="m16 17 5-5-5-5"/><path d="M21 12H9"/><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>',
     'scan-text':
       '<path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 8h8"/><path d="M7 12h10"/><path d="M7 16h6"/>',
     'circle-dollar-sign':
@@ -542,7 +544,30 @@
     audio: 'audio-lines',
     file: 'file-text',
   }
-  const hostNames = [...new Set(models.flatMap((model) => model.hosts))]
+  function currentHosts() {
+    return [...new Set(models.flatMap((model) => model.hosts))]
+  }
+  function cloneModel(model) {
+    return {
+      ...model,
+      inputs: [...(model.inputs || [])],
+      outputs: [...(model.outputs || [])],
+      hosts: [...(model.hosts || [])],
+      tags: [...(model.tags || [])],
+    }
+  }
+  const mockModels = models.map(cloneModel)
+  let catalogLive = false
+  let catalogReady = false
+  const platform = {
+    online: false,
+    authed: false,
+    user: null,
+    status: null,
+    tokens: [],
+    group: '',
+    error: '',
+  }
   const app = document.getElementById('app')
   const dialog = document.createElement('dialog')
   dialog.className = 'v6-dialog'
@@ -550,6 +575,8 @@
   const storageKey = 'tokenflux-v6-demo-v2'
   const defaults = {
     pins: [],
+    stream: true,
+    activeKeyId: '',
     keys: [
       {
         id: 'key-production',
@@ -605,6 +632,7 @@
   let catalogFilter = null
   let draftPrompt = ''
   let chatTimer = 0
+  let chatAbort = null
   let chatPending = false
   let chatGeneration = 0
   let logoIndex = 0
@@ -664,6 +692,14 @@
   function getModel(id) {
     return models.find((model) => model.id === id)
   }
+  function routeModelId() {
+    if (!route.startsWith('models/')) return ''
+    try {
+      return decodeURIComponent(route.slice(7))
+    } catch {
+      return route.slice(7)
+    }
+  }
   function tabs(items, active, action, label) {
     return `<div class="v6-tabs" role="tablist" aria-label="${label}">${items.map(([value, text, symbol]) => `<button type="button" role="tab" aria-selected="${value === active}" tabindex="${value === active ? 0 : -1}" class="${value === active ? 'active' : ''}" data-action="${action}" data-value="${value}">${symbol ? icon(symbol) : ''}${text}</button>`).join('')}</div>`
   }
@@ -707,7 +743,7 @@
         : `${money(model.inputRate)}/M 输入 tokens`
   }
   function modelCard(model) {
-    return `<article class="v6-model" data-model-id="${model.id}"><div class="v6-model-heading">${logo(model.provider)}${link('models/' + model.id, esc(model.provider + ': ' + model.name), 'v6-model-title')}<span class="v6-badge">${icon(modalityIcons[model.outputs[0]])}</span>${iconButton('copy', '复制模型 ID', 'copy', `data-copy="${esc(model.slug)}"`)}${pin(model)}<span class="v6-volume">${model.usage}B tokens <span title="最近 7 天用量，演示数据">${icon('info')}</span></span></div><a class="v6-model-description" href="#/models/${model.id}">${esc(model.description)}</a><div class="v6-meta">${link('models?author=' + encodeURIComponent(model.provider), 'by ' + esc(model.provider.toLowerCase()), '')}<span>${model.date}</span><span>${model.context} context</span><span>${modelPrice(model)}</span>${!model.imagePrice && !model.audioPrice && model.outputs[0] !== 'embeddings' ? `<span>${money(model.outputRate)}/M 输出 tokens</span>` : ''}</div></article>`
+    return `<article class="v6-model" data-model-id="${esc(model.id)}"><div class="v6-model-heading">${logo(model.provider)}${link('models/' + encodeURIComponent(model.id), esc(model.provider + ': ' + model.name), 'v6-model-title')}<span class="v6-badge">${icon(modalityIcons[model.outputs[0]] || 'layers')}</span>${iconButton('copy', '复制模型 ID', 'copy', `data-copy="${esc(model.slug)}"`)}${pin(model)}${model.outputs.includes('text') ? link('chat?model=' + encodeURIComponent(model.id), '聊天', 'v6-btn', 'message-square') : ''}</div><a class="v6-model-description" href="#/models/${encodeURIComponent(model.id)}">${esc(model.description)}</a><div class="v6-meta">${link('models?author=' + encodeURIComponent(model.provider), 'by ' + esc(model.provider.toLowerCase()), '')}${model.date ? `<span>${model.date}</span>` : ''}<span>${model.context} context</span><span>${modelPrice(model)}</span>${!model.imagePrice && !model.audioPrice && model.outputs[0] !== 'embeddings' ? `<span>${money(model.outputRate)}/M 输出 tokens</span>` : ''}</div></article>`
   }
   function rankedRows(list, metric = 'usage') {
     return list
@@ -718,24 +754,28 @@
       .join('')
   }
 
+  function accountName() {
+    return platform.user?.display_name || platform.user?.username || state.settings.name
+  }
   function renderHeader() {
     const header = document.querySelector('.app-header')
     header.classList.add('v6-header')
-    header.innerHTML = `<div class="header-inner"><a class="brand" href="#/home" aria-label="aitokensflux 首页"><span class="brand-mark" aria-hidden="true">${BRAND_MARK}</span><span class="brand-word">aitokens<em>flux</em></span></a><button class="header-search" data-action="search" aria-label="搜索模型与页面">${icon('search')}<span>搜索</span><span class="keycap">⌘ K</span></button><nav class="primary-nav" aria-label="主导航">${link('models', '模型', 'nav-link ' + (['models', 'discover', 'providers'].includes(route.split('/')[0]) ? 'active' : ''))}${link('chat', '聊天', 'nav-link ' + (route === 'chat' ? 'active' : ''))}${link('rankings', '排行榜', 'nav-link ' + (route === 'rankings' ? 'active' : ''))}${link('pricing', '价格', 'nav-link ' + (route === 'pricing' ? 'active' : ''))}${link('docs', '文档', 'nav-link ' + (route === 'docs' ? 'active' : ''))}</nav><div class="header-actions"><details class="v6-dropdown"><summary class="v6-account-btn" aria-label="账户"><span class="v6-avatar">${esc(state.settings.name.slice(0, 1))}</span><span class="v6-account-label">个人</span>${icon('chevron-down')}</summary><div class="v6-menu right">${[
-      ['console', '用量概览', 'layout-grid'],
-      ['console/keys', 'API Keys', 'key-round'],
-      ['console/activity', '活动记录', 'activity'],
-      ['console/credits', '余额与账单', 'wallet'],
-      ['console/settings', '工作区设置', 'settings'],
-      ['console/profile', '个人资料', 'user'],
-    ]
-      .map(([path, name, symbol]) => link(path, name, '', symbol))
-      .join(
-        '',
-      )}</div></details>${button('mobile-menu', '', 'menu', 'aria-label="打开菜单"', 'v6-btn v6-icon-btn v6-mobile-menu')}</div></div>`
+    const account = platform.authed
+      ? `<details class="v6-dropdown"><summary class="v6-account-btn" aria-label="账户"><span class="v6-avatar">${esc(accountName().slice(0, 1))}</span><span class="v6-account-label">${esc(accountName())}</span>${icon('chevron-down')}</summary><div class="v6-menu right">${[
+          ['console', '用量概览', 'layout-grid'],
+          ['console/keys', 'API Keys', 'key-round'],
+          ['console/activity', '活动记录', 'activity'],
+          ['console/credits', '余额与账单', 'wallet'],
+          ['console/settings', '工作区设置', 'settings'],
+          ['console/profile', '个人资料', 'user'],
+        ]
+          .map(([path, name, symbol]) => link(path, name, '', symbol))
+          .join('')}<button type="button" data-action="logout">${icon('log-out')}退出登录</button></div></details>`
+      : button('open-login', '登录', 'log-in', '', 'v6-btn primary')
+    header.innerHTML = `<div class="header-inner"><a class="brand" href="#/home" aria-label="aitokensflux 首页"><span class="brand-mark" aria-hidden="true">${BRAND_MARK}</span><span class="brand-word">aitokens<em>flux</em></span></a><button class="header-search" data-action="search" aria-label="搜索模型与页面">${icon('search')}<span>搜索</span><span class="keycap">⌘ K</span></button><nav class="primary-nav" aria-label="主导航">${link('models', '模型', 'nav-link ' + (['models', 'discover', 'providers'].includes(route.split('/')[0]) ? 'active' : ''))}${link('chat', '聊天', 'nav-link ' + (route === 'chat' ? 'active' : ''))}${link('rankings', '排行榜', 'nav-link ' + (route === 'rankings' ? 'active' : ''))}${link('pricing', '价格', 'nav-link ' + (route === 'pricing' ? 'active' : ''))}${link('docs', '文档', 'nav-link ' + (route === 'docs' ? 'active' : ''))}</nav><div class="header-actions">${button('api-settings', platform.online ? '已连接' : '连接 Platform', '', 'aria-pressed="' + platform.online + '"', 'v6-btn')}${account}${button('mobile-menu', '', 'menu', 'aria-label="打开菜单"', 'v6-btn v6-icon-btn v6-mobile-menu')}</div></div>`
   }
   function footer() {
-    return `<footer class="v6-footer"><div><a href="#/home" class="brand"><span class="brand-mark" aria-hidden="true">${BRAND_MARK}</span><span class="brand-word">aitokens<em>flux</em></span></a><p class="v6-small v6-muted">一个 API，连接多种模型。</p><span class="v6-badge">V6 Demo · 本地演示数据</span></div><div><h3>产品</h3>${link('models', '模型目录', '')}${link('discover', '发现模型', '')}${link('rankings', '排行榜', '')}${link('providers', '提供商', '')}</div><div><h3>开发者</h3>${link('docs', '文档', '')}${link('chat', '聊天试用', '')}${link('console/keys', 'API Keys', '')}</div><div><h3>账户</h3>${link('pricing', '价格', '')}${link('console', '用量概览', '')}${link('console/credits', '余额与账单', '')}${link('console/settings', '设置', '')}</div></footer>`
+    return `<footer class="v6-footer"><div><a href="#/home" class="brand"><span class="brand-mark" aria-hidden="true">${BRAND_MARK}</span><span class="brand-word">aitokens<em>flux</em></span></a><p class="v6-small v6-muted">一个 API，连接多种模型。</p><span class="v6-badge">${catalogLive ? '平台目录' : '演示目录'}</span></div><div><h3>产品</h3>${link('models', '模型目录', '')}${link('discover', '发现模型', '')}${link('rankings', '排行榜', '')}${link('providers', '提供商', '')}</div><div><h3>开发者</h3>${link('docs', '文档', '')}${link('chat', '聊天试用', '')}${link('console/keys', 'API Keys', '')}</div><div><h3>账户</h3>${link('pricing', '价格', '')}${link('console', '用量概览', '')}${link('console/credits', '余额与账单', '')}${link('console/settings', '设置', '')}</div></footer>`
   }
 
   function renderHome() {
@@ -828,7 +868,7 @@
       group(
         '提供商',
         'server',
-        hostNames
+        currentHosts()
           .map((host) =>
             check('host', host, esc(host), catalogFilter.host.split(',').includes(host)),
           )
@@ -964,7 +1004,8 @@
                 ? a.name.localeCompare(b.name)
                 : b.date.localeCompare(a.date),
     )
-    document.getElementById('model-count').textContent = `${list.length} 个模型 · 演示目录`
+    document.getElementById('model-count').textContent = `${list.length} 个模型 · ${catalogLive ? '平台目录' : '演示目录（Platform 不可用）'}`
+    document.getElementById('model-count').dataset.catalogSource = catalogLive ? 'platform' : 'mock'
     document.getElementById('model-results').innerHTML = !list.length
       ? empty(
           '没有找到模型',
@@ -1007,6 +1048,7 @@
   }
 
   function codeExample(model, language = 'python') {
+    const baseURL = (typeof SkinAPI === 'undefined' ? 'http://localhost:3000' : SkinAPI.getBase()) + '/v1'
     const endpoint =
       model.outputs[0] === 'embeddings'
         ? 'embeddings'
@@ -1023,11 +1065,11 @@
           : { model: model.slug, messages: [{ role: 'user', content: 'Hello, world!' }] }
     if (language === 'curl')
       return endpoint === 'audio/transcriptions'
-        ? `curl https://api.example.com/v1/${endpoint} \\\n  -H "Authorization: Bearer $TOKENFLUX_API_KEY" \\\n  -F "model=${model.slug}" \\\n  -F "file=@audio.wav"`
-        : `curl https://api.example.com/v1/${endpoint} \\\n  -H "Authorization: Bearer $TOKENFLUX_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify(payload, null, 2)}'`
+        ? `curl ${baseURL}/${endpoint} \\\n  -H "Authorization: Bearer $TOKENFLUX_API_KEY" \\\n  -F "model=${model.slug}" \\\n  -F "file=@audio.wav"`
+        : `curl ${baseURL}/${endpoint} \\\n  -H "Authorization: Bearer $TOKENFLUX_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify(payload, null, 2)}'`
     if (language === 'javascript')
-      return `import OpenAI${endpoint === 'audio/transcriptions' ? ', { toFile }' : ''} from 'openai'\n${endpoint === 'audio/transcriptions' ? "import fs from 'node:fs'\n" : ''}\nconst client = new OpenAI({\n  baseURL: 'https://api.example.com/v1',\n  apiKey: process.env.TOKENFLUX_API_KEY\n})\n\nconst response = await client.${endpoint === 'embeddings' ? 'embeddings.create' : endpoint === 'images/generations' ? 'images.generate' : endpoint === 'audio/transcriptions' ? 'audio.transcriptions.create' : 'chat.completions.create'}(${endpoint === 'audio/transcriptions' ? `{ model: '${model.slug}', file: fs.createReadStream('audio.wav') }` : JSON.stringify(payload, null, 2)})\nconsole.log(response)`
-    return `import os\nfrom openai import OpenAI\n\nclient = OpenAI(\n    base_url="https://api.example.com/v1",\n    api_key=os.environ["TOKENFLUX_API_KEY"]\n)\n\nresponse = client.${endpoint === 'embeddings' ? 'embeddings.create' : endpoint === 'images/generations' ? 'images.generate' : endpoint === 'audio/transcriptions' ? 'audio.transcriptions.create' : 'chat.completions.create'}(\n    model="${model.slug}",\n    ${endpoint === 'embeddings' ? 'input="Hello, world!"' : endpoint === 'images/generations' ? 'prompt="A sunlit mountain landscape"' : endpoint === 'audio/transcriptions' ? 'file=open("audio.wav", "rb")' : 'messages=[{"role": "user", "content": "Hello, world!"}]'}\n)\nprint(response)`
+      return `import OpenAI${endpoint === 'audio/transcriptions' ? ', { toFile }' : ''} from 'openai'\n${endpoint === 'audio/transcriptions' ? "import fs from 'node:fs'\n" : ''}\nconst client = new OpenAI({\n  baseURL: '${baseURL}',\n  apiKey: process.env.TOKENFLUX_API_KEY\n})\n\nconst response = await client.${endpoint === 'embeddings' ? 'embeddings.create' : endpoint === 'images/generations' ? 'images.generate' : endpoint === 'audio/transcriptions' ? 'audio.transcriptions.create' : 'chat.completions.create'}(${endpoint === 'audio/transcriptions' ? `{ model: '${model.slug}', file: fs.createReadStream('audio.wav') }` : JSON.stringify(payload, null, 2)})\nconsole.log(response)`
+    return `import os\nfrom openai import OpenAI\n\nclient = OpenAI(\n    base_url="${baseURL}",\n    api_key=os.environ["TOKENFLUX_API_KEY"]\n)\n\nresponse = client.${endpoint === 'embeddings' ? 'embeddings.create' : endpoint === 'images/generations' ? 'images.generate' : endpoint === 'audio/transcriptions' ? 'audio.transcriptions.create' : 'chat.completions.create'}(\n    model="${model.slug}",\n    ${endpoint === 'embeddings' ? 'input="Hello, world!"' : endpoint === 'images/generations' ? 'prompt="A sunlit mountain landscape"' : endpoint === 'audio/transcriptions' ? 'file=open("audio.wav", "rb")' : 'messages=[{"role": "user", "content": "Hello, world!"}]'}\n)\nprint(response)`
   }
   function codeBlock(model) {
     return `<div class="v6-code" data-code-model="${model.id}"><div class="v6-code-head"><div class="v6-segment" aria-label="代码语言">${['python', 'javascript', 'curl'].map((language, index) => `<button type="button" data-action="code-language" data-value="${language}" aria-pressed="${index === 0}" class="${index === 0 ? 'active' : ''}">${language === 'curl' ? 'cURL' : language === 'python' ? 'Python' : 'JavaScript'}</button>`).join('')}</div>${iconButton('copy-code', '复制代码', 'copy')}</div><pre><code>${esc(codeExample(model))}</code></pre></div>`
@@ -1037,9 +1079,9 @@
       name,
       input: model.inputRate * (1 + index * 0.015),
       output: model.outputRate * (1 + index * 0.015),
-      latency: parseInt(model.latency, 10) * (1 + index * 0.12) * (percentile / 50),
-      throughput: Math.max(1, parseInt(model.throughput, 10) - index * 6),
-      uptime: parseFloat(model.uptime) - index * 0.01,
+      latency: (Number.parseInt(model.latency, 10) || 0) * (1 + index * 0.12) * (percentile / 50),
+      throughput: Math.max(1, (Number.parseInt(model.throughput, 10) || 1) - index * 6),
+      uptime: (Number.parseFloat(model.uptime) || 0) - index * 0.01,
     }))
     rows.sort((a, b) =>
       sort === 'throughput' || sort === 'uptime' ? b[sort] - a[sort] : a[sort] - b[sort],
@@ -1061,6 +1103,10 @@
   }
   function renderDetail(id) {
     const model = getModel(id)
+    if (!model) {
+      app.innerHTML = `<div class="v6-shell">${empty(catalogReady ? '没有这个模型' : '正在读取模型', catalogReady ? '它不在当前目录中。' : '正在从 Platform 加载目录。', catalogReady ? link('models', '返回目录', 'v6-btn') : '')}</div>`
+      return
+    }
     const sections = [
       ['providers', '提供商', 'server'],
       ['pricing', '价格', 'circle-dollar-sign'],
@@ -1070,7 +1116,7 @@
       ['faq', '常见问题', 'circle-help'],
       ['explore', '相关模型', 'compass'],
     ]
-    app.innerHTML = `<div class="v6-shell"><header class="v6-detail-head"><div class="v6-title"><div><div class="v6-row">${logo(model.provider)}<h1>${esc(model.provider + ': ' + model.name)}</h1></div><div class="v6-row v6-slug"><span>${esc(model.slug)}</span>${iconButton('copy', '复制模型 ID', 'copy', `data-copy="${model.slug}"`)}${pin(model)}</div></div><div class="v6-row v6-wrap">${model.outputs.includes('text') ? link('chat?model=' + model.id, '聊天试用', 'v6-btn', 'flask-conical') : link('models/' + model.id + '?section=api', '调用示例', 'v6-btn', 'code')}${link('console/keys', '获取 API Key', 'v6-btn primary', 'key-round')}</div></div><p class="v6-detail-description">${esc(model.description)}</p><div class="v6-stats">${stat('输入 / 输出模态', `<span class="v6-row">${model.inputs.map((value) => `<span title="${modalityNames[value]}">${icon(modalityIcons[value])}</span>`).join('')}${icon('arrow-right')}${icon(modalityIcons[model.outputs[0]])}</span>`)}${stat('输入 / 输出价格', model.imagePrice || model.audioPrice ? modelPrice(model) : money(model.inputRate) + ' / ' + money(model.outputRate), model.imagePrice || model.audioPrice ? '' : '每百万 tokens')}${stat('上下文长度', model.context)}${stat('发布日期', model.date)}</div></header><div class="v6-section-layout">${sectionNav(sections)}<div>${section('providers', '提供商', `此模型由 ${model.hosts.length} 个提供商提供服务。可按价格、延迟、吞吐和可用性查看路由。`, `<div class="v6-toolbar"><span class="v6-badge">演示指标</span><label class="v6-row v6-small" style="margin-left:auto">延迟分位数<select class="v6-select" id="provider-percentile"><option value="50">P50</option><option value="90">P90</option><option value="99">P99</option></select></label></div><div id="provider-table" data-sort="latency">${providerTable(model)}</div>`)}${section('pricing', '价格', '模型费率与单次调用成本。价格使用演示目录中的固定数据。', `<div class="v6-stat-band"><div><small>${model.imagePrice ? '每张图像' : model.audioPrice ? '每分钟音频' : '输入 / 百万 tokens'}</small><strong>${money(model.imagePrice || model.audioPrice || model.inputRate)}</strong></div>${!model.imagePrice && !model.audioPrice ? `<div><small>输出 / 百万 tokens</small><strong>${money(model.outputRate)}</strong></div>` : ''}</div>${!model.imagePrice && !model.audioPrice ? `<div class="v6-row v6-wrap"><label class="v6-form-label">输入 tokens<input class="v6-input" type="number" min="0" max="10000000" id="estimate-input" value="2000"></label><label class="v6-form-label">输出 tokens<input class="v6-input" type="number" min="0" max="1000000" id="estimate-output" value="800" ${model.outputs[0] === 'embeddings' ? 'disabled' : ''}></label><div><span class="v6-muted v6-small">预计单次成本</span><h3 id="estimate-cost">${money((model.inputRate * 2000 + model.outputRate * 800) / 1e6)}</h3></div></div>` : ''}`)}${section('performance', '性能', '吞吐量越高，生成越快；首 token 延迟越低，等待越短。', `<div class="v6-stat-band"><div><small>吞吐量</small><strong>${model.throughput}</strong></div><div><small>首 token 延迟</small><strong>${model.latency}</strong></div></div><div class="v6-row v6-between"><h3>吞吐量趋势</h3><select class="v6-select" data-chart-period="detail-performance" aria-label="性能统计周期"><option value="7">最近 7 天</option><option value="30">最近 30 天</option></select></div>${chart('detail-performance', 'performance')}`)}${section('uptime', '可用性', '最近 30 天的服务状态，所有指标为演示样本。', `<div class="v6-row v6-between"><h3>${model.uptime}</h3><span class="v6-badge green">服务正常</span></div><div class="v6-uptime" role="img" aria-label="最近30天每日可用性">${Array.from({ length: 30 }, (_, index) => `<i title="${index + 1} 日：${index === 12 ? '99.5%' : '100%'}" class="${index === 12 ? 'warn' : ''}"></i>`).join('')}</div><div class="v6-row v6-between v6-small v6-muted"><span>30 天前</span><span>今天</span></div>`)}${section('api', 'API 调用', '使用 OpenAI 兼容 SDK。以下 Base URL 为示例地址，接入时替换为你的实际服务地址。', codeBlock(model))}${section('faq', '常见问题', '', `<details class="v6-faq"><summary>这个模型支持哪些输入？</summary><p>支持${model.inputs.map((value) => modalityNames[value]).join('、')}输入，输出类型为${modalityNames[model.outputs[0]]}。</p></details><details class="v6-faq"><summary>如何选择提供商？</summary><p>可在提供商列表中查看性能指标。实际请求的路由取决于服务端配置、可用性和账户策略。</p></details><details class="v6-faq"><summary>免费模型有什么限制？</summary><p>免费变体通常有请求频率和每日用量限制，适合试验和评估。具体限制以服务提供商为准。</p></details>`)}${section(
+    app.innerHTML = `<div class="v6-shell"><header class="v6-detail-head"><div class="v6-title"><div><div class="v6-row">${logo(model.provider)}<h1>${esc(model.provider + ': ' + model.name)}</h1></div><div class="v6-row v6-slug"><span>${esc(model.slug)}</span>${iconButton('copy', '复制模型 ID', 'copy', `data-copy="${model.slug}"`)}${pin(model)}</div></div><div class="v6-row v6-wrap">${model.outputs.includes('text') ? link('chat?model=' + encodeURIComponent(model.id), '聊天试用', 'v6-btn', 'flask-conical') : link('models/' + encodeURIComponent(model.id) + '?section=api', '调用示例', 'v6-btn', 'code')}${link('console/keys', '获取 API Key', 'v6-btn primary', 'key-round')}</div></div><p class="v6-detail-description">${esc(model.description)}</p><div class="v6-stats">${stat('输入 / 输出模态', `<span class="v6-row">${model.inputs.map((value) => `<span title="${modalityNames[value]}">${icon(modalityIcons[value])}</span>`).join('')}${icon('arrow-right')}${icon(modalityIcons[model.outputs[0]])}</span>`)}${stat('输入 / 输出价格', model.imagePrice || model.audioPrice ? modelPrice(model) : money(model.inputRate) + ' / ' + money(model.outputRate), model.imagePrice || model.audioPrice ? '' : '每百万 tokens')}${stat('上下文长度', model.context)}${stat('发布日期', model.date)}</div></header><div class="v6-section-layout">${sectionNav(sections)}<div>${section('providers', '提供商', `此模型由 ${model.hosts.length} 个提供商提供服务。可按价格、延迟、吞吐和可用性查看路由。`, `<div class="v6-toolbar"><span class="v6-badge">演示指标</span><label class="v6-row v6-small" style="margin-left:auto">延迟分位数<select class="v6-select" id="provider-percentile"><option value="50">P50</option><option value="90">P90</option><option value="99">P99</option></select></label></div><div id="provider-table" data-sort="latency">${providerTable(model)}</div>`)}${section('pricing', '价格', '模型费率与单次调用成本。价格使用演示目录中的固定数据。', `<div class="v6-stat-band"><div><small>${model.imagePrice ? '每张图像' : model.audioPrice ? '每分钟音频' : '输入 / 百万 tokens'}</small><strong>${money(model.imagePrice || model.audioPrice || model.inputRate)}</strong></div>${!model.imagePrice && !model.audioPrice ? `<div><small>输出 / 百万 tokens</small><strong>${money(model.outputRate)}</strong></div>` : ''}</div>${!model.imagePrice && !model.audioPrice ? `<div class="v6-row v6-wrap"><label class="v6-form-label">输入 tokens<input class="v6-input" type="number" min="0" max="10000000" id="estimate-input" value="2000"></label><label class="v6-form-label">输出 tokens<input class="v6-input" type="number" min="0" max="1000000" id="estimate-output" value="800" ${model.outputs[0] === 'embeddings' ? 'disabled' : ''}></label><div><span class="v6-muted v6-small">预计单次成本</span><h3 id="estimate-cost">${money((model.inputRate * 2000 + model.outputRate * 800) / 1e6)}</h3></div></div>` : ''}`)}${section('performance', '性能', '吞吐量越高，生成越快；首 token 延迟越低，等待越短。', `<div class="v6-stat-band"><div><small>吞吐量</small><strong>${model.throughput}</strong></div><div><small>首 token 延迟</small><strong>${model.latency}</strong></div></div><div class="v6-row v6-between"><h3>吞吐量趋势</h3><select class="v6-select" data-chart-period="detail-performance" aria-label="性能统计周期"><option value="7">最近 7 天</option><option value="30">最近 30 天</option></select></div>${chart('detail-performance', 'performance')}`)}${section('uptime', '可用性', '最近 30 天的服务状态，所有指标为演示样本。', `<div class="v6-row v6-between"><h3>${model.uptime}</h3><span class="v6-badge green">服务正常</span></div><div class="v6-uptime" role="img" aria-label="最近30天每日可用性">${Array.from({ length: 30 }, (_, index) => `<i title="${index + 1} 日：${index === 12 ? '99.5%' : '100%'}" class="${index === 12 ? 'warn' : ''}"></i>`).join('')}</div><div class="v6-row v6-between v6-small v6-muted"><span>30 天前</span><span>今天</span></div>`)}${section('api', 'API 调用', '使用 OpenAI 兼容 SDK。以下 Base URL 为示例地址，接入时替换为你的实际服务地址。', codeBlock(model))}${section('faq', '常见问题', '', `<details class="v6-faq"><summary>这个模型支持哪些输入？</summary><p>支持${model.inputs.map((value) => modalityNames[value]).join('、')}输入，输出类型为${modalityNames[model.outputs[0]]}。</p></details><details class="v6-faq"><summary>如何选择提供商？</summary><p>可在提供商列表中查看性能指标。实际请求的路由取决于服务端配置、可用性和账户策略。</p></details><details class="v6-faq"><summary>免费模型有什么限制？</summary><p>免费变体通常有请求频率和每日用量限制，适合试验和评估。具体限制以服务提供商为准。</p></details>`)}${section(
       'explore',
       '相关模型',
       '',
@@ -1188,7 +1234,7 @@
   }
   function filterProviders() {
     const query = document.getElementById('provider-search').value.toLowerCase()
-    const list = hostNames.filter(
+    const list = currentHosts().filter(
       (name) =>
         name.toLowerCase().includes(query) &&
         (!document.getElementById('provider-zdr').checked || name !== 'DeepSeek'),
@@ -1283,7 +1329,8 @@
   }
 
   function renderChat() {
-    const requestedModel = getModel(params.get('model'))
+    const requested = params.get('model')
+    const requestedModel = requested ? getModel(decodeURIComponent(requested)) : null
     if (requestedModel?.outputs.includes('text')) {
       state.chatModels = [requestedModel.id]
       roomId = ''
@@ -1293,8 +1340,15 @@
       save()
     }
     const room = state.rooms.find((item) => item.id === roomId)
-    if (room) state.chatModels = room.models
-    app.innerHTML = `<div class="v6-chat"><aside class="v6-chat-sidebar" id="chat-sidebar"><div class="v6-row v6-between"><h3>聊天</h3>${iconButton('chat-sidebar-close', '关闭会话列表', 'panel-left-close')}</div>${button('new-chat', '新建会话', 'square-pen')}${search('room-search', '搜索会话…')}<div class="v6-chat-rooms" id="chat-rooms"></div><span class="v6-badge">本地演示会话</span></aside><div class="v6-chat-workspace"><div class="v6-chat-head">${button('chat-sidebar', '', 'panel-left', 'aria-label="会话列表"', 'v6-btn v6-icon-btn v6-mobile-menu')}${button('choose-model', '添加模型', 'plus')}${state.chatModels.map((id) => `<span class="v6-badge green">${esc(getModel(id)?.name || id)}${iconButton('remove-chat-model', '移除此模型', 'x', `data-id="${id}"`)}</span>`).join('')}<span style="margin-left:auto">${iconButton('chat-settings', '聊天设置', 'settings')}</span></div><div class="v6-chat-body" id="chat-body"></div><div class="v6-compose"><form id="chat-form"><textarea id="chat-prompt" aria-label="消息" placeholder="输入消息…" rows="2" maxlength="12000">${esc(draftPrompt)}</textarea><div class="v6-row v6-between"><span class="v6-badge">${state.chatModels.length} 个模型</span>${chatPending ? button('stop-chat', '', 'square', 'aria-label="停止生成"', 'v6-btn primary v6-icon-btn') : '<button class="v6-btn primary v6-icon-btn" type="submit" aria-label="发送消息" title="发送消息">' + icon('arrow-up') + '</button>'}</div></form><div class="v6-compose-note">本地演示回复，不调用真实模型，也不产生费用。</div></div></div></div>`
+    if (room) state.chatModels = room.models.filter((id) => getModel(id))
+    if (!state.chatModels.length) {
+      const first = models.find((model) => model.outputs.includes('text'))
+      if (first) state.chatModels = [first.id]
+    }
+    const keys = Object.values(SkinAPI.knownKeys())
+    if (!state.activeKeyId || !keys.some((item) => item.id === state.activeKeyId))
+      state.activeKeyId = keys[0]?.id || ''
+    app.innerHTML = `<div class="v6-chat"><aside class="v6-chat-sidebar" id="chat-sidebar"><div class="v6-row v6-between"><h3>聊天</h3>${iconButton('chat-sidebar-close', '关闭会话列表', 'panel-left-close')}</div>${button('new-chat', '新建会话', 'square-pen')}${search('room-search', '搜索会话…')}<div class="v6-chat-rooms" id="chat-rooms"></div><span class="v6-badge">${catalogLive ? 'Platform 模型' : '演示目录'}</span></aside><div class="v6-chat-workspace"><div class="v6-chat-head">${button('chat-sidebar', '', 'panel-left', 'aria-label="会话列表"', 'v6-btn v6-icon-btn v6-mobile-menu')}${button('choose-model', '添加模型', 'plus')}${state.chatModels.map((id) => `<span class="v6-badge green" data-chat-model="${esc(id)}">${esc(getModel(id)?.slug || id)}${iconButton('remove-chat-model', '移除此模型', 'x', `data-id="${esc(id)}"`)}</span>`).join('')}<label class="v6-check" style="margin-left:auto"><input type="checkbox" id="chat-stream" ${state.stream === false ? '' : 'checked'}>流式</label><select class="v6-select" id="chat-key" aria-label="API Key">${keys.map((item) => `<option value="${esc(item.id)}" ${item.id === state.activeKeyId ? 'selected' : ''}>${esc(item.name)}</option>`).join('')}<option value="__paste">粘贴密钥…</option></select>${iconButton('chat-settings', '聊天设置', 'settings')}</div><div class="v6-chat-body" id="chat-body"></div><div class="v6-compose"><form id="chat-form"><textarea id="chat-prompt" aria-label="消息" placeholder="输入消息…" rows="2" maxlength="12000">${esc(draftPrompt)}</textarea><div class="v6-row v6-between"><span class="v6-badge">${state.chatModels.length} 个模型 · 同一 Key</span>${chatPending ? button('stop-chat', '', 'square', 'aria-label="停止生成"', 'v6-btn primary v6-icon-btn') : '<button class="v6-btn primary v6-icon-btn" type="submit" aria-label="发送消息" title="发送消息">' + icon('arrow-up') + '</button>'}</div></form><div class="v6-compose-note">请求发往 ${esc(SkinAPI.getBase())}/v1/chat/completions，使用所选 sk- 密钥。</div></div></div></div>`
     renderChatRooms()
     renderChatBody()
   }
@@ -1310,37 +1364,46 @@
           .join('')
       : '<p class="v6-small v6-muted" style="text-align:center;margin-top:50px">暂无匹配会话</p>'
   }
+  function chatPresets() {
+    const text = models.filter((model) => model.outputs.includes('text'))
+    const pick = (index) => text[index] || text[0]
+    if (!text.length) return []
+    return [
+      ['第一个模型', [pick(0).id]],
+      ['对比两个模型', [pick(0).id, pick(1)?.id].filter(Boolean)],
+      ['换一个模型', [pick(Math.min(2, text.length - 1)).id]],
+    ]
+  }
   function renderChatBody() {
     const body = document.getElementById('chat-body')
     if (!body) return
     const room = state.rooms.find((item) => item.id === roomId)
     body.innerHTML = room?.messages.length
       ? room.messages
-          .map(
-            (message) =>
-              `<div class="v6-message user"><strong class="v6-small">你</strong><p>${esc(message.prompt)}</p></div><div class="v6-message v6-responses" style="--response-columns:${message.responses.length || 1}">${message.responses.map((response) => `<article class="v6-response"><div class="v6-row">${logo(getModel(response.model)?.provider || 'Model')}<strong class="v6-small">${esc(getModel(response.model)?.name || response.model)}</strong></div><p>${esc(response.text)}</p><div class="v6-row">${iconButton('copy', '复制回复', 'copy', `data-copy="${esc(response.text)}"`)}<span class="v6-muted v6-small">演示回复</span></div></article>`).join('')}${message.pending ? '<p class="v6-muted" role="status">正在准备演示回复…</p>' : ''}${message.stopped ? '<p class="v6-muted v6-small">已停止生成</p>' : ''}</div>`,
-          )
+          .map((message) => {
+            const responses = message.responses
+              .map((response) => {
+                const model = getModel(response.model)
+                const modelId = model?.slug || response.model
+                return `<article class="v6-response" data-response-model="${esc(modelId)}"><div class="v6-row">${logo(model?.provider || 'Model')}<strong class="v6-small">${esc(model?.name || response.model)}</strong><span class="v6-muted v6-small mono">${esc(modelId)}</span></div><p class="${response.error ? 'v6-chat-error' : ''}">${esc(response.text)}</p><div class="v6-row">${iconButton('copy', '复制回复', 'copy', `data-copy="${esc(response.text)}"`)}<span class="v6-muted v6-small">${response.error ? '请求失败' : response.pending ? '生成中' : 'Platform'}</span></div></article>`
+              })
+              .join('')
+            return `<div class="v6-message user"><strong class="v6-small">你</strong><p>${esc(message.prompt)}</p></div><div class="v6-message v6-responses" style="--response-columns:${message.responses.length || 1}">${responses}${message.pending && !message.responses.length ? '<p class="v6-muted" role="status">正在请求模型…</p>' : ''}${message.stopped ? '<p class="v6-muted v6-small">已停止生成</p>' : ''}</div>`
+          })
           .join('')
-      : `<div class="v6-chat-welcome"><h2>今天想探索什么？</h2><div class="v6-grid-2">${[
-          ['旗舰模型', 'claude-3.7,gpt-4.1'],
-          ['编程助手', 'claude-3.7,deepseek-v3'],
-          ['长文档理解', 'gemini-2.5,gpt-4.1'],
-          ['推理模型', 'o3-mini,qwen-3'],
-        ]
+      : `<div class="v6-chat-welcome"><h2>用同一把 Key 切换模型</h2><div class="v6-grid-2">${chatPresets()
           .map(
             ([title, ids]) =>
-              `<button class="v6-item" data-action="chat-preset" data-value="${ids}"><h3>${title}</h3><div class="v6-row">${ids
-                .split(',')
-                .map((id) => logo(getModel(id).provider))
-                .join('')}</div></button>`,
+              `<button class="v6-item" data-action="chat-preset" data-value="${esc(ids.join(','))}"><h3>${title}</h3><div class="v6-row">${ids
+                .map((id) => logo(getModel(id)?.provider || 'Model'))
+                .join('')}</div><span class="v6-muted v6-small">${esc(ids.map((id) => getModel(id)?.slug || id).join(' · '))}</span></button>`,
           )
-          .join(
-            '',
-          )}</div><div class="v6-row v6-wrap" style="margin-top:24px">${['解释模型路由', '写一个 Python 快速排序', '制定一份学习计划'].map((prompt) => button('prompt-example', esc(prompt), '', `data-value="${esc(prompt)}"`, 'v6-btn ghost')).join('')}</div></div>`
+          .join('')}</div><div class="v6-row v6-wrap" style="margin-top:24px">${['用一句话介绍你自己', '写一个 Python 快速排序', '当前模型 id 是什么'].map((prompt) => button('prompt-example', esc(prompt), '', `data-value="${esc(prompt)}"`, 'v6-btn ghost')).join('')}</div></div>`
     body.scrollTop = body.scrollHeight
   }
   function stopChat() {
-    clearTimeout(chatTimer)
+    chatAbort?.abort()
+    chatAbort = null
     chatGeneration++
     chatPending = false
     state.rooms.forEach((room) =>
@@ -1348,14 +1411,34 @@
         if (message.pending) {
           message.pending = false
           message.stopped = true
+          message.responses.forEach((response) => {
+            response.pending = false
+          })
         }
       }),
     )
     save()
   }
-  function sendChat() {
-    const prompt = document.getElementById('chat-prompt').value.trim()
+  function chatKeySecret() {
+    const selected = document.getElementById('chat-key')?.value || state.activeKeyId
+    return SkinAPI.knownKeys()[selected]?.secret || ''
+  }
+  function patchChatResponse(modelId, text, failed) {
+    const node = document.querySelector(`[data-response-model="${CSS.escape(modelId)}"] p`)
+    if (!node) return false
+    node.textContent = text
+    node.classList.toggle('v6-chat-error', Boolean(failed))
+    return true
+  }
+  async function sendChat() {
+    const prompt = document.getElementById('chat-prompt')?.value.trim()
     if (!prompt || chatPending) return
+    const secret = chatKeySecret()
+    if (!secret) {
+      toast('先创建 API Key，或在右上角粘贴 sk- 密钥')
+      document.getElementById('chat-key')?.focus()
+      return
+    }
     let room = state.rooms.find((item) => item.id === roomId)
     if (!room) {
       room = {
@@ -1369,39 +1452,80 @@
     }
     state.activeRoom = room.id
     room.models = [...state.chatModels]
-    const message = { prompt, responses: [], pending: true }
+    const chosen = state.chatModels
+      .map((id) => getModel(id))
+      .filter((model) => model && model.outputs.includes('text'))
+    if (!chosen.length) {
+      toast('请选择一个可对话的模型')
+      return
+    }
+    const message = {
+      prompt,
+      pending: true,
+      responses: chosen.map((model) => ({
+        model: model.id,
+        text: '',
+        pending: true,
+        error: false,
+      })),
+    }
     room.messages.push(message)
     draftPrompt = ''
     chatPending = true
     const generation = ++chatGeneration
-    const chosenModels = [...state.chatModels]
+    const stream = document.getElementById('chat-stream')?.checked !== false
+    state.stream = stream
     save()
     params.delete('model')
     history.replaceState(null, '', '#/chat')
     renderChat()
-    chatTimer = setTimeout(() => {
-      if (generation !== chatGeneration) return
-      message.pending = false
-      message.responses = chosenModels.map((id) => {
-        const model = getModel(id)
-        let text = '这是一条本地预设演示回复。你的消息已保存在当前会话中。\n\n'
-        if (/路由/.test(prompt))
-          text +=
-            '模型路由会在能够提供同一模型的服务商之间分发请求，通常结合可用性、延迟和价格进行选择；当某条路由暂时不可用时，可以按策略切换到其他提供商。'
-        else if (/排序/.test(prompt))
-          text +=
-            '快速排序先选择一个基准值，把其余元素划分为小于和大于基准的两组，再递归排序并合并。平均时间复杂度为 O(n log n)。'
-        else if (/计划/.test(prompt))
-          text +=
-            '1. 明确学习目标与当前基础。\n2. 将内容拆分为每周的小任务。\n3. 安排实践练习和定期复盘。\n4. 根据结果调整下一阶段目标。'
-        else
-          text += `当前选择的是 ${model.name}，支持 ${model.context} 上下文。可以继续发送消息、切换模型，或在模型详情中查看调用示例。`
-        return { model: id, text }
-      })
-      chatPending = false
-      save()
-      if (route === 'chat') renderChat()
-    }, 600)
+    const controller = new AbortController()
+    chatAbort = controller
+    await Promise.all(
+      chosen.map(async (model) => {
+        const response = message.responses.find((item) => item.model === model.id)
+        const historyMessages = []
+        room.messages.forEach((item) => {
+          historyMessages.push({ role: 'user', content: item.prompt })
+          if (item === message) return
+          const previous = item.responses.find((entry) => entry.model === model.id && !entry.error)
+          if (previous?.text) historyMessages.push({ role: 'assistant', content: previous.text })
+        })
+        try {
+          const text = await SkinAPI.chat({
+            model: model.slug,
+            messages: historyMessages,
+            stream,
+            temperature: Number(state.temperature),
+            apiKey: secret,
+            signal: controller.signal,
+            onDelta(next) {
+              if (generation !== chatGeneration) return
+              response.text = next
+              response.pending = true
+              if (!patchChatResponse(model.slug, next, false) && route === 'chat') renderChatBody()
+            },
+          })
+          response.text = text
+          response.error = false
+        } catch (error) {
+          if (controller.signal.aborted || error?.name === 'AbortError') {
+            response.pending = false
+            return
+          }
+          response.error = true
+          response.text = error?.message || '对话失败'
+        } finally {
+          response.pending = false
+        }
+      }),
+    )
+    if (generation !== chatGeneration) return
+    message.pending = false
+    chatPending = false
+    chatAbort = null
+    save()
+    if (route === 'chat') renderChat()
   }
 
   function accountNav() {
@@ -1514,7 +1638,10 @@
       .join('')}</div>`
   }
   function pageKeys() {
-    return `${head('API Keys', '创建和管理你的 API 密钥。', button('create-key', '新建密钥', 'plus', '', 'v6-btn primary'))}${search('key-search', '搜索密钥…')}<div id="key-results" style="margin-top:20px"></div>`
+    if (!platform.authed) {
+      return `${head('API Keys', '登录 Platform 后创建密钥。完整密钥只在创建时展示一次。', button('open-login', '登录', 'log-in', '', 'v6-btn primary'))}${empty('需要登录', '注册或登录后，密钥会通过 /api/token 创建，并绑定到全模型分组。', button('open-login', '登录', 'log-in'))}`
+    }
+    return `${head('API Keys', '创建和管理 Platform 密钥。模型限制关闭，分组为全模型分组' + (platform.group ? '（' + esc(platform.group) + '）' : '') + '。', button('create-key', '新建密钥', 'plus', '', 'v6-btn primary'))}${search('key-search', '搜索密钥…')}<div id="key-results" style="margin-top:20px"></div>`
   }
   function pageCredits() {
     return `${head('余额', '个人账户余额与充值。', `<button class="v6-btn ghost" data-action="refresh-credits">${icon('refresh-cw')}刷新</button>`)}${card('可用余额', '', `<div class="v6-balance">${money(state.balance)}</div><p class="v6-muted v6-small">按需付费余额</p>`, `${button('add-credits', '充值', 'plus', '', 'v6-btn primary')}${link('console/activity', '查看用量', 'v6-btn')}${link('pricing', '兑换优惠码', 'v6-link')}`)}${card('自动充值', '余额低于阈值时自动购买额度。', `<div class="v6-row v6-between"><span>当前未启用</span>${button('enable-autotopup', '启用', '', '', 'v6-btn')}</div>`)}${card('交易记录', '', `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>日期</th><th>类型</th><th>金额</th><th>状态</th></tr></thead><tbody>${state.transactions.map((item) => `<tr><td>${esc(item.date)}</td><td>${esc(item.type)}</td><td>${money(item.amount)}</td><td><span class="v6-badge green">${esc(item.status)}</span></td></tr>`).join('')}</tbody></table></div>`)}`
@@ -1570,7 +1697,10 @@
     return `${head('可观测性', '连接监控工具跟踪用量。')}${card('集成', '', `<p class="v6-muted">连接 Langfuse、Datadog 等以跟踪请求和用量。</p>`, button('add-observability', '添加集成', 'plus'))}`
   }
   function pageProfile() {
-    return `${head('个人资料', '管理你的账户信息。')}${card('账户', '', `${field('邮箱', '', `<input class="v6-input" value="demo@tokenflux.dev" disabled>`)}${field('显示名称', '', `<input class="v6-input" name="display-name" value="${esc(state.settings.name)}">`)}`, `<button class="v6-btn primary">保存</button>`)}`
+    if (!platform.authed)
+      return `${head('个人资料', '登录后显示 Platform 账户。', button('open-login', '登录', 'log-in', '', 'v6-btn primary'))}`
+    const user = platform.user || {}
+    return `${head('个人资料', '来自 GET /api/user/self。')}${card('账户', '', `${field('用户名', '', `<input class="v6-input" value="${esc(user.username || '')}" disabled>`)}${field('显示名称', '', `<input class="v6-input" value="${esc(user.display_name || user.username || '')}" disabled>`)}${field('用户 ID', '写入 localStorage.uid，并作为 New-API-User 请求头。', `<input class="v6-input" value="${esc(user.id ?? '')}" disabled>`)}${field('分组', '', `<input class="v6-input" value="${esc(user.group || platform.group || '')}" disabled>`)}`)}`
   }
   function pageLogs() {
     return `${head('日志', '最近的 API 请求日志。')}${card('请求日志', '', activityTable(activity.slice(0, 8)))}`
@@ -1582,7 +1712,7 @@
     return `${head('隐私', '控制数据和隐私设置。')}${card('数据策略', '', `${field('零数据保留', '优先使用不保留请求数据的提供商。', toggle('zdr', state.settings.zdr))}${field('允许提示词训练', '允许提供商使用你的提示词改进模型。', toggle('train', false))}`)}`
   }
   function pagePreferences() {
-    return `${head('偏好', '界面和默认行为设置。')}${card(
+    return `${head('偏好', '界面和 Platform 连接。')}${card('Platform', 'Skin 只通过 HTTP 调用独立的 Platform，不会嵌入其后台。', field('API Base URL', '例如 http://localhost:3000。跨域时 Platform 需允许本页来源携带 Cookie，并放行 New-API-User。', `<input class="v6-input" id="pref-api-base" value="${esc(SkinAPI.getBase())}">`), button('save-api-base', '保存并重连', '', '', 'v6-btn primary'))}${card(
       '显示',
       '',
       `${field('主题', '', `<select class="v6-select"><option>跟随系统</option><option>浅色</option><option>深色</option></select>`)}${field(
@@ -1595,21 +1725,43 @@
       )}`,
     )}`
   }
+  function quotaText(token) {
+    const unit = SkinAPI.quotaPerUnit()
+    if (token.unlimited_quota) return '无限额度'
+    const used = Number(token.used_quota || 0) / unit
+    const remain = Number(token.remain_quota || 0) / unit
+    return money(used) + ' / 剩余 ' + money(remain)
+  }
+  function expiryText(token) {
+    if (!token.expired_time || token.expired_time < 0) return '永不过期'
+    return new Date(token.expired_time * 1000).toLocaleString()
+  }
+  function accessText(token) {
+    if (!token.accessed_time) return '从未'
+    return new Date(token.accessed_time * 1000).toLocaleString()
+  }
+  function maskedKey(token) {
+    const value = token.key || ''
+    if (!value) return 'sk-••••'
+    return value.startsWith('sk-') ? value : 'sk-' + value
+  }
   function renderKeys() {
-    const query = document.getElementById('key-search').value.toLowerCase()
-    const list = state.keys.filter((key) => key.name.toLowerCase().includes(query))
-    document.getElementById('key-results').innerHTML = list.length
-      ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th></th><th>密钥</th><th>护栏</th><th>过期时间</th><th>最近使用</th><th>用量</th><th>限额</th><th></th></tr></thead><tbody>${list
+    const box = document.getElementById('key-results')
+    if (!box) return
+    const query = document.getElementById('key-search')?.value.toLowerCase() || ''
+    const list = (platform.tokens || []).filter((key) => key.name.toLowerCase().includes(query))
+    box.innerHTML = list.length
+      ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>密钥</th><th>分组</th><th>过期时间</th><th>最近使用</th><th>用量</th><th></th></tr></thead><tbody>${list
           .map((key) => {
-            const pct = Math.min(100, Math.round((key.used / key.limit) * 100))
-            return `<tr><td><input type="checkbox" aria-label="选择 ${esc(key.name)}"></td><td><strong>${esc(key.name)}</strong><div class="v6-muted mono">${esc(key.prefix)}</div></td><td><span class="v6-muted">无护栏</span></td><td>${esc(key.expiry)}</td><td>${key.lastUsed || '从未'}</td><td>${money(key.used)}</td><td><div class="v6-limit"><span class="v6-small">${pct}% · ${money(key.limit)}</span><div class="v6-limit-bar"><i style="width:${pct}%"></i></div></div></td><td><button class="v6-btn ghost" data-action="toggle-key" data-id="${key.id}" role="switch" aria-checked="${key.enabled}"><span class="v6-badge ${key.enabled ? 'green' : ''}">${key.enabled ? '已启用' : '已停用'}</span></button>${iconButton('edit-key', '编辑密钥', 'pencil', `data-id="${key.id}"`)}${iconButton('delete-key', '删除密钥', 'trash-2', `data-id="${key.id}"`)}</td></tr>`
+            const enabled = key.status === 1
+            return `<tr><td><strong>${esc(key.name)}</strong><div class="v6-muted mono">${esc(maskedKey(key))}</div></td><td>${esc(key.group || platform.group || '—')}<div class="v6-muted v6-small">${key.model_limits_enabled ? '已限制模型' : '不限制模型'}</div></td><td>${esc(expiryText(key))}</td><td>${esc(accessText(key))}</td><td>${quotaText(key)}</td><td><button class="v6-btn ghost" data-action="toggle-key" data-id="${esc(key.id)}" role="switch" aria-checked="${enabled}"><span class="v6-badge ${enabled ? 'green' : ''}">${enabled ? '已启用' : '已停用'}</span></button>${iconButton('edit-key', '编辑密钥', 'pencil', `data-id="${esc(key.id)}"`)}${iconButton('delete-key', '删除密钥', 'trash-2', `data-id="${esc(key.id)}"`)}</td></tr>`
           })
           .join(
             '',
-          )}</tbody></table><div class="v6-muted v6-small" style="margin-top:10px">${list.length} 个密钥</div></div>`
+          )}</tbody></table><div class="v6-muted v6-small" style="margin-top:10px">${list.length} 个密钥 · 完整密钥只在创建时出现一次</div></div>`
       : empty(
           '没有找到密钥',
-          '创建一个密钥以连接你的应用。',
+          '创建一个密钥后，明文只展示一次，并可用于聊天。',
           button('create-key', '创建密钥', 'plus'),
         )
   }
@@ -1645,12 +1797,126 @@
     dialog.close()
     if (dialogOpener?.isConnected) dialogOpener.focus()
   }
+  function expiryChoice(token) {
+    if (!token || !token.expired_time || token.expired_time < 0) return '永不过期'
+    const days = Math.round((token.expired_time * 1000 - Date.now()) / 86400000)
+    if (days > 300) return '1 年'
+    if (days > 60) return '90 天'
+    return '30 天'
+  }
+  function expirySeconds(label) {
+    const days = label === '30 天' ? 30 : label === '90 天' ? 90 : label === '1 年' ? 365 : 0
+    return days ? Math.floor(Date.now() / 1000) + days * 86400 : -1
+  }
   function keyDialog(id = '') {
-    const key = state.keys.find((item) => item.id === id)
+    const key = (platform.tokens || []).find((item) => String(item.id) === String(id))
     showDialog(
       key ? '编辑 API Key' : '创建 API Key',
-      `<form id="key-form" data-id="${id}"><label class="v6-form-label">名称<input class="v6-input" name="name" required maxlength="60" placeholder="例如 Production App" value="${esc(key?.name || '')}"></label><label class="v6-form-label">额度上限（USD）<input class="v6-input" name="limit" type="number" min="1" max="100000" step="0.01" required value="${key?.limit || 50}"></label><label class="v6-form-label">有效期<select class="v6-select" name="expiry">${['永不过期', '30 天', '90 天', '1 年'].map((value) => `<option ${key?.expiry === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label><p class="v6-small v6-muted">仅创建本地演示密钥，无法用于真实 API 请求。</p><div class="v6-dialog-foot">${button('close-dialog', '取消')}<button type="submit" class="v6-btn primary">${key ? '保存' : '创建密钥'}</button></div></form>`,
+      `<form id="key-form" data-id="${esc(id)}"><label class="v6-form-label">名称<input class="v6-input" name="name" required maxlength="50" placeholder="例如 Production App" value="${esc(key?.name || '')}"></label><label class="v6-form-label">有效期<select class="v6-select" name="expiry">${['永不过期', '30 天', '90 天', '1 年'].map((value) => `<option ${expiryChoice(key) === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label><p class="v6-small v6-muted">创建时会关闭模型限制（model_limits_enabled: false），分组使用全模型分组${platform.group ? ' ' + esc(platform.group) : ''}。额度默认不限。</p><div class="v6-dialog-foot">${button('close-dialog', '取消')}<button type="submit" class="v6-btn primary">${key ? '保存' : '创建密钥'}</button></div></form>`,
     )
+  }
+  function revealKeyDialog(secret) {
+    showDialog(
+      '密钥已创建',
+      `<p class="v6-muted">完整密钥只展示这一次。请立即复制。列表里之后只会显示掩码。</p><div class="v6-row"><input class="v6-input mono" id="created-key" readonly aria-label="新密钥" style="flex:1" value="${esc(secret)}">${iconButton('copy', '复制密钥', 'copy', `data-copy="${esc(secret)}"`)}</div><div class="v6-dialog-foot">${button('close-dialog', '完成', 'check', '', 'v6-btn primary')}</div>`,
+    )
+  }
+  function authDialog(mode = 'login') {
+    const turnstile = Boolean(platform.status?.turnstile_check)
+    showDialog(
+      mode === 'register' ? '注册' : '登录',
+      `<form id="auth-form" data-mode="${mode}"><label class="v6-form-label">用户名<input class="v6-input" name="username" required autocomplete="username"></label><label class="v6-form-label">密码<input class="v6-input" name="password" type="password" required autocomplete="${mode === 'register' ? 'new-password' : 'current-password'}"></label>${mode === 'register' ? '<label class="v6-form-label">邮箱（可选）<input class="v6-input" name="email" type="email" autocomplete="email"></label>' : ''}${turnstile ? '<label class="v6-form-label">Turnstile Token<input class="v6-input" name="turnstile" autocomplete="one-time-code"></label>' : ''}<p class="v6-error" id="auth-error" role="alert"></p><div class="v6-dialog-foot">${button(mode === 'register' ? 'show-login' : 'show-register', mode === 'register' ? '已有账号，去登录' : '没有账号，去注册')}<button class="v6-btn primary" type="submit">${mode === 'register' ? '注册并登录' : '登录'}</button></div></form>`,
+    )
+  }
+  function apiDialog() {
+    showDialog(
+      '连接 Platform',
+      `<form id="api-base-form"><label class="v6-form-label">API Base URL<input class="v6-input" name="base" required value="${esc(SkinAPI.getBase())}" placeholder="http://localhost:3000"></label><p class="v6-small v6-muted">Skin 与 Platform 分属不同源时，Platform 必须允许本页来源携带 Cookie，并放行 New-API-User、X-Turnstile-Token 和 Authorization。</p><p class="v6-error" id="api-base-error" role="alert">${esc(platform.error || '')}</p><div class="v6-dialog-foot">${button('close-dialog', '取消')}<button class="v6-btn primary" type="submit">保存并重连</button></div></form>`,
+    )
+  }
+  function pasteKeyDialog() {
+    showDialog(
+      '粘贴 API Key',
+      `<form id="paste-key-form"><label class="v6-form-label">sk- 密钥<input class="v6-input mono" name="secret" required autocomplete="off" placeholder="sk-..."></label><p class="v6-small v6-muted">密钥只保存在当前标签页，用于聊天。不会写回 Platform。</p><div class="v6-dialog-foot">${button('close-dialog', '取消')}<button class="v6-btn primary" type="submit">使用此密钥</button></div></form>`,
+    )
+  }
+  async function refreshSession() {
+    if (!SkinAPI.getUid()) {
+      platform.authed = false
+      platform.user = null
+      return
+    }
+    platform.user = await SkinAPI.self()
+    platform.authed = true
+    if (platform.user?.display_name || platform.user?.username)
+      state.settings.name = platform.user.display_name || platform.user.username
+  }
+  async function refreshTokens() {
+    if (!platform.authed) {
+      platform.tokens = []
+      return
+    }
+    platform.tokens = await SkinAPI.listTokens()
+  }
+  function applyCatalog(next, live) {
+    models.splice(0, models.length, ...next.map(cloneModel))
+    catalogLive = live
+    state.pins = state.pins.filter((id) => models.some((model) => model.id === id))
+    state.chatModels = state.chatModels.filter((id) =>
+      models.some((model) => model.id === id && model.outputs.includes('text')),
+    )
+    if (!state.chatModels.length) {
+      const first = models.find((model) => model.outputs.includes('text'))
+      if (first) state.chatModels = [first.id]
+    }
+  }
+  async function refreshCatalog() {
+    try {
+      const result = await SkinAPI.loadCatalog()
+      applyCatalog(result.models, true)
+      platform.group = result.group || platform.group
+      platform.error = ''
+    } catch (error) {
+      applyCatalog(mockModels, false)
+      platform.error = error.message || '模型目录不可用'
+    } finally {
+      catalogReady = true
+    }
+  }
+  async function bootPlatform() {
+    const fromQuery = new URLSearchParams(location.search).get('api')
+    if (fromQuery) SkinAPI.setBase(fromQuery)
+    try {
+      platform.status = await SkinAPI.status()
+      platform.online = true
+      platform.error = ''
+    } catch (error) {
+      platform.online = false
+      platform.status = null
+      platform.error = error.message || 'Platform 不可达'
+    }
+    try {
+      await refreshSession()
+    } catch {
+      SkinAPI.setUid('')
+      platform.authed = false
+      platform.user = null
+    }
+    if (platform.authed) {
+      try {
+        platform.group = await SkinAPI.resolveFullModelGroup()
+      } catch {
+        platform.group = platform.user?.group || ''
+      }
+      try {
+        await refreshTokens()
+      } catch (error) {
+        platform.tokens = []
+        platform.error = error.message || platform.error
+      }
+    }
+    await refreshCatalog()
+    render()
   }
   function toast(message) {
     document.querySelector('.v6-toast')?.remove()
@@ -1904,7 +2170,7 @@
         'console/privacy',
         'console/preferences',
       ].includes(route) &&
-      !(route.startsWith('models/') && getModel(route.slice(7)))
+      !(route.startsWith('models/') && (getModel(routeModelId()) || !catalogReady))
     ) {
       route = 'home'
       history.replaceState(null, '', '#/home')
@@ -1916,7 +2182,7 @@
     renderHeader()
     if (route === 'home') renderHome()
     else if (route === 'models') renderModels()
-    else if (route.startsWith('models/')) renderDetail(route.slice(7))
+    else if (route.startsWith('models/')) renderDetail(routeModelId())
     else if (route === 'discover') renderDiscover()
     else if (route === 'rankings') renderRankings()
     else if (route === 'providers') renderProviders()
@@ -1930,7 +2196,8 @@
     observePage()
     if (params.has('section'))
       requestAnimationFrame(() => document.getElementById(params.get('section'))?.scrollIntoView())
-    document.title = `aitokensflux V6 · ${route.startsWith('models/') ? getModel(route.slice(7)).name : { home: '首页', models: '模型', discover: '发现模型', providers: '提供商', rankings: '排行榜', pricing: '价格', docs: '文档', chat: '聊天' }[route] || '工作台'}`
+    document.title = `aitokensflux · ${route.startsWith('models/') ? getModel(routeModelId())?.name || '模型' : { home: '首页', models: '模型', discover: '发现模型', providers: '提供商', rankings: '排行榜', pricing: '价格', docs: '文档', chat: '聊天' }[route] || '工作台'}`
+    if (route !== 'chat' && chatAbort) stopChat()
   }
 
   document.addEventListener('click', (event) => {
@@ -2019,7 +2286,7 @@
       const table = document.getElementById('provider-table')
       table.dataset.sort = value
       table.innerHTML = providerTable(
-        getModel(route.slice(7)),
+        getModel(routeModelId()),
         value,
         Number(document.getElementById('provider-percentile').value),
       )
@@ -2038,24 +2305,63 @@
         node.setAttribute('aria-pressed', node === target)
       })
       drawCharts()
-    } else if (action === 'create-key' || action === 'edit-key') keyDialog(id)
-    else if (action === 'toggle-key') {
-      const key = state.keys.find((item) => item.id === id)
-      key.enabled = !key.enabled
-      save()
-      renderKeys()
+    }     else if (action === 'open-login' || action === 'show-login') authDialog('login')
+    else if (action === 'show-register') authDialog('register')
+    else if (action === 'logout') {
+      SkinAPI.logout()
+        .catch(() => SkinAPI.setUid(''))
+        .finally(() => {
+          platform.authed = false
+          platform.user = null
+          platform.tokens = []
+          closeDialog()
+          refreshCatalog().finally(render)
+          toast('已退出登录')
+        })
+    } else if (action === 'api-settings') apiDialog()
+    else if (action === 'save-api-base') {
+      const input = document.getElementById('pref-api-base')
+      if (!input?.value.trim()) return
+      SkinAPI.setBase(input.value.trim())
+      bootPlatform()
+    } else if (action === 'create-key' || action === 'edit-key') {
+      if (!platform.authed) authDialog('login')
+      else keyDialog(id)
+    } else if (action === 'toggle-key') {
+      const key = platform.tokens.find((item) => String(item.id) === String(id))
+      if (!key) return
+      const next = key.status === 1 ? 2 : 1
+      SkinAPI.updateToken(key.id, {
+        name: key.name,
+        status: next,
+        expired_time: key.expired_time,
+        remain_quota: key.remain_quota,
+        unlimited_quota: key.unlimited_quota,
+        model_limits: '',
+        group: key.group || platform.group,
+      })
+        .then(async () => {
+          await refreshTokens()
+          renderKeys()
+          toast(next === 1 ? '密钥已启用' : '密钥已停用')
+        })
+        .catch((error) => toast(error.message || '更新密钥失败'))
     } else if (action === 'delete-key') {
-      const key = state.keys.find((item) => item.id === id)
+      const key = platform.tokens.find((item) => String(item.id) === String(id))
+      if (!key) return
       showDialog(
-        '删除演示密钥',
-        `<p>确认删除「${esc(key.name)}」？</p><div class="v6-dialog-foot">${button('close-dialog', '取消')}${button('confirm-delete-key', '删除', 'trash-2', `data-id="${id}"`)}</div>`,
+        '删除密钥',
+        `<p>确认删除「${esc(key.name)}」？Platform 上的密钥会一并删除。</p><div class="v6-dialog-foot">${button('close-dialog', '取消')}${button('confirm-delete-key', '删除', 'trash-2', `data-id="${esc(id)}"`)}</div>`,
       )
     } else if (action === 'confirm-delete-key') {
-      state.keys = state.keys.filter((key) => key.id !== id)
-      save()
-      closeDialog()
-      renderKeys()
-      toast('演示密钥已删除')
+      SkinAPI.deleteToken(id)
+        .then(async () => {
+          await refreshTokens()
+          closeDialog()
+          renderKeys()
+          toast('密钥已删除')
+        })
+        .catch((error) => toast(error.message || '删除密钥失败'))
     } else if (action === 'add-credits')
       showDialog(
         '增加演示余额',
@@ -2165,16 +2471,23 @@
     else if (action === 'chat-settings')
       showDialog(
         '聊天设置',
-        `<label class="v6-form-label">Temperature <output id="temperature-value">${state.temperature}</output><input type="range" id="chat-temperature" min="0" max="2" step="0.1" value="${state.temperature}"></label><p class="v6-small v6-muted">参数仅保存在本地。演示回复使用固定样本，不执行模型推理。</p><div class="v6-dialog-foot">${button('close-dialog', '完成', 'check')}</div>`,
+        `<label class="v6-form-label">Temperature <output id="temperature-value">${state.temperature}</output><input type="range" id="chat-temperature" min="0" max="2" step="0.1" value="${state.temperature}"></label><p class="v6-small v6-muted">Temperature 会随 /v1/chat/completions 一起发送。流式开关在聊天栏。</p><div class="v6-dialog-foot">${button('close-dialog', '完成', 'check')}</div>`,
       )
   })
 
   document.addEventListener('submit', (event) => {
     const form = event.target
     if (
-      !['key-form', 'credits-form', 'settings-form', 'chat-models-form', 'chat-form'].includes(
-        form.id,
-      )
+      ![
+        'key-form',
+        'credits-form',
+        'settings-form',
+        'chat-models-form',
+        'chat-form',
+        'auth-form',
+        'api-base-form',
+        'paste-key-form',
+      ].includes(form.id)
     )
       return
     event.preventDefault()
@@ -2183,35 +2496,95 @@
       sendChat()
       return
     }
-    if (form.id === 'key-form') {
-      const name = String(data.get('name')).trim(),
-        limit = Number(data.get('limit'))
-      if (!name || !Number.isFinite(limit) || limit < 1 || limit > 100000) return
-      const existing = state.keys.find((key) => key.id === form.dataset.id)
-      if (existing) {
-        Object.assign(existing, { name, limit, expiry: data.get('expiry') })
-        save()
-        closeDialog()
-        renderKeys()
-        toast('密钥已更新')
-      } else {
-        const secret = 'sk-demo-' + crypto.randomUUID().replaceAll('-', '')
-        state.keys.unshift({
-          id: crypto.randomUUID(),
-          name,
-          limit,
-          used: 0,
-          enabled: true,
-          expiry: data.get('expiry'),
-          prefix: 'sk-demo-••••' + secret.slice(-4),
+    if (form.id === 'auth-form') {
+      const username = String(data.get('username') || '').trim()
+      const password = String(data.get('password') || '')
+      const turnstile = String(data.get('turnstile') || '').trim()
+      const mode = form.dataset.mode
+      const errorNode = document.getElementById('auth-error')
+      if (!username || !password) return
+      const action = mode === 'register' ? SkinAPI.register : SkinAPI.login
+      action
+        .call(SkinAPI, {
+          username,
+          password,
+          email: String(data.get('email') || '').trim(),
+          turnstile,
         })
-        save()
-        renderKeys()
-        showDialog(
-          '演示密钥已创建',
-          `<p class="v6-muted">明文仅展示一次。这是演示密钥，无法调用真实 API。</p><div class="v6-row"><input class="v6-input mono" readonly aria-label="新密钥" style="flex:1" value="${secret}">${iconButton('copy', '复制密钥', 'copy', `data-copy="${secret}"`)}</div><div class="v6-dialog-foot">${button('close-dialog', '完成', 'check', '', 'v6-btn primary')}</div>`,
-        )
-      }
+        .then(async () => {
+          await refreshSession()
+          try {
+            platform.group = await SkinAPI.resolveFullModelGroup()
+          } catch {
+            platform.group = platform.user?.group || ''
+          }
+          await refreshTokens()
+          await refreshCatalog()
+          closeDialog()
+          render()
+          toast(mode === 'register' ? '注册成功，已登录' : '已登录')
+        })
+        .catch((error) => {
+          if (errorNode) errorNode.textContent = error.message || '登录失败'
+        })
+      return
+    }
+    if (form.id === 'api-base-form') {
+      SkinAPI.setBase(String(data.get('base') || '').trim())
+      closeDialog()
+      bootPlatform()
+      return
+    }
+    if (form.id === 'paste-key-form') {
+      const secret = SkinAPI.asSecret(String(data.get('secret') || '').trim())
+      if (!secret.startsWith('sk-') || secret.length < 6) return
+      SkinAPI.rememberKey('pasted', '已粘贴的密钥', secret)
+      state.activeKeyId = 'pasted'
+      save()
+      closeDialog()
+      if (route === 'chat') renderChat()
+      toast('当前标签页将使用这把密钥')
+      return
+    }
+    if (form.id === 'key-form') {
+      const name = String(data.get('name') || '').trim()
+      if (!name) return
+      const expiredTime = expirySeconds(String(data.get('expiry') || '永不过期'))
+      const existing = platform.tokens.find((key) => String(key.id) === String(form.dataset.id))
+      const submit = form.querySelector('[type="submit"]')
+      if (submit) submit.disabled = true
+      const task = existing
+        ? SkinAPI.updateToken(existing.id, {
+            name,
+            status: existing.status,
+            expired_time: expiredTime,
+            remain_quota: existing.remain_quota,
+            unlimited_quota: existing.unlimited_quota,
+            model_limits: '',
+            group: existing.group || platform.group,
+          }).then(async () => {
+            await refreshTokens()
+            closeDialog()
+            renderKeys()
+            toast('密钥已更新')
+          })
+        : SkinAPI.createToken({
+            name,
+            expiredTime,
+            unlimitedQuota: true,
+            group: platform.group,
+          }).then(async (created) => {
+            platform.group = created.group || platform.group
+            state.activeKeyId = String(created.token.id)
+            save()
+            await refreshTokens()
+            renderKeys()
+            revealKeyDialog(created.secret)
+          })
+      task.catch((error) => {
+        if (submit) submit.disabled = false
+        toast(error.message || '保存密钥失败')
+      })
     } else if (form.id === 'credits-form') {
       const amount = Number(data.get('amount'))
       if (!Number.isFinite(amount) || amount < 1 || amount > 10000) return
@@ -2263,7 +2636,7 @@
       save()
     }
     if (id === 'estimate-input' || id === 'estimate-output') {
-      const model = getModel(route.slice(7))
+      const model = getModel(routeModelId())
       const input = Math.max(
         0,
         Math.min(10000000, Number(document.getElementById('estimate-input').value) || 0),
@@ -2292,7 +2665,7 @@
     if (id === 'provider-percentile') {
       const table = document.getElementById('provider-table')
       table.innerHTML = providerTable(
-        getModel(route.slice(7)),
+        getModel(routeModelId()),
         table.dataset.sort,
         Number(event.target.value),
       )
@@ -2300,6 +2673,17 @@
     if (id === 'ranking-period') updateQuery('period', event.target.value)
     if (id === 'ranking-metric') updateQuery('metric', event.target.value)
     if (id === 'activity-status' || id === 'activity-period') filterActivity()
+    if (id === 'chat-stream') {
+      state.stream = event.target.checked
+      save()
+    }
+    if (id === 'chat-key') {
+      if (event.target.value === '__paste') pasteKeyDialog()
+      else {
+        state.activeKeyId = event.target.value
+        save()
+      }
+    }
     if (event.target.dataset.chartPeriod) drawCharts()
     if (event.target.dataset.setting) {
       const key = event.target.dataset.setting
@@ -2404,4 +2788,5 @@
     }),
   )
   render()
+  bootPlatform()
 })()
