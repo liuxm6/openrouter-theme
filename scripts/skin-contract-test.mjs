@@ -64,7 +64,15 @@ function createPlatform() {
     selfHeaders: [],
     creates: [],
     keyReads: {},
+    keyMethods: [],
+    tokenLists: 0,
+    issued: [],
     chats: [],
+    createShape: 'id',
+    plantDecoy: false,
+    allowKeyGet: false,
+    rejectKeyPost: false,
+    listBeforeId: 0,
   }
   let userSeq = 1
   let tokenSeq = 1
@@ -224,11 +232,13 @@ function createPlatform() {
       if (req.method === 'GET' && url.pathname === '/api/token/') {
         const user = userFrom(req, res)
         if (!user) return
+        seen.tokenLists += 1
         send(res, 200, {
           success: true,
           data: {
             items: tokens
               .filter((token) => token.userId === user.id)
+              .filter((token) => !seen.listBeforeId || token.id < seen.listBeforeId)
               .map((token) => ({ ...token, key: mask(token.key) })),
           },
         })
@@ -239,28 +249,83 @@ function createPlatform() {
         if (!user) return
         const body = await readBody(req)
         seen.creates.push(body)
+        const id = tokenSeq++
         const token = {
-          id: tokenSeq++,
+          id,
           userId: user.id,
           name: body.name,
           status: 1,
-          key: 'secretfullkeyvalue' + String(tokenSeq).padStart(4, '0'),
+          key: 'secretfullkeyvalue' + String(id).padStart(4, '0'),
           remain_quota: body.remain_quota || 0,
           used_quota: 0,
           unlimited_quota: body.unlimited_quota,
           expired_time: body.expired_time,
           accessed_time: 0,
+          created_time: Math.floor(Date.now() / 1000),
           group: body.group,
           model_limits_enabled: body.model_limits_enabled,
         }
         tokens.push(token)
-        send(res, 200, { success: true, message: '' })
+        seen.issued.push({ id: token.id, key: token.key, name: token.name })
+        if (seen.plantDecoy) {
+          tokens.push({
+            ...token,
+            id: token.id + 1000,
+            key: 'decoyfullkeyvalue' + String(token.id).padStart(4, '0'),
+            created_time: token.created_time,
+          })
+        }
+        if (seen.createShape === 'empty') {
+          send(res, 200, { success: true, message: '' })
+          return
+        }
+        if (seen.createShape === 'numeric') {
+          send(res, 200, { success: true, data: token.id })
+          return
+        }
+        send(res, 200, {
+          success: true,
+          message: '',
+          data: {
+            id: token.id,
+            name: token.name,
+            status: token.status,
+            group: token.group,
+            remain_quota: token.remain_quota,
+            unlimited_quota: token.unlimited_quota,
+            expired_time: token.expired_time,
+            model_limits_enabled: token.model_limits_enabled,
+            key: mask(token.key),
+          },
+        })
         return
       }
       const keyRoute = url.pathname.match(/^\/api\/token\/(\d+)\/key$/)
-      if (keyRoute && (req.method === 'GET' || req.method === 'POST')) {
+      if (keyRoute && req.method === 'GET') {
         const user = userFrom(req, res)
         if (!user) return
+        seen.keyMethods.push('GET')
+        if (!seen.allowKeyGet) {
+          send(res, 404, { success: false, message: 'not found' })
+          return
+        }
+        const token = tokens.find((item) => item.id === Number(keyRoute[1]) && item.userId === user.id)
+        if (!token) {
+          send(res, 404, { success: false, message: '密钥不存在' })
+          return
+        }
+        seen.keyReads[token.id] = (seen.keyReads[token.id] || 0) + 1
+        send(res, 200, { success: true, data: { key: token.key } })
+        return
+      }
+      if (keyRoute && req.method === 'POST') {
+        const user = userFrom(req, res)
+        if (!user) return
+        seen.keyMethods.push('POST')
+        if (seen.rejectKeyPost) {
+          send(res, 405, { success: false, message: 'method not allowed' })
+          return
+        }
         const token = tokens.find((item) => item.id === Number(keyRoute[1]) && item.userId === user.id)
         if (!token) {
           send(res, 404, { success: false, message: '密钥不存在' })
@@ -365,7 +430,7 @@ function staticServer() {
   })
 }
 
-async function clientTests(base) {
+async function clientTests(base, seen, tokens) {
   let cookie = ''
   const storage = memoryStorage()
   const session = memoryStorage()
@@ -413,14 +478,70 @@ async function clientTests(base) {
   assert(selfRejected, 'TC0 self after logout is rejected')
 
   await client.login({ username: 'node-user', password: 'secret-pass' })
+  seen.plantDecoy = true
+  seen.createShape = 'id'
+  const listsBeforeCreate = seen.tokenLists
   const created = await client.createToken({ name: 'node-key', unlimitedQuota: true })
+  const issued = seen.issued.filter((item) => item.name === 'node-key').at(-1)
   assert(created.group === 'full', 'TC1 group is the full-model group, got ' + created.group)
-  assert(created.secret.startsWith('sk-'), 'TC1 secret is shown as sk- key')
+  assert(created.token.id === issued.id, 'TC1 uses the id from POST /api/token/, got ' + created.token.id)
+  assert(seen.tokenLists === listsBeforeCreate, 'TC1 create response id does not list-diff')
+  assert(created.secret === 'sk-' + issued.key, 'TC1 secret comes from POST /api/token/:id/key')
+  assert(!created.secret.includes('*'), 'TC1 reveal is the full key, not the masked create field')
+  assert(seen.keyMethods.join(',') === 'POST', 'TC1 key reveal prefers POST /api/token/:id/key')
   assert(client.knownKeys()[String(created.token.id)].secret === created.secret, 'TC1 key is copyable from session')
+  seen.plantDecoy = false
   const listed = await client.listTokens()
   const row = listed.find((item) => item.id === created.token.id)
   assert(row && !row.key.includes(created.secret.replace(/^sk-/, '')), 'TC1 list does not repeat the full key')
   assert(row.model_limits_enabled === false, 'TC1 stored model_limits_enabled false')
+  const decoy = listed.find((item) => item.id === issued.id + 1000)
+  assert(decoy && created.token.id !== decoy.id, 'TC1 does not adopt the newer same-name list id')
+
+  seen.createShape = 'numeric'
+  const numericLists = seen.tokenLists
+  const numeric = await client.createToken({ name: 'node-key-numeric', unlimitedQuota: true })
+  const numericIssued = seen.issued.filter((item) => item.name === 'node-key-numeric').at(-1)
+  assert(numeric.token.id === numericIssued.id, 'TC1 numeric create data is the token id')
+  assert(numeric.secret === 'sk-' + numericIssued.key, 'TC1 numeric create still reads POST /key')
+  assert(seen.tokenLists === numericLists, 'TC1 numeric id does not list-diff')
+  assert(numeric.group === 'full', 'TC1 numeric create keeps the full-model group')
+
+  seen.createShape = 'empty'
+  const again = await client.createToken({ name: 'node-key-again', unlimitedQuota: true })
+  const emptyLists = seen.tokenLists
+  const fallback = await client.createToken({ name: 'node-key-again', unlimitedQuota: true })
+  const fallbackIssued = seen.issued.filter((item) => item.name === 'node-key-again').at(-1)
+  assert(seen.tokenLists === emptyLists + 1, 'TC1 empty create body falls back to one list read')
+  assert(fallback.token.id === fallbackIssued.id, 'TC1 list fallback picks the new token, not the older same name')
+  assert(fallback.token.id !== again.token.id, 'TC1 list fallback is not the previous key')
+  assert(fallback.secret === 'sk-' + fallbackIssued.key, 'TC1 list fallback still uses POST /key')
+  assert(fallback.secret.startsWith('sk-') && !fallback.secret.includes('*'), 'TC1 fallback secret is a full sk- key')
+
+  seen.createShape = 'id'
+  seen.rejectKeyPost = true
+  seen.allowKeyGet = true
+  const legacy = await client.createToken({ name: 'node-key-get', unlimitedQuota: true })
+  assert(legacy.secret.startsWith('sk-') && !legacy.secret.includes('*'), 'TC1 GET /key still reveals the secret')
+  assert(seen.keyMethods.slice(-2).join(',') === 'POST,GET', 'TC1 GET /key is only the fallback after POST 405')
+  seen.rejectKeyPost = false
+  seen.allowKeyGet = false
+
+  seen.createShape = 'id'
+  const stale = await client.createToken({ name: 'node-key-stale', unlimitedQuota: true })
+  const staleRow = tokens.find((item) => item.id === stale.token.id)
+  staleRow.created_time = Math.floor(Date.now() / 1000) - 100000
+  seen.listBeforeId = stale.token.id + 1
+  seen.createShape = 'empty'
+  let staleRejected = false
+  try {
+    await client.createToken({ name: 'node-key-stale', unlimitedQuota: true })
+  } catch (error) {
+    staleRejected = error.message.includes('没有找到')
+  }
+  assert(staleRejected, 'TC1 list fallback does not reveal an older key when the new row is missing')
+  seen.listBeforeId = 0
+  seen.createShape = 'id'
 
   const catalog = await client.loadCatalog()
   assert(
@@ -639,6 +760,7 @@ async function uiTests(pageUrl, seen) {
 
     await evalJson(`location.hash = '#/console/keys'`)
     await waitPage(`document.querySelector('[data-action="create-key"]')`, 'keys page')
+    const uiKeyAt = seen.keyMethods.length
     await evalJson(`document.querySelector('[data-action="create-key"]').click()`)
     await waitPage(`document.querySelector('#key-form')`, 'create key dialog')
     await evalJson(`{
@@ -656,9 +778,12 @@ async function uiTests(pageUrl, seen) {
     assert(revealed.copy, 'TC1 copy control')
     assert(!revealed.table.includes(revealed.secret), 'TC1 table hides the full key')
     const created = seen.creates.filter((item) => item.name === 'UI Key').at(-1)
+    const issued = seen.issued.filter((item) => item.name === 'UI Key').at(-1)
     assert(created, 'TC1 create request')
     assert(created.model_limits_enabled === false, 'TC1 model_limits_enabled false')
     assert(created.group === 'full', 'TC1 full-model group, got ' + created.group)
+    assert(revealed.secret === 'sk-' + issued.key, 'TC1 UI reveals the POST /key secret')
+    assert(seen.keyMethods.slice(uiKeyAt).join(',') === 'POST', 'TC1 UI uses POST /key and not GET')
 
     await evalJson(`document.querySelector('[data-action="close-dialog"]').click()`)
     await evalJson(`location.hash = '#/models'`)
@@ -744,7 +869,7 @@ const apiPort = await listen(platform.server)
 const webPort = await listen(files)
 const base = `http://127.0.0.1:${apiPort}`
 try {
-  await clientTests(base)
+  await clientTests(base, platform.seen, platform.tokens)
   await uiTests(`${`http://127.0.0.1:${webPort}/v6.html?api=${encodeURIComponent(base)}#/models`}`, platform.seen)
   const header = platform.seen.selfHeaders.at(-1)
   assert(header && header.cookie.includes('session=') && header.user, 'TC0 cookie and New-API-User observed')
