@@ -38,8 +38,8 @@ Skin 和 Platform 往往不在同一个源（例如 Skin 在 `:8080`，Platform 
 ## 使用的接口
 
 - 会话：`GET /api/status`，`POST /api/user/register`，`POST /api/user/login`，`GET /api/user/self`，`GET /api/user/logout`
-- 密钥：`GET/POST /api/token/`，`PUT/DELETE /api/token/:id`，`GET /api/token/:id/key`
-- 创建密钥时 `model_limits_enabled` 为 `false`，`group` 为覆盖模型最多的全模型分组
+- 密钥：`GET/POST /api/token/`，`PUT/DELETE /api/token/:id`，`POST /api/token/:id/key`（仅当 POST 返回 404/405 时再 GET）
+- 创建密钥时 `model_limits_enabled` 为 `false`，`group` 为覆盖模型最多的全模型分组。创建响应里若带有令牌 id（或其它字段）则直接采用；响应没有 id 时，才用列表对照找出新建项。一次性完整 `sk-` 密钥优先通过 `POST /api/token/:id/key` 读取。
 - 目录：`GET /api/user/models` 与 `GET /api/pricing/public`。Platform 不可达时回退到内置演示目录
 - 对话：`POST /v1/chat/completions`，支持 `stream: true` 和 `stream: false`
 

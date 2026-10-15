@@ -258,8 +258,97 @@
       return best
     }
 
+    function numericId(value) {
+      if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value
+      if (typeof value === 'string' && /^\d+$/.test(value.trim())) {
+        const parsed = Number(value.trim())
+        if (parsed > 0) return parsed
+      }
+      return 0
+    }
+
+    function idFrom(value, depth) {
+      const level = depth || 0
+      if (level > 4 || value === undefined || value === null) return 0
+      const direct = numericId(value)
+      if (direct) return direct
+      if (typeof value !== 'object' || Array.isArray(value)) return 0
+      const keys = ['id', 'ID', 'Id', 'token_id', 'tokenId']
+      for (let i = 0; i < keys.length; i++) {
+        if (Object.prototype.hasOwnProperty.call(value, keys[i])) {
+          const found = numericId(value[keys[i]])
+          if (found) return found
+        }
+      }
+      if (value.token) {
+        const found = idFrom(value.token, level + 1)
+        if (found) return found
+      }
+      if (value.data !== undefined && value.data !== value) {
+        const found = idFrom(value.data, level + 1)
+        if (found) return found
+      }
+      return 0
+    }
+
+    function tokenFields(source) {
+      const out = {}
+      if (!source || typeof source !== 'object' || Array.isArray(source)) return out
+      const keys = [
+        'name',
+        'status',
+        'key',
+        'remain_quota',
+        'used_quota',
+        'unlimited_quota',
+        'expired_time',
+        'accessed_time',
+        'created_time',
+        'group',
+        'model_limits_enabled',
+      ]
+      keys.forEach((key) => {
+        if (source[key] !== undefined) out[key] = source[key]
+      })
+      if (typeof source.token === 'string' && source.token) out.token = source.token
+      return out
+    }
+
+    function readCreatedToken(payload) {
+      const data = unwrap(payload)
+      const id = idFrom(data) || idFrom(payload)
+      let fields = {}
+      if (data && typeof data === 'object' && !Array.isArray(data)) {
+        const nested = data.token && typeof data.token === 'object' ? data.token : data
+        fields = tokenFields(nested)
+      }
+      if (id) fields.id = id
+      return { id, fields }
+    }
+
+    function fullSecret(value) {
+      const raw = String(value || '').trim()
+      if (!raw || /[*•…]/.test(raw)) return ''
+      const body = raw.replace(/^sk-/i, '')
+      if (body.length < 16) return ''
+      return asSecret(raw)
+    }
+
+    // Used only when POST /api/token/ has no id. new-api's AddToken body is
+    // {success:true,message:""}, so the new row has to be taken from the list.
+    async function findTokenByListDiff(name) {
+      const list = await listTokens()
+      const named = list.filter((item) => item.name === name)
+      if (!named.length) return null
+      const now = Math.floor(Date.now() / 1000)
+      const timed = named.filter((item) => Number(item.created_time || 0) > 0)
+      const fresh = timed.filter((item) => Math.abs(now - Number(item.created_time)) <= 600)
+      if (timed.length && !fresh.length) return null
+      const pool = fresh.length ? fresh : named
+      return pool.sort((a, b) => Number(b.id) - Number(a.id))[0]
+    }
+
     async function createToken(input) {
-      const previous = new Set((await listTokens()).map((token) => String(token.id)))
       const group = input.group || (await resolveFullModelGroup())
       const unlimited = input.unlimitedQuota !== false
       const body = {
@@ -272,19 +361,44 @@
         allow_ips: '',
         group,
       }
-      const created = unwrap(await api('/api/token/', { method: 'POST', body }))
+      const payload = await api('/api/token/', { method: 'POST', body })
+      const created = readCreatedToken(payload)
       let token = null
-      if (created && created.id) token = normalizeToken(created)
-      if (!token) {
-        const list = await listTokens()
-        token = list
-          .filter((item) => item.name === input.name && !previous.has(String(item.id)))
-          .sort((a, b) => Number(b.id) - Number(a.id))[0]
+      if (created.id) {
+        const fields = created.fields
+        const merged = Object.assign(
+          {
+            name: body.name,
+            remain_quota: body.remain_quota,
+            unlimited_quota: body.unlimited_quota,
+            expired_time: body.expired_time,
+            group: body.group,
+            model_limits_enabled: false,
+            status: 1,
+          },
+          fields,
+          {
+            id: created.id,
+            name: fields.name || body.name,
+            group: fields.group || body.group,
+          },
+        )
+        if (fields.model_limits_enabled === undefined) merged.model_limits_enabled = false
+        token = normalizeToken(merged)
+      } else {
+        token = await findTokenByListDiff(body.name)
       }
-      if (!token) throw new Error('密钥已创建，但列表里没有找到它')
+      if (!token || !token.id) throw new Error('密钥已创建，但列表里没有找到它')
       let secret = ''
-      if (created && (created.key || created.token)) secret = asSecret(created.key || created.token)
-      if (!secret) secret = asSecret(await getTokenKey(token.id))
+      const inline = fullSecret(created.fields.key || created.fields.token)
+      try {
+        secret = asSecret(await getTokenKey(token.id))
+      } catch (error) {
+        if (!inline) throw error
+        secret = inline
+      }
+      if (!secret) secret = inline
+      if (!secret) throw new Error('Platform 没有返回完整密钥')
       rememberKey(token.id, token.name, secret)
       return { token, secret, group }
     }
@@ -304,10 +418,10 @@
     async function getTokenKey(id) {
       let payload
       try {
-        payload = await api('/api/token/' + id + '/key')
+        payload = await api('/api/token/' + id + '/key', { method: 'POST', body: {} })
       } catch (error) {
         if (error.status !== 404 && error.status !== 405) throw error
-        payload = await api('/api/token/' + id + '/key', { method: 'POST', body: {} })
+        payload = await api('/api/token/' + id + '/key')
       }
       const data = unwrap(payload)
       const key = typeof data === 'string' ? data : data && (data.key || data.token)
