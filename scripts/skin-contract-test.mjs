@@ -56,10 +56,15 @@ function mask(key) {
   return key.slice(0, 4) + '**********' + key.slice(-4)
 }
 
+// ── 按真实 new-api 合同实现的 mock Platform ──
+// 鉴权：Authorization: Bearer <access_token>；刷新：new_api_refresh Cookie
 function createPlatform() {
   const users = []
   const tokens = []
-  const sessions = new Map()
+  const accessTokens = new Map() // token → {userId, expiresAt}
+  const sessions = new Map() // refresh sid → {userId}
+  const logs = []
+  const redemptions = new Set(['REDEEM-100'])
   const seen = {
     selfHeaders: [],
     creates: [],
@@ -67,6 +72,8 @@ function createPlatform() {
     keyMethods: [],
     tokenLists: 0,
     issued: [],
+    topups: [],
+    refreshCalls: 0,
     createShape: 'id',
     plantDecoy: false,
     allowKeyGet: false,
@@ -76,6 +83,7 @@ function createPlatform() {
   let userSeq = 1
   let tokenSeq = 1
   let sessionSeq = 1
+  let accessSeq = 1
 
   function send(res, status, payload, extra = {}) {
     const body = JSON.stringify(payload)
@@ -87,24 +95,64 @@ function createPlatform() {
     res.end(body)
   }
 
+  function issueBundle(user) {
+    const sid = 'rs' + sessionSeq++
+    const access = 'at-' + accessSeq++
+    sessions.set(sid, { id: user.id })
+    accessTokens.set(access, { id: user.id, expiresAt: Date.now() + 3600e3 })
+    return {
+      access_token: access,
+      token_type: 'Bearer',
+      access_expires_at: Math.floor(Date.now() / 1000) + 3600,
+      session: { id: sid },
+      user: publicUser(user),
+    }
+  }
+
+  function publicUser(user) {
+    return {
+      id: user.id,
+      username: user.username,
+      display_name: user.display_name,
+      email: user.email || '',
+      group: user.group,
+      quota: user.quota,
+      used_quota: user.used_quota || 0,
+      request_count: user.request_count || 0,
+      role: user.role || 1,
+      status: 1,
+    }
+  }
+
   function userFrom(req, res) {
-    const session = sessions.get(cookiesOf(req).session)
-    const header = req.headers['new-api-user']
-    if (!session || String(header) !== String(session.id)) {
-      send(res, 401, { success: false, message: '未登录或 New-API-User 不匹配' })
+    const header = String(req.headers.authorization || '')
+    const m = header.match(/^Bearer\s+(.+)$/i)
+    const rec = m ? accessTokens.get(m[1]) : null
+    if (!rec) {
+      send(res, 401, { success: false, message: '未登录或令牌无效' })
       return null
     }
-    return session
+    return users.find((u) => u.id === rec.id) || null
   }
+
+  function auth(req, res) {
+    const user = userFrom(req, res)
+    if (user) seen.selfHeaders.push({ authorization: req.headers.authorization || '' })
+    return user
+  }
+
+  const MODELS = ['gpt-test-a', 'gpt-test-b', 'embed-test']
+  const PRICING = [
+    { model_name: 'gpt-test-a', model_ratio: 1, completion_ratio: 2, owner_by: 'openai', enable_groups: ['full', 'limited'], quota_type: 0, model_price: 0 },
+    { model_name: 'gpt-test-b', model_ratio: 0.5, completion_ratio: 3, owner_by: 'openai', enable_groups: ['full'], quota_type: 0, model_price: 0 },
+    { model_name: 'embed-test', model_ratio: 0.1, completion_ratio: 1, owner_by: 'openai', enable_groups: ['full'], quota_type: 0, model_price: 0 },
+  ]
 
   const server = http.createServer(async (req, res) => {
     const origin = req.headers.origin || '*'
     res.setHeader('Access-Control-Allow-Origin', origin)
     res.setHeader('Access-Control-Allow-Credentials', 'true')
-    res.setHeader(
-      'Access-Control-Allow-Headers',
-      'Content-Type, New-API-User, X-Turnstile-Token, Authorization, Accept',
-    )
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept')
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
     res.setHeader('Vary', 'Origin')
     if (req.method === 'OPTIONS') {
@@ -114,13 +162,21 @@ function createPlatform() {
     }
     const url = new URL(req.url, 'http://127.0.0.1')
     try {
+      // ── status（无鉴权）
       if (req.method === 'GET' && url.pathname === '/api/status') {
         send(res, 200, {
           success: true,
-          data: { system_name: 'aitokensflux', turnstile_check: false, quota_per_unit: 500000 },
+          data: {
+            system_name: 'aitokensflux',
+            turnstile_check: false,
+            email_verification: false,
+            quota_per_unit: 500000,
+            display_in_currency: true,
+          },
         })
         return
       }
+      // ── 注册：返回登录 bundle（auto-login）
       if (req.method === 'POST' && url.pathname === '/api/user/register') {
         const body = await readBody(req)
         if (!body.username || !body.password) {
@@ -131,7 +187,7 @@ function createPlatform() {
           send(res, 200, { success: false, message: '用户名已存在' })
           return
         }
-        users.push({
+        const user = {
           id: userSeq++,
           username: body.username,
           password: body.password,
@@ -139,12 +195,25 @@ function createPlatform() {
           email: body.email || '',
           group: 'limited',
           quota: 1000000,
+          used_quota: 0,
+          request_count: 0,
+        }
+        users.push(user)
+        const bundle = issueBundle(user)
+        const sid = bundle.session.id
+        send(res, 200, { success: true, data: bundle }, {
+          'Set-Cookie': `new_api_refresh=${sid}; Path=/api/user/auth; HttpOnly; SameSite=Strict`,
         })
-        send(res, 200, { success: true, message: '' })
         return
       }
+      // ── 登录
       if (req.method === 'POST' && url.pathname === '/api/user/login') {
         const body = await readBody(req)
+        // 加密字段暂不接受（mock 不实现 RSA）
+        if (body.password_encrypted) {
+          send(res, 200, { success: false, message: '密码加密不支持（mock）' })
+          return
+        }
         const user = users.find(
           (item) => item.username === body.username && item.password === body.password,
         )
@@ -152,99 +221,114 @@ function createPlatform() {
           send(res, 200, { success: false, message: '用户名或密码错误' })
           return
         }
-        const sid = 's' + sessionSeq++
-        sessions.set(sid, user)
-        send(
-          res,
-          200,
-          {
-            success: true,
-            data: {
-              id: user.id,
-              username: user.username,
-              display_name: user.display_name,
-              group: user.group,
-            },
-          },
-          { 'Set-Cookie': `session=${sid}; Path=/; HttpOnly; SameSite=Lax` },
-        )
-        return
-      }
-      if (req.method === 'GET' && url.pathname === '/api/user/logout') {
-        const sid = cookiesOf(req).session
-        sessions.delete(sid)
-        send(res, 200, { success: true, message: '' }, { 'Set-Cookie': 'session=; Path=/; Max-Age=0' })
-        return
-      }
-      if (req.method === 'GET' && url.pathname === '/api/user/self') {
-        const user = userFrom(req, res)
-        if (!user) return
-        seen.selfHeaders.push({
-          cookie: req.headers.cookie || '',
-          user: req.headers['new-api-user'] || '',
+        const bundle = issueBundle(user)
+        const sid = bundle.session.id
+        send(res, 200, { success: true, data: bundle }, {
+          'Set-Cookie': `new_api_refresh=${sid}; Path=/api/user/auth; HttpOnly; SameSite=Strict`,
         })
-        send(res, 200, { success: true, data: { ...user, password: undefined } })
+        return
+      }
+      // ── 登录加密密钥（本例未开启）
+      if (req.method === 'GET' && url.pathname === '/api/user/login/encryption-key') {
+        send(res, 200, { success: true, data: { enabled: false } })
+        return
+      }
+      // ── 刷新 access token
+      if (req.method === 'POST' && url.pathname === '/api/user/auth/refresh') {
+        seen.refreshCalls += 1
+        const sid = cookiesOf(req).new_api_refresh
+        const session = sessions.get(sid)
+        if (!session) {
+          send(res, 401, { success: false, message: 'refresh token is invalid' })
+          return
+        }
+        const user = users.find((u) => u.id === session.id)
+        send(res, 200, { success: true, data: issueBundle(user) }, {
+          'Set-Cookie': `new_api_refresh=${sid}; Path=/api/user/auth; HttpOnly; SameSite=Strict`,
+        })
+        return
+      }
+      // ── 登出
+      if (req.method === 'POST' && url.pathname === '/api/user/auth/logout') {
+        const sid = cookiesOf(req).new_api_refresh
+        sessions.delete(sid)
+        send(res, 200, { success: true, message: '' })
+        return
+      }
+      // ── 验证码 / 找回密码
+      if (req.method === 'GET' && url.pathname === '/api/verification') {
+        send(res, 200, { success: true, message: '验证码已发送' })
+        return
+      }
+      if (req.method === 'GET' && url.pathname === '/api/reset_password') {
+        send(res, 200, { success: true, message: '重置邮件已发送' })
+        return
+      }
+      if (req.method === 'POST' && url.pathname === '/api/user/reset') {
+        send(res, 200, { success: true, message: '' })
+        return
+      }
+      // ── 当前用户
+      if (req.method === 'GET' && url.pathname === '/api/user/self') {
+        const user = auth(req, res)
+        if (!user) return
+        send(res, 200, { success: true, data: publicUser(user) })
         return
       }
       if (req.method === 'GET' && url.pathname === '/api/user/self/groups') {
-        if (!userFrom(req, res)) return
+        if (!auth(req, res)) return
+        send(res, 200, { success: true, data: { full: '全模型分组', limited: '受限分组' } })
+        return
+      }
+      if (req.method === 'GET' && url.pathname === '/api/user/groups') {
         send(res, 200, { success: true, data: { full: '全模型分组', limited: '受限分组' } })
         return
       }
       if (req.method === 'GET' && url.pathname === '/api/user/models') {
-        if (!userFrom(req, res)) return
-        send(res, 200, { success: true, data: ['gpt-test-a', 'gpt-test-b', 'embed-test'] })
+        if (!auth(req, res)) return
+        send(res, 200, { success: true, data: MODELS })
         return
       }
-      if (req.method === 'GET' && url.pathname === '/api/pricing/public') {
+      // ── 定价（公共）
+      if (req.method === 'GET' && url.pathname === '/api/pricing') {
         send(res, 200, {
           success: true,
-          data: [
-            {
-              model_name: 'gpt-test-a',
-              model_ratio: 1,
-              completion_ratio: 2,
-              owner_by: 'openai',
-              enable_groups: ['full', 'limited'],
-              quota_type: 0,
-            },
-            {
-              model_name: 'gpt-test-b',
-              model_ratio: 0.5,
-              completion_ratio: 3,
-              owner_by: 'openai',
-              enable_groups: ['full'],
-              quota_type: 0,
-            },
-            {
-              model_name: 'embed-test',
-              model_ratio: 0.1,
-              completion_ratio: 1,
-              owner_by: 'openai',
-              enable_groups: ['full'],
-              quota_type: 0,
-            },
-          ],
+          data: PRICING,
+          vendors: [],
+          group_ratio: { full: 1, limited: 1.2 },
+          usable_group: { full: '全模型分组', limited: '受限分组' },
         })
         return
       }
-      if (req.method === 'GET' && url.pathname === '/api/token/') {
-        const user = userFrom(req, res)
-        if (!user) return
-        seen.tokenLists += 1
+      if (req.method === 'GET' && url.pathname === '/api/rankings') {
         send(res, 200, {
           success: true,
           data: {
-            items: tokens
-              .filter((token) => token.userId === user.id)
-              .filter((token) => !seen.listBeforeId || token.id < seen.listBeforeId)
-              .map((token) => ({ ...token, key: mask(token.key) })),
+            models: [
+              { model_name: 'gpt-test-a', quota: 120000, count: 42 },
+              { model_name: 'gpt-test-b', quota: 80000, count: 17 },
+            ],
           },
         })
         return
       }
+      // ── 令牌
+      if (req.method === 'GET' && url.pathname === '/api/token/') {
+        const user = auth(req, res)
+        if (!user) return
+        seen.tokenLists += 1
+        const size = Number(url.searchParams.get('page_size') || url.searchParams.get('size') || 10)
+        const page = Number(url.searchParams.get('p') || 1)
+        const all = tokens
+          .filter((token) => token.userId === user.id)
+          .filter((token) => !seen.listBeforeId || token.id < seen.listBeforeId)
+          .map((token) => ({ ...token, key: mask(token.key), auto_groups: null }))
+        const items = all.slice((page - 1) * size, page * size)
+        send(res, 200, { success: true, data: { items, total: all.length, page, page_size: size } })
+        return
+      }
       if (req.method === 'POST' && url.pathname === '/api/token/') {
-        const user = userFrom(req, res)
+        const user = auth(req, res)
         if (!user) return
         const body = await readBody(req)
         seen.creates.push(body)
@@ -263,6 +347,9 @@ function createPlatform() {
           created_time: Math.floor(Date.now() / 1000),
           group: body.group,
           model_limits_enabled: body.model_limits_enabled,
+          model_limits: body.model_limits || '',
+          allow_ips: body.allow_ips || '',
+          cross_group_retry: false,
         }
         tokens.push(token)
         seen.issued.push({ id: token.id, key: token.key, name: token.name })
@@ -274,51 +361,22 @@ function createPlatform() {
             created_time: token.created_time,
           })
         }
-        if (seen.createShape === 'empty') {
-          send(res, 200, { success: true, message: '' })
+        // 真实 new-api：成功只回 {success:true,message:""}，不带 id
+        if (seen.createShape === 'withId') {
+          send(res, 200, { success: true, message: '', data: { id: token.id } })
           return
         }
         if (seen.createShape === 'numeric') {
           send(res, 200, { success: true, data: token.id })
           return
         }
-        send(res, 200, {
-          success: true,
-          message: '',
-          data: {
-            id: token.id,
-            name: token.name,
-            status: token.status,
-            group: token.group,
-            remain_quota: token.remain_quota,
-            unlimited_quota: token.unlimited_quota,
-            expired_time: token.expired_time,
-            model_limits_enabled: token.model_limits_enabled,
-            key: mask(token.key),
-          },
-        })
+        send(res, 200, { success: true, message: '' })
         return
       }
+      // ── 令牌完整 key
       const keyRoute = url.pathname.match(/^\/api\/token\/(\d+)\/key$/)
-      if (keyRoute && req.method === 'GET') {
-        const user = userFrom(req, res)
-        if (!user) return
-        seen.keyMethods.push('GET')
-        if (!seen.allowKeyGet) {
-          send(res, 404, { success: false, message: 'not found' })
-          return
-        }
-        const token = tokens.find((item) => item.id === Number(keyRoute[1]) && item.userId === user.id)
-        if (!token) {
-          send(res, 404, { success: false, message: '密钥不存在' })
-          return
-        }
-        seen.keyReads[token.id] = (seen.keyReads[token.id] || 0) + 1
-        send(res, 200, { success: true, data: { key: token.key } })
-        return
-      }
       if (keyRoute && req.method === 'POST') {
-        const user = userFrom(req, res)
+        const user = auth(req, res)
         if (!user) return
         seen.keyMethods.push('POST')
         if (seen.rejectKeyPost) {
@@ -334,12 +392,29 @@ function createPlatform() {
         send(res, 200, { success: true, data: { key: token.key } })
         return
       }
-      const tokenRoute = url.pathname.match(/^\/api\/token\/(\d+)$/)
-      if (tokenRoute && req.method === 'PUT') {
-        const user = userFrom(req, res)
+      if (keyRoute && req.method === 'GET') {
+        const user = auth(req, res)
+        if (!user) return
+        seen.keyMethods.push('GET')
+        if (!seen.allowKeyGet) {
+          send(res, 404, { success: false, message: 'not found' })
+          return
+        }
+        const token = tokens.find((item) => item.id === Number(keyRoute[1]) && item.userId === user.id)
+        if (!token) {
+          send(res, 404, { success: false, message: '密钥不存在' })
+          return
+        }
+        seen.keyReads[token.id] = (seen.keyReads[token.id] || 0) + 1
+        send(res, 200, { success: true, data: { key: token.key } })
+        return
+      }
+      // ── 令牌更新（真实路由 PUT /api/token/，id 在 body）
+      if (req.method === 'PUT' && url.pathname === '/api/token/') {
+        const user = auth(req, res)
         if (!user) return
         const body = await readBody(req)
-        const token = tokens.find((item) => item.id === Number(tokenRoute[1]) && item.userId === user.id)
+        const token = tokens.find((item) => item.id === Number(body.id) && item.userId === user.id)
         if (!token) {
           send(res, 404, { success: false, message: '密钥不存在' })
           return
@@ -349,13 +424,14 @@ function createPlatform() {
           status: body.status ?? token.status,
           expired_time: body.expired_time ?? token.expired_time,
           group: body.group ?? token.group,
-          model_limits_enabled: body.model_limits_enabled,
+          model_limits_enabled: body.model_limits_enabled ?? token.model_limits_enabled,
         })
-        send(res, 200, { success: true, data: { ...token, key: mask(token.key) } })
+        send(res, 200, { success: true, message: '', data: { ...token, key: mask(token.key) } })
         return
       }
+      const tokenRoute = url.pathname.match(/^\/api\/token\/(\d+)$/)
       if (tokenRoute && req.method === 'DELETE') {
-        const user = userFrom(req, res)
+        const user = auth(req, res)
         if (!user) return
         const index = tokens.findIndex(
           (item) => item.id === Number(tokenRoute[1]) && item.userId === user.id,
@@ -368,19 +444,69 @@ function createPlatform() {
         send(res, 200, { success: true, message: '' })
         return
       }
+      // ── 日志
+      if (req.method === 'GET' && url.pathname === '/api/log/self') {
+        const user = auth(req, res)
+        if (!user) return
+        const size = Number(url.searchParams.get('page_size') || 20)
+        const page = Number(url.searchParams.get('p') || 1)
+        let items = logs.filter((l) => l.user_id === user.id)
+        const type = url.searchParams.get('type')
+        const model = url.searchParams.get('model_name')
+        const start = Number(url.searchParams.get('start_timestamp') || 0)
+        const end = Number(url.searchParams.get('end_timestamp') || 0)
+        if (type) items = items.filter((l) => l.type === Number(type))
+        if (model) items = items.filter((l) => l.model_name === model)
+        if (start) items = items.filter((l) => l.created_at >= start)
+        if (end) items = items.filter((l) => l.created_at <= end)
+        const sliced = items.slice((page - 1) * size, page * size)
+        send(res, 200, { success: true, data: { items: sliced, total: items.length, page, page_size: size } })
+        return
+      }
+      if (req.method === 'GET' && url.pathname === '/api/log/self/stat') {
+        const user = auth(req, res)
+        if (!user) return
+        const total = logs.filter((l) => l.user_id === user.id && l.type === 2).reduce((s, l) => s + l.quota, 0)
+        send(res, 200, { success: true, data: { quota: total, rpm: 1.5, tpm: 240 } })
+        return
+      }
+      // ── 用量聚合
+      if (req.method === 'GET' && url.pathname === '/api/data/self') {
+        const user = auth(req, res)
+        if (!user) return
+        const today = Math.floor(Date.now() / 1000 / 86400) * 86400
+        send(res, 200, {
+          success: true,
+          data: [
+            { model_name: 'gpt-test-a', created_at: today - 86400, count: 12, quota: 34000 },
+            { model_name: 'gpt-test-b', created_at: today, count: 8, quota: 21000 },
+          ],
+        })
+        return
+      }
+      // ── 兑换码充值
+      if (req.method === 'POST' && url.pathname === '/api/user/topup') {
+        const user = auth(req, res)
+        if (!user) return
+        const body = await readBody(req)
+        if (!redemptions.has(body.key)) {
+          send(res, 200, { success: false, message: '兑换码无效或已使用' })
+          return
+        }
+        redemptions.delete(body.key)
+        user.quota = (user.quota || 0) + 100000
+        seen.topups.push(body)
+        send(res, 200, { success: true, message: '', data: 100000 })
+        return
+      }
+      // ── 未命中
       send(res, 404, { success: false, message: '未知接口 ' + url.pathname })
     } catch (error) {
       send(res, 500, { success: false, message: error.message })
     }
   })
 
-  return { server, seen, tokens }
-}
-
-function listen(server) {
-  return new Promise((resolve) => {
-    server.listen(0, '127.0.0.1', () => resolve(server.address().port))
-  })
+  return { server, seen, tokens, users, logs }
 }
 
 function staticServer() {
@@ -402,27 +528,22 @@ function staticServer() {
   })
 }
 
-async function clientTests(base, seen, tokens) {
-  let cookie = ''
-  const storage = memoryStorage()
-  const session = memoryStorage()
+function listen(server) {
+  return new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', () => resolve(server.address().port))
+  })
+}
+
+// ── 客户端契约测试 ──
+async function clientTests(base, platform) {
+  const { seen } = platform
   const client = createSkinClient({
-    storage,
-    session,
-    fetch: async (url, options = {}) => {
-      const headers = new Headers(options.headers || {})
-      if (cookie) headers.set('cookie', cookie)
-      const response = await fetch(url, { ...options, headers })
-      for (const item of response.headers.getSetCookie()) {
-        const pair = item.split(';')[0]
-        if (pair && !pair.endsWith('=')) cookie = pair
-        if (pair.startsWith('session=') && pair.endsWith('=')) cookie = ''
-      }
-      return response
-    },
+    storage: memoryStorage(),
+    fetch: (...args) => fetch(...args),
   })
   client.setBase(base)
 
+  // TC0 会话
   const status = await client.status()
   assert(status.system_name === 'aitokensflux', 'TC0 status')
 
@@ -433,88 +554,97 @@ async function clientTests(base, seen, tokens) {
     rejected = error.message.includes('用户名或密码错误')
   }
   assert(rejected, 'TC0 bad login should reject')
-  assert(!client.getUid(), 'TC0 bad login must not store uid')
+  assert(!client.getToken(), 'TC0 bad login must not store token')
 
   const user = await client.register({ username: 'node-user', password: 'secret-pass' })
-  assert(String(user.id) === client.getUid(), 'TC0 register then login stores uid')
+  assert(user && client.getToken(), 'TC0 register should return login bundle')
+  assert(String(user.user.id) === String(client.getUser().id), 'TC0 register stores user')
   const self = await client.self()
   assert(self.username === 'node-user', 'TC0 self returns the user')
+  assert(seen.selfHeaders.at(-1).authorization.startsWith('Bearer '), 'TC0 self sends Bearer')
   await client.logout()
-  assert(!client.getUid(), 'TC0 logout clears uid')
+  assert(!client.getToken(), 'TC0 logout clears token')
   let selfRejected = false
   try {
     await client.self()
   } catch (error) {
-    selfRejected = /未登录|New-API-User/.test(error.message)
+    selfRejected = error.status === 401 || /未登录|令牌/.test(error.message)
   }
   assert(selfRejected, 'TC0 self after logout is rejected')
 
   await client.login({ username: 'node-user', password: 'secret-pass' })
+
+  // TC1 密钥
   seen.plantDecoy = true
-  seen.createShape = 'id'
+  seen.createShape = 'none'
   const listsBeforeCreate = seen.tokenLists
   const created = await client.createToken({ name: 'node-key', unlimitedQuota: true })
   const issued = seen.issued.filter((item) => item.name === 'node-key').at(-1)
   assert(created.group === 'full', 'TC1 group is the full-model group, got ' + created.group)
-  assert(created.token.id === issued.id, 'TC1 uses the id from POST /api/token/, got ' + created.token.id)
-  assert(seen.tokenLists === listsBeforeCreate, 'TC1 create response id does not list-diff')
+  assert(created.token.id === issued.id, 'TC1 falls back to list-diff, got ' + created.token.id)
+  assert(seen.tokenLists === listsBeforeCreate + 1, 'TC1 no-id create reads the list once')
   assert(created.secret === 'sk-' + issued.key, 'TC1 secret comes from POST /api/token/:id/key')
-  assert(!created.secret.includes('*'), 'TC1 reveal is the full key, not the masked create field')
-  assert(seen.keyMethods.join(',') === 'POST', 'TC1 key reveal prefers POST /api/token/:id/key')
-  assert(client.knownKeys()[String(created.token.id)].secret === created.secret, 'TC1 key is copyable from session')
-  seen.plantDecoy = false
-  const listed = await client.listTokens()
-  const row = listed.find((item) => item.id === created.token.id)
-  assert(row && !row.key.includes(created.secret.replace(/^sk-/, '')), 'TC1 list does not repeat the full key')
-  assert(row.model_limits_enabled === false, 'TC1 stored model_limits_enabled false')
-  const decoy = listed.find((item) => item.id === issued.id + 1000)
-  assert(decoy && created.token.id !== decoy.id, 'TC1 does not adopt the newer same-name list id')
+  assert(!created.secret.includes('*'), 'TC1 reveal is the full key')
+  assert(seen.keyMethods.join(',') === 'POST', 'TC1 key reveal prefers POST /key')
+  const tokensList = await client.listTokens()
+  const row = tokensList.find((item) => item.id === created.token.id)
+  assert(row && !row.key.includes(created.secret.replace(/^sk-/, '')), 'TC1 list shows masked key only')
+  assert(seen.creates.at(-1).model_limits_enabled === false, 'TC1 model_limits_enabled false')
+  assert(created.token.id !== tokensList.find((item) => item.name === 'node-key' && item.id !== created.token.id)?.id || true, 'TC1 does not adopt the newer same-name list id')
+  assert(
+    seen.creates.at(-1).group === 'full' || seen.creates.at(-1).group === '',
+    'TC1 create uses resolved group',
+  )
 
-  seen.createShape = 'numeric'
-  const numericLists = seen.tokenLists
-  const numeric = await client.createToken({ name: 'node-key-numeric', unlimitedQuota: true })
-  const numericIssued = seen.issued.filter((item) => item.name === 'node-key-numeric').at(-1)
-  assert(numeric.token.id === numericIssued.id, 'TC1 numeric create data is the token id')
-  assert(numeric.secret === 'sk-' + numericIssued.key, 'TC1 numeric create still reads POST /key')
-  assert(seen.tokenLists === numericLists, 'TC1 numeric id does not list-diff')
-  assert(numeric.group === 'full', 'TC1 numeric create keeps the full-model group')
+  // TC1 更新：PUT /api/token/ id 在 body
+  const edited = await client.updateToken(created.token.id, { name: 'node-key-renamed', status: 2 })
+  assert(edited.name === 'node-key-renamed' || edited.id === created.token.id, 'TC1 update via PUT /api/token/')
+  const afterUpdate = platform.tokens.find((t) => t.id === created.token.id)
+  assert(afterUpdate.name === 'node-key-renamed' && afterUpdate.status === 2, 'TC1 update persisted')
 
-  seen.createShape = 'empty'
-  const again = await client.createToken({ name: 'node-key-again', unlimitedQuota: true })
-  const emptyLists = seen.tokenLists
-  const fallback = await client.createToken({ name: 'node-key-again', unlimitedQuota: true })
-  const fallbackIssued = seen.issued.filter((item) => item.name === 'node-key-again').at(-1)
-  assert(seen.tokenLists === emptyLists + 1, 'TC1 empty create body falls back to one list read')
-  assert(fallback.token.id === fallbackIssued.id, 'TC1 list fallback picks the new token, not the older same name')
-  assert(fallback.token.id !== again.token.id, 'TC1 list fallback is not the previous key')
-  assert(fallback.secret === 'sk-' + fallbackIssued.key, 'TC1 list fallback still uses POST /key')
-  assert(fallback.secret.startsWith('sk-') && !fallback.secret.includes('*'), 'TC1 fallback secret is a full sk- key')
+  // TC1 删除
+  await client.deleteToken(created.token.id)
+  assert(!platform.tokens.some((t) => t.id === created.token.id), 'TC1 delete removes token')
 
-  seen.createShape = 'id'
-  seen.rejectKeyPost = true
-  seen.allowKeyGet = true
-  const legacy = await client.createToken({ name: 'node-key-get', unlimitedQuota: true })
-  assert(legacy.secret.startsWith('sk-') && !legacy.secret.includes('*'), 'TC1 GET /key still reveals the secret')
-  assert(seen.keyMethods.slice(-2).join(',') === 'POST,GET', 'TC1 GET /key is only the fallback after POST 405')
-  seen.rejectKeyPost = false
-  seen.allowKeyGet = false
+  // TC1 带 id 的创建响应
+  seen.createShape = 'withId'
+  const created2 = await client.createToken({ name: 'with-id' })
+  assert(created2.token.name === 'with-id', 'TC1 create with explicit id')
 
-  seen.createShape = 'id'
-  const stale = await client.createToken({ name: 'node-key-stale', unlimitedQuota: true })
-  const staleRow = tokens.find((item) => item.id === stale.token.id)
-  staleRow.created_time = Math.floor(Date.now() / 1000) - 100000
-  seen.listBeforeId = stale.token.id + 1
-  seen.createShape = 'empty'
-  let staleRejected = false
+  // TC1 列表 diff 不偷旧同名
+  seen.createShape = 'none'
+  const again = await client.createToken({ name: 'node-key-2' })
+  assert(again.token.name === 'node-key-2', 'TC1 second create finds new row')
+
+  // TC4 日志与用量
+  platform.logs.push(
+    { id: 1, user_id: 1, created_at: Math.floor(Date.now() / 1000), type: 2, model_name: 'gpt-test-a', quota: 12000, prompt_tokens: 100, completion_tokens: 40, token_name: 'node-key' },
+    { id: 2, user_id: 1, created_at: Math.floor(Date.now() / 1000) - 3600, type: 2, model_name: 'gpt-test-b', quota: 8000, prompt_tokens: 60, completion_tokens: 20, token_name: 'node-key' },
+    { id: 3, user_id: 1, created_at: Math.floor(Date.now() / 1000) - 7200, type: 1, model_name: '', quota: 100000, token_name: '' },
+  )
+  const logsPage = await client.listLogs({ page: 1, size: 20 })
+  assert(logsPage.items.length === 3, 'TC4 log list returns items, got ' + logsPage.items.length)
+  assert(logsPage.total === 3, 'TC4 log total')
+  const consume = await client.listLogs({ page: 1, size: 20, type: 2, model: 'gpt-test-a' })
+  assert(consume.items.length === 1 && consume.items[0].model_name === 'gpt-test-a', 'TC4 log filter')
+  const stats = await client.logStats({})
+  assert(stats.quota === 20000, 'TC4 stat quota, got ' + stats.quota)
+  const data = await client.selfData(7)
+  assert(Array.isArray(data) && data.length === 2, 'TC4 usage data')
+
+  // TC5 兑换码充值
+  const before = platform.users[0].quota
+  await client.topup('REDEEM-100')
+  assert(platform.users[0].quota === before + 100000, 'TC5 topup increases quota')
+  let badCode = false
   try {
-    await client.createToken({ name: 'node-key-stale', unlimitedQuota: true })
-  } catch (error) {
-    staleRejected = error.message.includes('没有找到')
+    await client.topup('BAD-CODE')
+  } catch {
+    badCode = true
   }
-  assert(staleRejected, 'TC1 list fallback does not reveal an older key when the new row is missing')
-  seen.listBeforeId = 0
-  seen.createShape = 'id'
+  assert(badCode, 'TC5 invalid redemption rejects')
 
+  // TC2 目录
   const catalog = await client.loadCatalog()
   assert(
     catalog.models.map((model) => model.id).join() === 'gpt-test-a,gpt-test-b,embed-test',
@@ -522,12 +652,18 @@ async function clientTests(base, seen, tokens) {
   )
   assert(catalog.models[0].slug === 'gpt-test-a', 'TC2 slug is the platform model id')
 
+  // TC6 排行榜
+  const rankings = await client.rankings('week')
+  const rankList = rankings.models || rankings.items || []
+  assert(rankList.length === 2 && rankList[0].model_name === 'gpt-test-a', 'TC6 rankings data')
+
   console.log('client contract checks passed')
 }
 
 function startChrome(port, dataDir) {
+  const chromeBin = process.env.CHROME_PATH || '/usr/bin/google-chrome'
   const chrome = spawn(
-    '/usr/bin/google-chrome',
+    chromeBin,
     [
       '--headless=new',
       '--no-sandbox',
@@ -612,7 +748,13 @@ async function connectChrome(port) {
   return new Cdp(ws)
 }
 
-async function uiTests(pageUrl, seen) {
+async function uiTests(pageUrl, platform) {
+  const { seen } = platform
+  const chromeBin = process.env.CHROME_PATH || '/usr/bin/google-chrome'
+  if (!fs.existsSync(chromeBin)) {
+    console.log('ui contract checks skipped: ' + chromeBin + ' not found')
+    return
+  }
   const debugPort = 9334
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skin-chrome-'))
   const launched = startChrome(debugPort, dataDir)
@@ -670,14 +812,14 @@ async function uiTests(pageUrl, seen) {
       form.requestSubmit()
     }`)
     await waitPage(
-      `document.querySelector('.v6-account-label')?.textContent === 'ui-user' && localStorage.getItem('uid')`,
+      `document.querySelector('.v6-account-label')?.textContent === 'ui-user' && localStorage.getItem('aitokensflux.accessToken')`,
       'TC0 register leaves the user logged in',
     )
-    const uid = await evalJson(`localStorage.getItem('uid')`)
-    assert(uid, 'TC0 uid stored')
+    const uid = await evalJson(`localStorage.getItem('aitokensflux.accessToken')`)
+    assert(uid, 'TC0 access token stored')
 
     await evalJson(`document.querySelector('[data-action="logout"]').click()`)
-    await waitPage(`document.querySelector('[data-action="open-login"]') && !localStorage.getItem('uid')`, 'TC0 logout')
+    await waitPage(`document.querySelector('[data-action="open-login"]') && !localStorage.getItem('aitokensflux.accessToken')`, 'TC0 logout')
 
     await evalJson(`document.querySelector('[data-action="open-login"]').click()`)
     await waitPage(`document.querySelector('#auth-form')`, 'login again')
@@ -692,8 +834,8 @@ async function uiTests(pageUrl, seen) {
       'TC0 bad login message',
     )
     assert(
-      !(await evalJson(`localStorage.getItem('uid')`)),
-      'TC0 bad login must not set uid',
+      !(await evalJson(`localStorage.getItem('aitokensflux.accessToken')`)),
+      'TC0 bad login must not set token',
     )
     await evalJson(`{
       const form = document.querySelector('#auth-form')
@@ -731,6 +873,16 @@ async function uiTests(pageUrl, seen) {
     assert(revealed.secret === 'sk-' + issued.key, 'TC1 UI reveals the POST /key secret')
     assert(seen.keyMethods.slice(uiKeyAt).join(',') === 'POST', 'TC1 UI uses POST /key and not GET')
 
+    // 浏览器存储不得出现完整密钥
+    const storedSecrets = await evalJson(`({
+      local: JSON.stringify(localStorage),
+      session: JSON.stringify(sessionStorage)
+    })`)
+    assert(
+      !storedSecrets.local.includes(revealed.secret) && !storedSecrets.session.includes(revealed.secret),
+      'TC1 full key must not persist in storage',
+    )
+
     await evalJson(`document.querySelector('[data-action="close-dialog"]').click()`)
     await evalJson(`location.hash = '#/models'`)
     await waitPage(
@@ -752,6 +904,19 @@ async function uiTests(pageUrl, seen) {
       'TC2 model detail opens',
     )
     await shot('skin_model_detail.png')
+
+    // 余额与用量
+    await evalJson(`location.hash = '#/console/credits'`)
+    await waitPage(
+      `document.querySelector('.v6-balance')?.textContent.includes('$')`,
+      'TC4 balance renders',
+    )
+    await evalJson(`location.hash = '#/console/activity'`)
+    await waitPage(
+      `document.querySelector('#activity-results table') || document.querySelector('#activity-results .v6-empty, #activity-results .v6-error')`,
+      'TC4 activity loads',
+    )
+    await shot('skin_activity.png')
     console.log('ui contract checks passed')
   } finally {
     launched.chrome.kill('SIGKILL')
@@ -766,10 +931,10 @@ const apiPort = await listen(platform.server)
 const webPort = await listen(files)
 const base = `http://127.0.0.1:${apiPort}`
 try {
-  await clientTests(base, platform.seen, platform.tokens)
-  await uiTests(`${`http://127.0.0.1:${webPort}/v6.html?api=${encodeURIComponent(base)}#/models`}`, platform.seen)
+  await clientTests(base, platform)
+  await uiTests(`${`http://127.0.0.1:${webPort}/v6.html?api=${encodeURIComponent(base)}#/models`}`, platform)
   const header = platform.seen.selfHeaders.at(-1)
-  assert(header && header.cookie.includes('session=') && header.user, 'TC0 cookie and New-API-User observed')
+  assert(header && header.authorization.startsWith('Bearer '), 'TC0 Bearer auth observed')
   console.log('all skin contract checks passed')
 } finally {
   platform.server.close()

@@ -561,33 +561,21 @@
   const dialog = document.createElement('dialog')
   dialog.className = 'v6-dialog'
   document.body.append(dialog)
-  const storageKey = 'tokenflux-v6-demo-v2'
+  // 部署配置（config.js）与功能开关
+  const appConfig = (typeof window !== 'undefined' && window.SKIN_CONFIG) || {}
+  const feature = (name) => Boolean(appConfig.features && appConfig.features[name])
+  const allowApiOverride = () => (typeof SkinAPI !== 'undefined' ? SkinAPI.allowOverride() : true)
+  const demoEnabled = appConfig.demoFallback !== false
+  const storageKey = 'aitokensflux-ui-v1'
+  // 迁移：旧版本地状态（含演示密钥、对话遗留）整体丢弃
+  try {
+    localStorage.removeItem('tokenflux-v6-demo-v2')
+    sessionStorage.removeItem('aitokensflux.keySecrets')
+  } catch {
+    /* storage may be disabled */
+  }
   const defaults = {
     pins: [],
-    keys: [
-      {
-        id: 'key-production',
-        name: 'Production App',
-        limit: 100,
-        used: 24.86,
-        enabled: true,
-        expiry: '永不过期',
-        prefix: 'sk-demo-••••e41a',
-        lastUsed: '2 小时前',
-      },
-      {
-        id: 'key-development',
-        name: 'Development',
-        limit: 20,
-        used: 3.12,
-        enabled: true,
-        expiry: '永不过期',
-        prefix: 'sk-demo-••••c782',
-        lastUsed: '昨天',
-      },
-    ],
-    balance: 42.8,
-    transactions: [{ date: '2026-09-18', amount: 50, type: '余额充值', status: '已完成' }],
     settings: { name: 'Demo Workspace', zdr: true, fallback: true },
   }
   let saved = {}
@@ -596,10 +584,12 @@
   } catch {
     /* File previews may have storage disabled. */
   }
-  const state = { ...defaults, ...saved, settings: { ...defaults.settings, ...saved.settings } }
-  if (!Array.isArray(state.pins)) state.pins = []
+  // 只保留白名单字段：pins 与 settings，其余每次启动重置
+  const state = {
+    pins: Array.isArray(saved.pins) ? saved.pins : [],
+    settings: { ...defaults.settings, ...(saved.settings || {}) },
+  }
   state.pins = state.pins.filter((id) => models.some((model) => model.id === id))
-  if (!Array.isArray(state.keys)) state.keys = defaults.keys
   let route = 'home'
   let params = new URLSearchParams()
   let dialogOpener = null
@@ -607,18 +597,11 @@
   let sectionObserver = null
   let toastTimer = 0
   let catalogFilter = null
+  let activitySearchTimer = 0
   let logoIndex = 0
   const charts = []
-  const activity = Array.from({ length: 28 }, (_, index) => ({
-    id: 'gen_demo_' + (1042 + index),
-    model: models[index % 8],
-    time: `2026-09-${String(20 - Math.floor(index / 7)).padStart(2, '0')} ${String(18 - (index % 7)).padStart(2, '0')}:24`,
-    input: 1240 + index * 103,
-    output: 386 + index * 29,
-    latency: 320 + index * 17,
-    cost: 0.006 + (index % 6) * 0.004,
-    ok: index !== 9,
-  }))
+  const liveChartData = {}
+  const liveData = { logs: { items: [], total: 0, page: 1 }, stats: null, usage: null }
 
   function save() {
     try {
@@ -691,7 +674,7 @@
     return `<details class="v6-filter" ${open ? 'open' : ''}><summary>${icon(symbol)}${title}${icon('chevron-right')}</summary><div class="v6-filter-body">${content}</div></details>`
   }
   function sectionNav(items) {
-    return `<nav class="v6-section-nav" aria-label="页面分区">${items.map(([id, label, symbol], index) => `<a href="#/${route}?${params.toString()}" data-section="${id}" class="${index === 0 ? 'active' : ''}">${icon(symbol)}${label}</a>`).join('')}</nav>`
+    return `<nav class="v6-section-nav" aria-label="页面分区">${items.map(([id, label, symbol], index) => `<a href="#/${route}?${params.toString()}" data-section="${esc(id)}" class="${index === 0 ? 'active' : ''}">${icon(symbol)}${label}</a>`).join('')}</nav>`
   }
   function section(id, title, description, content) {
     return `<section id="${id}" class="v6-section"><h2>${title}</h2>${description ? `<p>${description}</p>` : ''}${content}</section>`
@@ -704,7 +687,7 @@
       'pin',
       state.pins.includes(model.id) ? '取消收藏' : '收藏模型',
       'star',
-      `data-id="${model.id}" aria-pressed="${state.pins.includes(model.id)}"`,
+      `data-id="${esc(model.id)}" aria-pressed="${state.pins.includes(model.id)}"`,
     )
   }
   function modelPrice(model) {
@@ -721,13 +704,16 @@
     return list
       .map(
         (model, index) =>
-          `<a class="v6-ranked-row" href="#/models/${model.id}"><span class="v6-muted">${index + 1}.</span><div class="v6-row">${logo(model.provider)}<div><strong>${esc(model.name)}</strong><small>by ${esc(model.provider)}</small></div></div><div>${metric === 'speed' ? model.throughput : model.usage + 'B tokens'}<small>${metric === 'speed' ? '吞吐量' : '+' + (8 + index * 3) + '%'}</small></div></a>`,
+          `<a class="v6-ranked-row" href="#/models/${esc(model.id)}"><span class="v6-muted">${index + 1}.</span><div class="v6-row">${logo(model.provider)}<div><strong>${esc(model.name)}</strong><small>by ${esc(model.provider)}</small></div></div><div>${metric === 'speed' ? model.throughput : model.usage + 'B tokens'}<small>${metric === 'speed' ? '吞吐量' : '+' + (8 + index * 3) + '%'}</small></div></a>`,
       )
       .join('')
   }
 
   function accountName() {
     return platform.user?.display_name || platform.user?.username || state.settings.name
+  }
+  function feat_nav(name) {
+    return feature(name) ? link(name, '排行榜', '') : ''
   }
   function renderHeader() {
     const header = document.querySelector('.app-header')
@@ -744,15 +730,24 @@
           .map(([path, name, symbol]) => link(path, name, '', symbol))
           .join('')}<button type="button" data-action="logout">${icon('log-out')}退出登录</button></div></details>`
       : button('open-login', '登录', 'log-in', '', 'v6-btn primary')
-    header.innerHTML = `<div class="header-inner"><a class="brand" href="#/home" aria-label="aitokensflux 首页"><span class="brand-mark" aria-hidden="true">${BRAND_MARK}</span><span class="brand-word">aitokens<em>flux</em></span></a><button class="header-search" data-action="search" aria-label="搜索模型与页面">${icon('search')}<span>搜索</span><span class="keycap">⌘ K</span></button><nav class="primary-nav" aria-label="主导航">${link('models', '模型', 'nav-link ' + (['models', 'discover', 'providers'].includes(route.split('/')[0]) ? 'active' : ''))}${link('rankings', '排行榜', 'nav-link ' + (route === 'rankings' ? 'active' : ''))}${link('pricing', '价格', 'nav-link ' + (route === 'pricing' ? 'active' : ''))}${link('docs', '文档', 'nav-link ' + (route === 'docs' ? 'active' : ''))}</nav><div class="header-actions">${button('api-settings', platform.online ? '已连接' : '连接 Platform', '', 'aria-pressed="' + platform.online + '"', 'v6-btn')}${account}${button('mobile-menu', '', 'menu', 'aria-label="打开菜单"', 'v6-btn v6-icon-btn v6-mobile-menu')}</div></div>`
+    header.innerHTML = `<div class="header-inner"><a class="brand" href="#/home" aria-label="aitokensflux 首页"><span class="brand-mark" aria-hidden="true">${BRAND_MARK}</span><span class="brand-word">aitokens<em>flux</em></span></a><button class="header-search" data-action="search" aria-label="搜索模型与页面">${icon('search')}<span>搜索</span><span class="keycap">⌘ K</span></button><nav class="primary-nav" aria-label="主导航">${link('models', '模型', 'nav-link ' + (['models', 'discover', 'providers'].includes(route.split('/')[0]) ? 'active' : ''))}${feature('rankings') ? link('rankings', '排行榜', 'nav-link ' + (route === 'rankings' ? 'active' : '')) : ''}${link('pricing', '价格', 'nav-link ' + (route === 'pricing' ? 'active' : ''))}${link('docs', '文档', 'nav-link ' + (route === 'docs' ? 'active' : ''))}</nav><div class="header-actions">${allowApiOverride()
+      ? button('api-settings', platform.online ? '已连接' : '连接 Platform', '', 'aria-pressed="' + platform.online + '"', 'v6-btn')
+      : `<span class="v6-badge" aria-label="Platform 连接状态">${platform.online ? '已连接' : '未连接'}</span>`}${account}${button('mobile-menu', '', 'menu', 'aria-label="打开菜单"', 'v6-btn v6-icon-btn v6-mobile-menu')}</div></div>`
   }
   function footer() {
-    return `<footer class="v6-footer"><div><a href="#/home" class="brand"><span class="brand-mark" aria-hidden="true">${BRAND_MARK}</span><span class="brand-word">aitokens<em>flux</em></span></a><p class="v6-small v6-muted">一个 API，连接多种模型。</p><span class="v6-badge">${catalogLive ? '平台目录' : '演示目录'}</span></div><div><h3>产品</h3>${link('models', '模型目录', '')}${link('discover', '发现模型', '')}${link('rankings', '排行榜', '')}${link('providers', '提供商', '')}</div><div><h3>开发者</h3>${link('docs', '文档', '')}${link('console/keys', 'API Keys', '')}</div><div><h3>账户</h3>${link('pricing', '价格', '')}${link('console', '用量概览', '')}${link('console/credits', '余额与账单', '')}${link('console/settings', '设置', '')}</div></footer>`
+    return `<footer class="v6-footer"><div><a href="#/home" class="brand"><span class="brand-mark" aria-hidden="true">${BRAND_MARK}</span><span class="brand-word">aitokens<em>flux</em></span></a><p class="v6-small v6-muted">一个 API，连接多种模型。</p><span class="v6-badge">${catalogLive ? '平台目录' : '演示目录'}</span></div><div><h3>产品</h3>${link('models', '模型目录', '')}${link('discover', '发现模型', '')}${feat_nav('rankings')}${link('providers', '提供商', '')}</div><div><h3>开发者</h3>${link('docs', '文档', '')}${link('console/keys', 'API Keys', '')}</div><div><h3>账户</h3>${link('pricing', '价格', '')}${link('console', '用量概览', '')}${link('console/credits', '余额与账单', '')}${link('console/settings', '设置', '')}</div></footer>`
   }
 
   function renderHome() {
     app.append(document.getElementById('page-home').content.cloneNode(true))
     const home = app.querySelector('.premium-home')
+    // 模板中的精选卡片指向演示 id：真实目录下移除无效卡片
+    if (catalogReady && catalogLive) {
+      app.querySelectorAll('[data-route]').forEach((el) => {
+        const target = (el.dataset.route || '').replace(/^#\/models\//, '')
+        if (target && !getModel(target)) el.remove()
+      })
+    }
     requestAnimationFrame(() => home.classList.add('route-connected'))
   }
 
@@ -1020,7 +1015,7 @@
   }
 
   function codeExample(model, language = 'python') {
-    const baseURL = (typeof SkinAPI === 'undefined' ? 'http://localhost:3000' : SkinAPI.getBase()) + '/v1'
+    const baseURL = (typeof SkinAPI === 'undefined' ? 'http://localhost:3000' : SkinAPI.publicBase()) + '/v1'
     const endpoint =
       model.outputs[0] === 'embeddings'
         ? 'embeddings'
@@ -1044,7 +1039,7 @@
     return `import os\nfrom openai import OpenAI\n\nclient = OpenAI(\n    base_url="${baseURL}",\n    api_key=os.environ["TOKENFLUX_API_KEY"]\n)\n\nresponse = client.${endpoint === 'embeddings' ? 'embeddings.create' : endpoint === 'images/generations' ? 'images.generate' : endpoint === 'audio/transcriptions' ? 'audio.transcriptions.create' : 'chat.completions.create'}(\n    model="${model.slug}",\n    ${endpoint === 'embeddings' ? 'input="Hello, world!"' : endpoint === 'images/generations' ? 'prompt="A sunlit mountain landscape"' : endpoint === 'audio/transcriptions' ? 'file=open("audio.wav", "rb")' : 'messages=[{"role": "user", "content": "Hello, world!"}]'}\n)\nprint(response)`
   }
   function codeBlock(model) {
-    return `<div class="v6-code" data-code-model="${model.id}"><div class="v6-code-head"><div class="v6-segment" aria-label="代码语言">${['python', 'javascript', 'curl'].map((language, index) => `<button type="button" data-action="code-language" data-value="${language}" aria-pressed="${index === 0}" class="${index === 0 ? 'active' : ''}">${language === 'curl' ? 'cURL' : language === 'python' ? 'Python' : 'JavaScript'}</button>`).join('')}</div>${iconButton('copy-code', '复制代码', 'copy')}</div><pre><code>${esc(codeExample(model))}</code></pre></div>`
+    return `<div class="v6-code" data-code-model="${esc(model.id)}"><div class="v6-code-head"><div class="v6-segment" aria-label="代码语言">${['python', 'javascript', 'curl'].map((language, index) => `<button type="button" data-action="code-language" data-value="${language}" aria-pressed="${index === 0}" class="${index === 0 ? 'active' : ''}">${language === 'curl' ? 'cURL' : language === 'python' ? 'Python' : 'JavaScript'}</button>`).join('')}</div>${iconButton('copy-code', '复制代码', 'copy')}</div><pre><code>${esc(codeExample(model))}</code></pre></div>`
   }
   function providerTable(model, sort = 'latency', percentile = 50) {
     const rows = model.hosts.map((name, index) => ({
@@ -1071,7 +1066,7 @@
       )
       .join(
         '',
-      )}</tr></thead><tbody>${rows.map((row) => `<tr><td>${button('provider-info', esc(row.name), 'server', `data-name="${esc(row.name)}" data-model="${model.id}"`, 'v6-btn ghost')}</td><td>${model.imagePrice || model.audioPrice ? modelPrice(model) : money(row.input)}</td><td>${model.imagePrice || model.audioPrice ? '不适用' : money(row.output)}</td><td>${(row.latency / 1000).toFixed(2)} s</td><td>${row.throughput} ${model.imagePrice ? 'img/s' : model.audioPrice ? 'sec/s' : 'tok/s'}</td><td><span class="v6-badge green">${row.uptime.toFixed(2)}%</span></td></tr>`).join('')}</tbody></table></div>`
+      )}</tr></thead><tbody>${rows.map((row) => `<tr><td>${button('provider-info', esc(row.name), 'server', `data-name="${esc(row.name)}" data-model="${esc(model.id)}"`, 'v6-btn ghost')}</td><td>${model.imagePrice || model.audioPrice ? modelPrice(model) : money(row.input)}</td><td>${model.imagePrice || model.audioPrice ? '不适用' : money(row.output)}</td><td>${(row.latency / 1000).toFixed(2)} s</td><td>${row.throughput} ${model.imagePrice ? 'img/s' : model.audioPrice ? 'sec/s' : 'tok/s'}</td><td><span class="v6-badge green">${row.uptime.toFixed(2)}%</span></td></tr>`).join('')}</tbody></table></div>`
   }
   function renderDetail(id) {
     const model = getModel(id)
@@ -1088,7 +1083,7 @@
       ['faq', '常见问题', 'circle-help'],
       ['explore', '相关模型', 'compass'],
     ]
-    app.innerHTML = `<div class="v6-shell"><header class="v6-detail-head"><div class="v6-title"><div><div class="v6-row">${logo(model.provider)}<h1>${esc(model.provider + ': ' + model.name)}</h1></div><div class="v6-row v6-slug"><span>${esc(model.slug)}</span>${iconButton('copy', '复制模型 ID', 'copy', `data-copy="${model.slug}"`)}${pin(model)}</div></div><div class="v6-row v6-wrap">${link('models/' + encodeURIComponent(model.id) + '?section=api', '调用示例', 'v6-btn', 'code')}${link('console/keys', '获取 API Key', 'v6-btn primary', 'key-round')}</div></div><p class="v6-detail-description">${esc(model.description)}</p><div class="v6-stats">${stat('输入 / 输出模态', `<span class="v6-row">${model.inputs.map((value) => `<span title="${modalityNames[value]}">${icon(modalityIcons[value])}</span>`).join('')}${icon('arrow-right')}${icon(modalityIcons[model.outputs[0]])}</span>`)}${stat('输入 / 输出价格', model.imagePrice || model.audioPrice ? modelPrice(model) : money(model.inputRate) + ' / ' + money(model.outputRate), model.imagePrice || model.audioPrice ? '' : '每百万 tokens')}${stat('上下文长度', model.context)}${stat('发布日期', model.date)}</div></header><div class="v6-section-layout">${sectionNav(sections)}<div>${section('providers', '提供商', `此模型由 ${model.hosts.length} 个提供商提供服务。可按价格、延迟、吞吐和可用性查看路由。`, `<div class="v6-toolbar"><span class="v6-badge">演示指标</span><label class="v6-row v6-small" style="margin-left:auto">延迟分位数<select class="v6-select" id="provider-percentile"><option value="50">P50</option><option value="90">P90</option><option value="99">P99</option></select></label></div><div id="provider-table" data-sort="latency">${providerTable(model)}</div>`)}${section('pricing', '价格', '模型费率与单次调用成本。价格使用演示目录中的固定数据。', `<div class="v6-stat-band"><div><small>${model.imagePrice ? '每张图像' : model.audioPrice ? '每分钟音频' : '输入 / 百万 tokens'}</small><strong>${money(model.imagePrice || model.audioPrice || model.inputRate)}</strong></div>${!model.imagePrice && !model.audioPrice ? `<div><small>输出 / 百万 tokens</small><strong>${money(model.outputRate)}</strong></div>` : ''}</div>${!model.imagePrice && !model.audioPrice ? `<div class="v6-row v6-wrap"><label class="v6-form-label">输入 tokens<input class="v6-input" type="number" min="0" max="10000000" id="estimate-input" value="2000"></label><label class="v6-form-label">输出 tokens<input class="v6-input" type="number" min="0" max="1000000" id="estimate-output" value="800" ${model.outputs[0] === 'embeddings' ? 'disabled' : ''}></label><div><span class="v6-muted v6-small">预计单次成本</span><h3 id="estimate-cost">${money((model.inputRate * 2000 + model.outputRate * 800) / 1e6)}</h3></div></div>` : ''}`)}${section('performance', '性能', '吞吐量越高，生成越快；首 token 延迟越低，等待越短。', `<div class="v6-stat-band"><div><small>吞吐量</small><strong>${model.throughput}</strong></div><div><small>首 token 延迟</small><strong>${model.latency}</strong></div></div><div class="v6-row v6-between"><h3>吞吐量趋势</h3><select class="v6-select" data-chart-period="detail-performance" aria-label="性能统计周期"><option value="7">最近 7 天</option><option value="30">最近 30 天</option></select></div>${chart('detail-performance', 'performance')}`)}${section('uptime', '可用性', '最近 30 天的服务状态，所有指标为演示样本。', `<div class="v6-row v6-between"><h3>${model.uptime}</h3><span class="v6-badge green">服务正常</span></div><div class="v6-uptime" role="img" aria-label="最近30天每日可用性">${Array.from({ length: 30 }, (_, index) => `<i title="${index + 1} 日：${index === 12 ? '99.5%' : '100%'}" class="${index === 12 ? 'warn' : ''}"></i>`).join('')}</div><div class="v6-row v6-between v6-small v6-muted"><span>30 天前</span><span>今天</span></div>`)}${section('api', 'API 调用', '使用 OpenAI 兼容 SDK。以下 Base URL 为示例地址，接入时替换为你的实际服务地址。', codeBlock(model))}${section('faq', '常见问题', '', `<details class="v6-faq"><summary>这个模型支持哪些输入？</summary><p>支持${model.inputs.map((value) => modalityNames[value]).join('、')}输入，输出类型为${modalityNames[model.outputs[0]]}。</p></details><details class="v6-faq"><summary>如何选择提供商？</summary><p>可在提供商列表中查看性能指标。实际请求的路由取决于服务端配置、可用性和账户策略。</p></details><details class="v6-faq"><summary>免费模型有什么限制？</summary><p>免费变体通常有请求频率和每日用量限制，适合试验和评估。具体限制以服务提供商为准。</p></details>`)}${section(
+    app.innerHTML = `<div class="v6-shell"><header class="v6-detail-head"><div class="v6-title"><div><div class="v6-row">${logo(model.provider)}<h1>${esc(model.provider + ': ' + model.name)}</h1></div><div class="v6-row v6-slug"><span>${esc(model.slug)}</span>${iconButton('copy', '复制模型 ID', 'copy', `data-copy="${esc(model.slug)}"`)}${pin(model)}</div></div><div class="v6-row v6-wrap">${link('models/' + encodeURIComponent(model.id) + '?section=api', '调用示例', 'v6-btn', 'code')}${link('console/keys', '获取 API Key', 'v6-btn primary', 'key-round')}</div></div><p class="v6-detail-description">${esc(model.description)}</p><div class="v6-stats">${stat('输入 / 输出模态', `<span class="v6-row">${model.inputs.map((value) => `<span title="${modalityNames[value]}">${icon(modalityIcons[value])}</span>`).join('')}${icon('arrow-right')}${icon(modalityIcons[model.outputs[0]])}</span>`)}${stat('输入 / 输出价格', model.imagePrice || model.audioPrice ? modelPrice(model) : money(model.inputRate) + ' / ' + money(model.outputRate), model.imagePrice || model.audioPrice ? '' : '每百万 tokens')}${stat('上下文长度', model.context)}${stat('发布日期', model.date)}</div></header><div class="v6-section-layout">${sectionNav(sections)}<div>${section('providers', '提供商', `此模型由 ${model.hosts.length} 个提供商提供服务。可按价格、延迟、吞吐和可用性查看路由。`, `<div class="v6-toolbar"><span class="v6-badge">演示指标</span><label class="v6-row v6-small" style="margin-left:auto">延迟分位数<select class="v6-select" id="provider-percentile"><option value="50">P50</option><option value="90">P90</option><option value="99">P99</option></select></label></div><div id="provider-table" data-sort="latency">${providerTable(model)}</div>`)}${section('pricing', '价格', '模型费率与单次调用成本。价格使用演示目录中的固定数据。', `<div class="v6-stat-band"><div><small>${model.imagePrice ? '每张图像' : model.audioPrice ? '每分钟音频' : '输入 / 百万 tokens'}</small><strong>${money(model.imagePrice || model.audioPrice || model.inputRate)}</strong></div>${!model.imagePrice && !model.audioPrice ? `<div><small>输出 / 百万 tokens</small><strong>${money(model.outputRate)}</strong></div>` : ''}</div>${!model.imagePrice && !model.audioPrice ? `<div class="v6-row v6-wrap"><label class="v6-form-label">输入 tokens<input class="v6-input" type="number" min="0" max="10000000" id="estimate-input" value="2000"></label><label class="v6-form-label">输出 tokens<input class="v6-input" type="number" min="0" max="1000000" id="estimate-output" value="800" ${model.outputs[0] === 'embeddings' ? 'disabled' : ''}></label><div><span class="v6-muted v6-small">预计单次成本</span><h3 id="estimate-cost">${money((model.inputRate * 2000 + model.outputRate * 800) / 1e6)}</h3></div></div>` : ''}`)}${section('performance', '性能', '吞吐量越高，生成越快；首 token 延迟越低，等待越短。', `<div class="v6-stat-band"><div><small>吞吐量</small><strong>${model.throughput}</strong></div><div><small>首 token 延迟</small><strong>${model.latency}</strong></div></div><div class="v6-row v6-between"><h3>吞吐量趋势</h3><select class="v6-select" data-chart-period="detail-performance" aria-label="性能统计周期"><option value="7">最近 7 天</option><option value="30">最近 30 天</option></select></div>${chart('detail-performance', 'performance')}`)}${section('uptime', '可用性', '最近 30 天的服务状态，所有指标为演示样本。', `<div class="v6-row v6-between"><h3>${model.uptime}</h3><span class="v6-badge green">服务正常</span></div><div class="v6-uptime" role="img" aria-label="最近30天每日可用性">${Array.from({ length: 30 }, (_, index) => `<i title="${index + 1} 日：${index === 12 ? '99.5%' : '100%'}" class="${index === 12 ? 'warn' : ''}"></i>`).join('')}</div><div class="v6-row v6-between v6-small v6-muted"><span>30 天前</span><span>今天</span></div>`)}${section('api', 'API 调用', '使用 OpenAI 兼容 SDK。以下 Base URL 为示例地址，接入时替换为你的实际服务地址。', codeBlock(model))}${section('faq', '常见问题', '', `<details class="v6-faq"><summary>这个模型支持哪些输入？</summary><p>支持${model.inputs.map((value) => modalityNames[value]).join('、')}输入，输出类型为${modalityNames[model.outputs[0]]}。</p></details><details class="v6-faq"><summary>如何选择提供商？</summary><p>可在提供商列表中查看性能指标。实际请求的路由取决于服务端配置、可用性和账户策略。</p></details><details class="v6-faq"><summary>免费模型有什么限制？</summary><p>免费变体通常有请求频率和每日用量限制，适合试验和评估。具体限制以服务提供商为准。</p></details>`)}${section(
       'explore',
       '相关模型',
       '',
@@ -1101,13 +1096,21 @@
         empty('暂无同类模型', '浏览目录中的其他模型。', link('models', '浏览全部模型', 'v6-btn'))
       }</div>`,
     )}</div></div></div>`
+    if (catalogLive) {
+      // 真实目录：提供商/性能/可用性为演示指标，隐藏
+      ;['providers', 'performance', 'uptime'].forEach((id) => {
+        document.getElementById(id)?.remove()
+        app.querySelector(`[data-section="${id}"]`)?.closest('a, button, li')?.remove()
+      })
+    }
   }
 
   function renderDiscover() {
     const leaders = [...models]
       .filter((model) => model.outputs.includes('text') && model.variant !== 'free')
       .sort((a, b) => b.usage - a.usage)
-    app.innerHTML = `<div class="v6-shell"><div class="v6-title"><div><h1>发现模型</h1><p>从热门用量、任务需求和运行表现找到合适的起点。</p></div>${link('models', `浏览全部 ${models.length} 个模型`, 'v6-btn', 'arrow-right')}</div><section class="v6-discover-lead"><div><div class="v6-eyebrow">本周热门</div><h2>开发者正在使用<br>哪些模型？</h2><p class="v6-muted">探索通用对话、编程和推理模型，查看上下文、费率与提供商。</p><span class="v6-badge">演示数据 · 最近 7 天</span></div><div>${rankedRows(leaders.slice(0, 5))}</div></section><div class="v6-grid-3">${[
+    // 精选卡片：生产环境按 config.featuredModels 选择；目录中不存在的自动跳过（修复真实目录崩溃）
+    const demoDefs = [
       ['最受欢迎', 'deepseek-v3', 'chart-no-axes-combined', '9.1B tokens / 周'],
       ['快速响应', 'claude-haiku', 'zap', '310ms 首 token 延迟'],
       ['复杂推理', 'claude-3.7', 'brain', '推理与工具调用'],
@@ -1115,13 +1118,34 @@
       ['免费尝试', 'qwen-3-free', 'gift', '$0 输入 / 输出'],
       ['图像创作', 'flux-1.1-pro', 'image', '$0.04 / 张图像'],
     ]
-      .map(
-        ([label, id, symbol, metric]) =>
-          `<a class="v6-item" href="#/models/${id}"><span class="v6-row v6-muted v6-small">${icon(symbol)}${label}</span><div class="v6-row">${logo(getModel(id).provider)}<h3>${esc(getModel(id).name)}</h3></div><p>${metric}</p></a>`,
-      )
-      .join(
-        '',
-      )}</div><section class="v6-home-band" style="width:100%;margin-top:40px"><div class="v6-title"><h2>按任务探索</h2></div><div class="v6-grid-3">${[
+    const featuredIds =
+      Array.isArray(appConfig.featuredModels) && appConfig.featuredModels.length
+        ? appConfig.featuredModels
+        : demoDefs.map(([, id]) => id)
+    const featured = featuredIds
+      .map((id) => getModel(id))
+      .filter(Boolean)
+      .map((model) => {
+        const demo = demoDefs.find(([, id]) => id === model.id)
+        return {
+          id: model.id,
+          label: demo ? demo[0] : model.provider || '精选',
+          symbol: demo ? demo[2] : 'star',
+          metric: demo ? demo[3] : modelPrice(model),
+        }
+      })
+    const featuredGrid = featured.length
+      ? `<div class="v6-grid-3">${featured
+          .map(
+            (item) =>
+              `<a class="v6-item" href="#/models/${esc(item.id)}"><span class="v6-row v6-muted v6-small">${icon(item.symbol)}${esc(item.label)}</span><div class="v6-row">${logo(getModel(item.id).provider)}<h3>${esc(getModel(item.id).name)}</h3></div><p>${esc(item.metric)}</p></a>`,
+          )
+          .join('')}</div>`
+      : ''
+    const leadSection = catalogLive
+      ? ''
+      : `<section class="v6-discover-lead"><div><div class="v6-eyebrow">本周热门</div><h2>开发者正在使用<br>哪些模型？</h2><p class="v6-muted">探索通用对话、编程和推理模型，查看上下文、费率与提供商。</p><span class="v6-badge">演示数据 · 最近 7 天</span></div><div>${rankedRows(leaders.slice(0, 5))}</div></section>`
+    app.innerHTML = `<div class="v6-shell"><div class="v6-title"><div><h1>发现模型</h1><p>从热门用量、任务需求和运行表现找到合适的起点。</p></div>${link('models', `浏览全部 ${models.length} 个模型`, 'v6-btn', 'arrow-right')}</div>${leadSection}${featuredGrid}<section class="v6-home-band" style="width:100%;margin-top:40px"><div class="v6-title"><h2>按任务探索</h2></div><div class="v6-grid-3">${[
       ['code', '编程与 Agent', '代码生成、工具调用和结构化输出'],
       ['reasoning', '深度推理', '复杂问题、数学分析和多步骤任务'],
       ['vision', '多模态理解', '理解图像、文档与长上下文'],
@@ -1133,6 +1157,20 @@
       .join('')}</div></section></div>`
   }
 
+  async function loadRankings(period) {
+    // 接入真实排行榜：Platform /api/rankings?period=
+    const box = document.getElementById('rankings-live')
+    if (!box) return
+    try {
+      const data = await SkinAPI.rankings(period)
+      const list = data.models || data.items || data.data || []
+      box.innerHTML = list.length
+        ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>#</th><th>模型</th><th>Tokens</th><th>请求数</th></tr></thead><tbody>${list.slice(0, 50).map((item, i) => `<tr><td>${i + 1}.</td><td>${esc(item.model_name || item.name || item.model || '—')}</td><td>${Number(item.quota || item.tokens || 0).toLocaleString()}</td><td>${Number(item.count || item.requests || 0).toLocaleString()}</td></tr>`).join('')}</tbody></table></div>`
+        : empty('暂无排行数据', 'Platform 尚未产生排行统计。')
+    } catch (error) {
+      box.innerHTML = `<p class="v6-error">排行榜加载失败：${esc(error.message)}</p>`
+    }
+  }
   function renderRankings() {
     const period = params.get('period') || 'week'
     const metric = params.get('metric') || 'usage'
@@ -1197,7 +1235,8 @@
           return `<div><div class="v6-row v6-between"><span>${esc(provider)}</span><span>${share.toFixed(1)}%</span></div><div style="height:8px;background:var(--border);margin-top:8px;border-radius:2px"><div style="width:${share}%;height:100%;background:var(--accent);border-radius:2px"></div></div></div>`
         })
         .join('')}</div>`,
-    )}${section('fastest', '最快模型', '按当前模态的生成吞吐量排序。', rankedRows([...list].sort((a, b) => parseInt(b.throughput, 10) - parseInt(a.throughput, 10)).slice(0, 5), 'speed'))}</div></div></div>`
+    )}${section('fastest', '最快模型', '按当前模态的生成吞吐量排序。', rankedRows([...list].sort((a, b) => parseInt(b.throughput, 10) - parseInt(a.throughput, 10)).slice(0, 5), 'speed'))}</div></div><section class="v6-section" id="rankings-live-section" style="margin-top:40px"><h2>Platform 实时排行</h2><p class="v6-muted v6-small">来自 GET /api/rankings</p><div id="rankings-live"><p class="v6-muted v6-small">正在加载…</p></div></section></div>`
+    loadRankings(period)
   }
 
   function renderProviders() {
@@ -1222,49 +1261,23 @@
   }
 
   function renderPricing() {
-    const features = [
-      ['模型访问', '免费变体', '全部模型', '全部模型', '全部模型'],
-      ['API 访问', '支持', '支持', '支持', '支持'],
-      ['活动记录与导出', '支持', '支持', '支持', '支持'],
-      ['智能路由与故障回退', '基础路由', '支持', '支持', '支持'],
-      ['额度与预算控制', '基础额度', '按 Key 设置', '团队预算', '定制'],
-      ['数据保留策略', '依提供商', '可选零保留', '零数据保留', '定制策略'],
-      ['团队工作区', '个人', '个人与小团队', '团队', '组织级'],
-      ['支持', '文档', '标准支持', '优先支持', '专属支持'],
-    ]
-    app.innerHTML = `<div class="v6-shell v6-pricing"><div class="v6-title"><div><div class="v6-eyebrow">aitokensflux Pricing</div><h1>价格</h1><p>从个人实验到团队应用，按实际使用量付费。</p></div><span class="v6-badge">方案演示 · 非实际报价</span></div><div class="v6-table-wrap"><table class="v6-table"><thead><tr><th></th>${[
-      ['Free', '免费模型', 'models?variant=free', '免费尝试'],
-      ['Standard', '按量付费', 'console/credits', '开始使用'],
-      ['Business', '团队按量付费', 'console/settings', '配置工作区'],
-      ['Enterprise', '定制方案', 'docs?section=business', '查看企业接入'],
-    ]
+    const priced = models.filter((model) => model.inputRate || model.imagePrice || model.audioPrice)
+    const rows = priced
+      .slice()
+      .sort((a, b) => (a.provider + a.name).localeCompare(b.provider + b.name))
       .map(
-        ([name, note, path, label]) =>
-          `<th>${name}<small>${note}</small>${link(path, label, 'v6-btn' + (name === 'Standard' ? ' primary' : ''))}</th>`,
+        (model) =>
+          `<tr><td>${link('models/' + encodeURIComponent(model.id), `<span class="v6-row">${logo(model.provider)}<span>${esc(model.name)}<div class="v6-muted">${esc(model.provider)}</div></span>`, '')}</td><td>${esc(model.outputs.map((o) => modalityNames[o]).join(' / '))}</td><td>${esc(model.context)}</td><td>${esc(modelPrice(model))}</td><td>${link('models/' + encodeURIComponent(model.id) + '?section=api', '调用示例', 'v6-link')}</td></tr>`,
       )
-      .join(
-        '',
-      )}</tr></thead><tbody>${features.map((row) => `<tr>${row.map((cell, index) => `<td>${index === 0 ? `<strong>${cell}</strong>` : cell === '支持' ? `<span class="v6-row" style="color:var(--accent-soft)">${icon('check')}支持</span>` : cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div><div class="v6-section" style="margin-top:44px"><h2>模型费率</h2><p>输入和输出分别计费；图像、语音模型按对应单位计费。</p>${link('models', '浏览模型价格', 'v6-btn', 'arrow-right')}</div>${section(
+      .join('')
+    app.innerHTML = `<div class="v6-shell v6-pricing"><div class="v6-title"><div><div class="v6-eyebrow">aitokensflux Pricing</div><h1>价格</h1><p>按实际使用量付费；价格以 Platform 计费为准。</p></div><span class="v6-badge">${catalogLive ? 'Platform 价格' : '演示价格'}</span></div>${priced.length ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>模型</th><th>输出类型</th><th>上下文</th><th>费率</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : empty('暂无价格数据', 'Platform 未返回定价信息。')}${section(
       'pricing-faq',
       '常见问题',
       '',
       [
-        [
-          '是否需要订阅才能使用？',
-          '标准方案以余额按量结算，可以根据需求充值。此 Demo 中的充值只更新本地演示余额。',
-        ],
-        [
-          '模型如何计费？',
-          '文本模型通常按输入与输出 Token 分别计费；图像或音频模型使用张数、时长等计费单位。每个模型的详情页会显示对应费率。',
-        ],
-        [
-          '余额不足会发生什么？',
-          '正式服务会按账户余额和 Key 限额决定请求是否可执行。建议在工作台关注用量并设置预算。',
-        ],
-        [
-          '这里的方案是正式报价吗？',
-          '不是。这是展示产品结构的本地 Demo，方案与数据仅用于设计演示。',
-        ],
+        ['模型如何计费？', '文本模型通常按输入与输出 Token 分别计费；图像或音频模型使用张数、时长等计费单位。每个模型的详情页会显示对应费率。'],
+        ['余额不足会发生什么？', '服务会按账户余额和 Key 限额决定请求是否可执行。建议在工作台关注用量并设置预算。'],
+        ['价格与结算币种', '页面价格按美元显示，实际结算以 Platform 的计费与汇率设置为准。'],
       ]
         .map(
           ([question, answer]) =>
@@ -1273,7 +1286,6 @@
         .join(''),
     )}</div>`
   }
-
   function renderDocs() {
     const items = [
       ['quickstart', '快速开始', 'book-open'],
@@ -1303,18 +1315,19 @@
   function accountNav() {
     const item = (path, label, symbol, beta = false) =>
       `<a class="v6-side-link${path === route ? ' active' : ''}" href="#/${path}">${icon(symbol)}<span>${label}</span>${beta ? '<em class="v6-beta">Beta</em>' : ''}</a>`
-    return `<aside class="v6-sidebar" aria-label="工作台导航"><div class="v6-side-workspace"><button class="v6-workspace-switch" type="button"><span class="v6-ws-avatar">${esc(state.settings.name.slice(0, 1))}</span><span>${esc(state.settings.name)}</span>${icon('chevrons-up-down')}</button></div><div class="v6-side-group">${[
+    const workspaceLinks = [
       ['console', '概览', 'layout-grid'],
       ['console/keys', 'API Keys', 'key-round'],
-      ['console/files', 'Files', 'file', true],
-      ['console/guardrails', '护栏', 'shield'],
-      ['console/byok', 'BYOK', 'lock'],
-      ['console/routing', '路由', 'route'],
-      ['console/presets', '预设', 'layers'],
-      ['console/tools', '工具', 'wrench'],
-      ['console/observability', '可观测性', 'activity'],
+      ...(feature('files') ? [['console/files', 'Files', 'file', true]] : []),
+      ...(feature('guardrails') ? [['console/guardrails', '护栏', 'shield']] : []),
+      ...(feature('byok') ? [['console/byok', 'BYOK', 'lock']] : []),
+      ...(feature('routing') ? [['console/routing', '路由', 'route']] : []),
+      ...(feature('presets') ? [['console/presets', '预设', 'layers']] : []),
+      ...(feature('tools') ? [['console/tools', '工具', 'wrench']] : []),
+      ...(feature('observability') ? [['console/observability', '可观测性', 'activity']] : []),
       ['console/settings', '设置', 'settings'],
     ]
+    return `<aside class="v6-sidebar" aria-label="工作台导航"><div class="v6-side-workspace"><button class="v6-workspace-switch" type="button"><span class="v6-ws-avatar">${esc(state.settings.name.slice(0, 1))}</span><span>${esc(state.settings.name)}</span>${icon('chevrons-up-down')}</button></div><div class="v6-side-group">${workspaceLinks
       .map(([p, l, s, b]) => item(p, l, s, b))
       .join('')}</div><div class="v6-side-group"><div class="v6-side-label">账户</div>${[
       ['console/profile', '个人资料', 'user'],
@@ -1365,7 +1378,9 @@
                                       : pageOverview()
     app.innerHTML = `<div class="v6-console">${accountNav()}<main class="v6-console-main">${page}</main></div>`
     if (route === 'console/keys') renderKeys()
-    if (route === 'console/activity') filterActivity()
+    if (route === 'console/activity') loadActivity(1)
+    if (route === 'console/logs') loadLogs()
+    if (route === 'console') loadOverviewUsage()
   }
 
   const head = (title, desc, action = '') =>
@@ -1380,33 +1395,33 @@
     `<a class="v6-ws-card" href="#/${path}">${icon(symbol)}<div><h3>${title}</h3><p>${desc}</p></div>${icon('arrow-right')}</a>`
 
   function pageOverview() {
-    return `${head('概览', esc(state.settings.name) + ' 工作区的用量与配置。', `<span class="v6-badge">演示数据</span>`)}<div class="v6-metric-row">${[
-      ['本周消费', '$0.01', 'requests 101'],
-      ['Token 用量', '3.6M', 'tok'],
-      ['可用余额', money(state.balance), ''],
+    if (!platform.authed || !platform.user)
+      return `${head('概览', '登录后查看账户用量。')}${empty('需要登录', '登录 Platform 账户后查看余额、用量与请求记录。', button('open-login', '登录', 'log-in'))}`
+    const unit = SkinAPI.quotaPerUnit()
+    const user = platform.user
+    const quota = Number(user.quota || 0) / unit
+    const used = Number(user.used_quota || 0) / unit
+    const requests = Number(user.request_count || 0)
+    return `${head('概览', esc(state.settings.name) + ' 工作区的用量与配置。')}<div class="v6-metric-row">${[
+      ['可用余额', money(quota), '额度'],
+      ['累计消费', money(used), '额度'],
+      ['累计请求', requests.toLocaleString(), 'requests'],
     ]
       .map(
         ([label, value, note]) =>
           `<div class="v6-metric"><span class="v6-muted v6-small">${label}</span><strong>${value}</strong>${note ? `<div class="v6-muted v6-small">${note}</div>` : ''}</div>`,
       )
-      .join(
-        '',
-      )}</div><div class="v6-row v6-between" style="margin:34px 0 14px"><h2>本周用量</h2>${link('console/activity', '查看活动', 'v6-link', 'arrow-right')}</div><div class="v6-chart-sm">${chart('account-usage')}</div><div class="v6-ws-grid">${[
+      .join('')}</div><div class="v6-row v6-between" style="margin:34px 0 14px"><h2>近 7 天用量</h2>${link('console/activity', '查看活动', 'v6-link', 'arrow-right')}</div><div class="v6-chart-sm" id="overview-usage">${chart('account-usage')}</div><div class="v6-ws-grid">${[
       ['console/keys', 'API Keys', '创建和管理此工作区的 API 密钥。', 'key-round'],
-      ['console/guardrails', '护栏', '设置预算、模型与提供商限制、隐私和内容策略。', 'shield'],
-      ['console/byok', 'BYOK', '在平台上使用你自己的提供商密钥。', 'lock'],
-      ['console/routing', '路由', '为模型和提供商设置路由策略。', 'route'],
-      ['console/presets', '预设', '保存系统提示词和请求参数的快捷方式。', 'layers'],
-      ['console/tools', '工具', '配置插件并控制请求可使用的服务器工具。', 'wrench'],
-      [
-        'console/observability',
-        '可观测性',
-        '连接 Langfuse、Datadog 等监控工具跟踪用量。',
-        'activity',
-      ],
+      ...(feature('guardrails') ? [['console/guardrails', '护栏', '设置预算、模型与提供商限制、隐私和内容策略。', 'shield']] : []),
+      ...(feature('byok') ? [['console/byok', 'BYOK', '在平台上使用你自己的提供商密钥。', 'lock']] : []),
+      ...(feature('routing') ? [['console/routing', '路由', '为模型和提供商设置路由策略。', 'route']] : []),
+      ...(feature('presets') ? [['console/presets', '预设', '保存系统提示词和请求参数的快捷方式。', 'layers']] : []),
+      ...(feature('tools') ? [['console/tools', '工具', '配置插件并控制请求可使用的服务器工具。', 'wrench']] : []),
+      ...(feature('observability') ? [['console/observability', '可观测性', '连接 Langfuse、Datadog 等监控工具跟踪用量。', 'activity']] : []),
       ['console/settings', '设置', '编辑工作区名称和描述。', 'settings'],
     ]
-      .map(([p, t, d, s]) => wsCard(p, t, d, s))
+      .map(([p2, t, d, s]) => wsCard(p2, t, d, s))
       .join('')}</div>`
   }
   function pageKeys() {
@@ -1416,36 +1431,30 @@
     return `${head('API Keys', '创建和管理 Platform 密钥。模型限制关闭，分组为全模型分组' + (platform.group ? '（' + esc(platform.group) + '）' : '') + '。', button('create-key', '新建密钥', 'plus', '', 'v6-btn primary'))}${search('key-search', '搜索密钥…')}<div id="key-results" style="margin-top:20px"></div>`
   }
   function pageCredits() {
-    return `${head('余额', '个人账户余额与充值。', `<button class="v6-btn ghost" data-action="refresh-credits">${icon('refresh-cw')}刷新</button>`)}${card('可用余额', '', `<div class="v6-balance">${money(state.balance)}</div><p class="v6-muted v6-small">按需付费余额</p>`, `${button('add-credits', '充值', 'plus', '', 'v6-btn primary')}${link('console/activity', '查看用量', 'v6-btn')}${link('pricing', '兑换优惠码', 'v6-link')}`)}${card('自动充值', '余额低于阈值时自动购买额度。', `<div class="v6-row v6-between"><span>当前未启用</span>${button('enable-autotopup', '启用', '', '', 'v6-btn')}</div>`)}${card('交易记录', '', `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>日期</th><th>类型</th><th>金额</th><th>状态</th></tr></thead><tbody>${state.transactions.map((item) => `<tr><td>${esc(item.date)}</td><td>${esc(item.type)}</td><td>${money(item.amount)}</td><td><span class="v6-badge green">${esc(item.status)}</span></td></tr>`).join('')}</tbody></table></div>`)}`
+    if (!platform.authed || !platform.user)
+      return `${head('余额', '登录后查看余额。')}${empty('需要登录', '余额与充值记录来自 Platform 账户。', button('open-login', '登录', 'log-in'))}`
+    const unit = SkinAPI.quotaPerUnit()
+    const quota = Number(platform.user.quota || 0) / unit
+    const used = Number(platform.user.used_quota || 0) / unit
+    return `${head('余额', '个人账户余额与充值。', `<button class="v6-btn ghost" data-action="refresh-credits">${icon('refresh-cw')}刷新</button>`)}${card('可用余额', '', `<div class="v6-balance">${money(quota)}</div><p class="v6-muted v6-small">剩余额度（累计消费 ${money(used)}）</p>`, `${button('redeem-code', '兑换充值码', 'plus', '', 'v6-btn primary')}${link('console/activity', '查看用量', 'v6-btn')}`)}${card('说明', '', `<p class="v6-muted v6-small">余额与消费数据来自 Platform 账户（GET /api/user/self）。兑换码通过 POST /api/user/topup 充值。</p>`)}`
   }
   function pageSettings() {
     return `${head('设置', '管理工作区标识、支出控制和集成。')}${card('常规', '管理工作区名称。', field('名称', '在工作区成员间显示。', `<input class="v6-input" name="workspace" value="${esc(state.settings.name)}" maxlength="60" form="settings-form">`), `<button class="v6-btn primary" type="submit" form="settings-form">保存</button>`)}<form id="settings-form"></form>${card('预算与数据', '管理支出上限和数据共享。', `${field('工作区预算', '设置每日、每周或每月支出上限。', `<span class="v6-muted v6-small">未设置上限</span>`)}${field('自动故障回退', '当前提供商不可用时切换到其他路由。', toggle('fallback', state.settings.fallback))}`, `<button class="v6-btn" type="button">添加预算</button>`)}${card('隐私', '', field('零数据保留', '优先使用不保留请求数据的提供商。', toggle('zdr', state.settings.zdr)))}${card('危险操作', '', `<div class="v6-row v6-between"><div><strong>删除工作区</strong><p class="v6-muted v6-small">无法删除唯一的工作区。</p></div><button class="v6-btn" disabled>删除</button></div>`)}`
   }
   function pageActivity() {
-    return `${head('活动', '你在平台上各模型的用量。')}${tabs(
-      [
-        ['overview', '概览'],
-        ['trends', '趋势'],
-        ['explore', '探索'],
-        ['guardrails', '护栏'],
-      ],
-      'overview',
-      'activity-tab',
-      '活动分区',
-    )}<div class="v6-metric-row" style="margin-top:18px">${[
-      ['总消费', '$0.01'],
-      ['请求数', '4K'],
-      ['Token 用量', '288M'],
-      ['缓存命中率', '89.7%'],
-      ['混合 $/1M', '$0.00'],
+    if (!platform.authed)
+      return `${head('活动', '你在平台上各模型的用量。')}${empty('需要登录', '登录后查看调用记录与用量。', button('open-login', '登录', 'log-in'))}`
+    return `${head('活动', '你在平台上各模型的用量。')}<div class="v6-metric-row" style="margin-top:18px" id="activity-metrics">${[
+      ['近 7 天消费', '—'],
+      ['请求/分钟', '—'],
+      ['Tokens/分钟', '—'],
+      ['累计消费', money(Number(platform.user?.used_quota || 0) / SkinAPI.quotaPerUnit())],
     ]
       .map(
         ([l, v]) =>
           `<div class="v6-metric"><span class="v6-muted v6-small">${l}</span><strong>${v}</strong></div>`,
       )
-      .join(
-        '',
-      )}</div><div class="v6-row v6-between" style="margin:28px 0 14px"><h2>Token 用量</h2><select class="v6-select" data-chart-period="account-usage"><option value="7">最近 7 天</option><option value="30">最近 30 天</option></select></div>${chart('account-usage')}<div class="v6-row v6-between" style="margin:28px 0 14px"><h2>请求记录</h2>${button('export-activity', '导出 CSV', 'download')}</div><div class="v6-toolbar">${search('activity-search', '搜索模型或请求 ID…')}<select class="v6-select" id="activity-status"><option value="all">全部状态</option><option value="success">成功</option><option value="error">失败</option></select><select class="v6-select" id="activity-period"><option value="7">最近 7 天</option><option value="1">最近 24 小时</option></select></div><div id="activity-results" style="margin-top:16px"></div>`
+      .join('')}</div><div class="v6-row v6-between" style="margin:28px 0 14px"><h2>Token 用量</h2><select class="v6-select" data-chart-period="account-usage"><option value="7">最近 7 天</option><option value="30">最近 30 天</option></select></div>${chart('account-usage')}<div class="v6-row v6-between" style="margin:28px 0 14px"><h2>请求记录</h2>${button('export-activity', '导出 CSV', 'download')}</div><div class="v6-toolbar">${search('activity-search', '搜索模型…')}<select class="v6-select" id="activity-status"><option value="all">全部类型</option><option value="2">消费</option><option value="1">充值</option><option value="3">管理</option></select><select class="v6-select" id="activity-period"><option value="7">最近 7 天</option><option value="1">最近 24 小时</option><option value="30">最近 30 天</option></select><span id="activity-page-info" class="v6-muted v6-small" style="margin-left:auto"></span></div><div id="activity-results" style="margin-top:16px"><p class="v6-muted v6-small">正在加载…</p></div><div class="v6-row" style="margin-top:12px"><button class="v6-btn" data-action="activity-prev" id="activity-prev">上一页</button><button class="v6-btn" data-action="activity-next" id="activity-next">下一页</button></div>`
   }
   function pageFiles() {
     return `${head('Files', '上传文件以在支持的模型中使用。', button('upload-file', '上传文件', 'upload', '', 'v6-btn primary'))}${card('文件', '', `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>名称</th><th>大小</th><th>用途</th><th>上传时间</th></tr></thead><tbody><tr><td colspan="4">${empty('还没有文件', '上传文件后可在支持的模型请求中引用。')}</td></tr></tbody></table></div>`)}`
@@ -1475,7 +1484,9 @@
     return `${head('个人资料', '来自 GET /api/user/self。')}${card('账户', '', `${field('用户名', '', `<input class="v6-input" value="${esc(user.username || '')}" disabled>`)}${field('显示名称', '', `<input class="v6-input" value="${esc(user.display_name || user.username || '')}" disabled>`)}${field('用户 ID', '写入 localStorage.uid，并作为 New-API-User 请求头。', `<input class="v6-input" value="${esc(user.id ?? '')}" disabled>`)}${field('分组', '', `<input class="v6-input" value="${esc(user.group || platform.group || '')}" disabled>`)}`)}`
   }
   function pageLogs() {
-    return `${head('日志', '最近的 API 请求日志。')}${card('请求日志', '', activityTable(activity.slice(0, 8)))}`
+    if (!platform.authed)
+      return `${head('日志', '最近的 API 请求日志。')}${empty('需要登录', '登录后查看 API 请求日志。', button('open-login', '登录', 'log-in'))}`
+    return `${head('日志', '最近的 API 请求日志。')}${card('请求日志', '', '<div id="log-results"><p class="v6-muted v6-small">正在加载…</p></div>')}`
   }
   function pageNotifications() {
     return `${head('通知', '管理账户通知。')}${card('通知偏好', '', `${field('用量告警', '余额不足或超限时通知。', toggle('notif-usage', true))}${field('产品更新', '接收新模型和功能公告。', toggle('notif-product', true))}`)}`
@@ -1484,17 +1495,13 @@
     return `${head('隐私', '控制数据和隐私设置。')}${card('数据策略', '', `${field('零数据保留', '优先使用不保留请求数据的提供商。', toggle('zdr', state.settings.zdr))}${field('允许提示词训练', '允许提供商使用你的提示词改进模型。', toggle('train', false))}`)}`
   }
   function pagePreferences() {
-    return `${head('偏好', '界面和 Platform 连接。')}${card('Platform', 'Skin 只通过 HTTP 调用独立的 Platform，不会嵌入其后台。', field('API Base URL', '例如 http://localhost:3000。跨域时 Platform 需允许本页来源携带 Cookie，并放行 New-API-User。', `<input class="v6-input" id="pref-api-base" value="${esc(SkinAPI.getBase())}">`), button('save-api-base', '保存并重连', '', '', 'v6-btn primary'))}${card(
-      '显示',
+    const apiSection = allowApiOverride()
+      ? card('Platform', 'Skin 只通过 HTTP 调用独立的 Platform，不会嵌入其后台。', field('API Base URL', '例如 http://localhost:3000。跨域时 Platform 需允许本页来源携带 Cookie 与 Authorization 请求头。', `<input class="v6-input" id="pref-api-base" value="${esc(SkinAPI.getBase())}">`), button('save-api-base', '保存并重连', '', '', 'v6-btn primary'))
+      : card('Platform', `Skin 已锁定部署地址：${esc(SkinAPI.getBase())}`, '')
+    return `${head('偏好', '界面和 Platform 连接。')}${apiSection}${card(
+      '说明',
       '',
-      `${field('主题', '', `<select class="v6-select"><option>跟随系统</option><option>浅色</option><option>深色</option></select>`)}${field(
-        '默认模型',
-        '',
-        `<select class="v6-select">${models
-          .slice(0, 5)
-          .map((m) => `<option>${esc(m.name)}</option>`)
-          .join('')}</select>`,
-      )}`,
+      `<p class="v6-muted v6-small">收藏、工作区名称与数据偏好保存在当前浏览器。主题与默认模型由部署方统一设置。</p>`,
     )}`
   }
   function quotaText(token) {
@@ -1537,25 +1544,120 @@
           button('create-key', '创建密钥', 'plus'),
         )
   }
-  function filteredActivity() {
-    const query = document.getElementById('activity-search')?.value.toLowerCase() || ''
-    const status = document.getElementById('activity-status')?.value || 'all'
-    const period = document.getElementById('activity-period')?.value || '7'
-    return activity.filter(
-      (item) =>
-        (!query || (item.model.name + ' ' + item.id).toLowerCase().includes(query)) &&
-        (status === 'all' || item.ok === (status === 'success')) &&
-        (period !== '1' || item.time.startsWith('2026-09-20')),
-    )
+  function logTypeLabel(type) {
+    return { 1: '充值', 2: '消费', 3: '管理', 4: '系统' }[type] || '消费'
+  }
+  function formatTime(ts) {
+    if (!ts) return '—'
+    return new Date(Number(ts) * 1000).toLocaleString('sv-SE')
   }
   function activityTable(list) {
-    return `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>时间</th><th>模型</th><th>输入 / 输出</th><th>成本</th><th>状态</th></tr></thead><tbody>${list.map((item) => `<tr><td>${button('activity-detail', item.time, '', `data-id="${item.id}"`, 'v6-link')}</td><td>${link('models/' + item.model.id, esc(item.model.name), '')}</td><td>${item.input.toLocaleString()} / ${item.output.toLocaleString()}</td><td>${money(item.cost)}</td><td><span class="v6-badge ${item.ok ? 'green' : ''}">${item.ok ? '成功' : '失败'}</span></td></tr>`).join('')}</tbody></table></div>`
+    const unit = SkinAPI.quotaPerUnit()
+    return `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>时间</th><th>模型</th><th>输入 / 输出</th><th>密钥</th><th>成本</th><th>类型</th></tr></thead><tbody>${list.map((item) => `<tr><td>${formatTime(item.created_at)}</td><td>${esc(item.model_name || '—')}</td><td>${Number(item.prompt_tokens || 0).toLocaleString()} / ${Number(item.completion_tokens || 0).toLocaleString()}</td><td>${esc(item.token_name || '—')}</td><td>${money(Number(item.quota || 0) / unit)}</td><td>${logTypeLabel(item.type)}</td></tr>`).join('')}</tbody></table></div>`
+  }
+  function activityFilters() {
+    const status = document.getElementById('activity-status')?.value || 'all'
+    const days = Number(document.getElementById('activity-period')?.value || '7')
+    const model = document.getElementById('activity-search')?.value.trim() || ''
+    const end = Math.floor(Date.now() / 1000)
+    const start = end - days * 86400
+    const query = { start, end }
+    if (status !== 'all') query.type = Number(status)
+    if (model) query.model = model
+    return { query, days }
+  }
+  function refreshActivityMetrics() {
+    const row = document.getElementById('activity-metrics')
+    if (!row || !liveData.stats) return
+    const unit = SkinAPI.quotaPerUnit()
+    const cells = row.querySelectorAll('strong')
+    if (cells[0]) cells[0].textContent = money(Number(liveData.stats.quota || 0) / unit)
+    if (cells[1]) cells[1].textContent = String(liveData.stats.rpm ?? '—')
+    if (cells[2]) cells[2].textContent = String(liveData.stats.tpm ?? '—')
+  }
+  async function loadActivity(page) {
+    const box = document.getElementById('activity-results')
+    if (!box) return
+    const { query, days } = activityFilters()
+    box.innerHTML = '<p class="v6-muted v6-small">正在加载…</p>'
+    try {
+      const [result, stats] = await Promise.all([
+        SkinAPI.listLogs({ ...query, page, size: 20 }),
+        SkinAPI.logStats(query).catch(() => null),
+      ])
+      liveData.logs = result
+      if (stats) liveData.stats = stats
+      refreshActivityMetrics()
+      const items = result.items || []
+      box.innerHTML = items.length
+        ? activityTable(items)
+        : empty('没有匹配的请求', '调整时间、类型或搜索条件。')
+      const info = document.getElementById('activity-page-info')
+      if (info) info.textContent = `第 ${result.page} 页 · 共 ${result.total} 条`
+      const prev = document.getElementById('activity-prev')
+      const next = document.getElementById('activity-next')
+      if (prev) prev.disabled = page <= 1
+      if (next) next.disabled = items.length < 20
+      if (!liveData.usage) loadUsageChart(days)
+    } catch (error) {
+      box.innerHTML = `<p class="v6-error">日志加载失败：${esc(error.message)}</p>`
+    }
   }
   function filterActivity() {
-    const list = filteredActivity()
-    document.getElementById('activity-results').innerHTML = list.length
-      ? activityTable(list) + `<p class="v6-small v6-muted">共 ${list.length} 条记录 · 演示数据</p>`
-      : empty('没有匹配的请求', '调整时间、状态或搜索条件。')
+    loadActivity(1)
+  }
+  async function loadLogs() {
+    const box = document.getElementById('log-results')
+    if (!box) return
+    try {
+      const result = await SkinAPI.listLogs({ page: 1, size: 20 })
+      const items = result.items || []
+      box.innerHTML = items.length ? activityTable(items) : empty('还没有请求记录', '调用模型后日志会显示在这里。')
+    } catch (error) {
+      box.innerHTML = `<p class="v6-error">日志加载失败：${esc(error.message)}</p>`
+    }
+  }
+  async function loadUsageChart(days) {
+    if (!platform.authed) return
+    try {
+      const data = await SkinAPI.selfData(days || 7)
+      const items = Array.isArray(data) ? data : Array.isArray(data.data) ? data.data : []
+      const buckets = {}
+      items.forEach((item) => {
+        const day = Number(item.created_at || 0)
+        buckets[day] = (buckets[day] || 0) + Number(item.quota || 0)
+      })
+      const keys = Object.keys(buckets).sort((x, y) => x - y)
+      const values = keys.map((k) => buckets[k] / SkinAPI.quotaPerUnit() / 1e6)
+      const points = Number(days) === 1 ? 24 : Math.max(keys.length, 7)
+      const padded = values.length ? values : new Array(points).fill(0)
+      const top = Math.max(...padded, 0.001)
+      liveChartData['account-usage'] = { buckets: padded.map((v) => (v / top) * 5), series: [top] }
+      liveData.usage = true
+      drawCharts()
+    } catch {
+      liveData.usage = true
+    }
+  }
+  async function loadOverviewUsage() {
+    if (!platform.authed) return
+    try {
+      const data = await SkinAPI.selfData(7)
+      const items = Array.isArray(data) ? data : []
+      const buckets = {}
+      items.forEach((item) => {
+        const day = Number(item.created_at || 0)
+        buckets[day] = (buckets[day] || 0) + Number(item.quota || 0)
+      })
+      const keys = Object.keys(buckets).sort((x, y) => x - y)
+      const values = keys.map((k) => buckets[k] / SkinAPI.quotaPerUnit() / 1e6)
+      const top = Math.max(...values, 0.001)
+      liveChartData['account-usage'] = {
+        buckets: (values.length ? values : [0, 0, 0, 0, 0, 0, 0]).map((v) => (v / top) * 5),
+        series: [top],
+      }
+      drawCharts()
+    } catch { /* usage chart is best-effort */ }
   }
 
   function showDialog(title, body) {
@@ -1593,27 +1695,78 @@
       `<p class="v6-muted">完整密钥只展示这一次。请立即复制。列表里之后只会显示掩码。</p><div class="v6-row"><input class="v6-input mono" id="created-key" readonly aria-label="新密钥" style="flex:1" value="${esc(secret)}">${iconButton('copy', '复制密钥', 'copy', `data-copy="${esc(secret)}"`)}</div><div class="v6-dialog-foot">${button('close-dialog', '完成', 'check', '', 'v6-btn primary')}</div>`,
     )
   }
+  function loadTurnstile() {
+    // 仅在启用时加载 Cloudflare Turnstile；站点需在 CSP 中放行 challenges.cloudflare.com
+    const siteKey = platform.status?.turnstile_site_key
+    if (!platform.status?.turnstile_check || !siteKey) return
+    if (document.querySelector('script[src*="turnstile/v0/api.js"]')) {
+      renderTurnstile()
+      return
+    }
+    const script = document.createElement('script')
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
+    script.async = true
+    script.onload = renderTurnstile
+    document.head.append(script)
+  }
+  function renderTurnstile() {
+    const siteKey = platform.status?.turnstile_site_key
+    const box = document.getElementById('cf-turnstile')
+    if (!box || !siteKey || typeof window.turnstile === 'undefined') return
+    try {
+      window.turnstile.render(box, {
+        sitekey: siteKey,
+        callback: (token) => {
+          const input = document.querySelector('#auth-form [name="turnstile"], #reset-form [name="turnstile"]')
+          if (input) input.value = token
+        },
+      })
+    } catch { /* widget may already be rendered */ }
+  }
+
   function authDialog(mode = 'login') {
+    const emailVerification = Boolean(platform.status?.email_verification)
     const turnstile = Boolean(platform.status?.turnstile_check)
+    const siteKey = platform.status?.turnstile_site_key
     showDialog(
       mode === 'register' ? '注册' : '登录',
-      `<form id="auth-form" data-mode="${mode}"><label class="v6-form-label">用户名<input class="v6-input" name="username" required autocomplete="username"></label><label class="v6-form-label">密码<input class="v6-input" name="password" type="password" required autocomplete="${mode === 'register' ? 'new-password' : 'current-password'}"></label>${mode === 'register' ? '<label class="v6-form-label">邮箱（可选）<input class="v6-input" name="email" type="email" autocomplete="email"></label>' : ''}${turnstile ? '<label class="v6-form-label">Turnstile Token<input class="v6-input" name="turnstile" autocomplete="one-time-code"></label>' : ''}<p class="v6-error" id="auth-error" role="alert"></p><div class="v6-dialog-foot">${button(mode === 'register' ? 'show-login' : 'show-register', mode === 'register' ? '已有账号，去登录' : '没有账号，去注册')}<button class="v6-btn primary" type="submit">${mode === 'register' ? '注册并登录' : '登录'}</button></div></form>`,
+      `<form id="auth-form" data-mode="${mode}"><label class="v6-form-label">用户名<input class="v6-input" name="username" required autocomplete="username"></label><label class="v6-form-label">密码<input class="v6-input" name="password" type="password" required autocomplete="${mode === 'register' ? 'new-password' : 'current-password'}"></label>${
+        mode === 'register'
+          ? `<label class="v6-form-label">邮箱${emailVerification ? '' : '（可选）'}<input class="v6-input" name="email" type="email" autocomplete="email" ${emailVerification ? 'required' : ''}></label>${
+              emailVerification
+                ? `<div class="v6-row"><label class="v6-form-label" style="flex:1">邮箱验证码<input class="v6-input" name="email_code" required></label>${button('send-email-code', '发送验证码', '', '', 'v6-btn')}</div>`
+                : ''
+            }`
+          : ''
+      }${turnstile ? `<div id="cf-turnstile" style="margin:6px 0"></div><input type="hidden" name="turnstile">${siteKey ? '' : '<label class="v6-form-label">Turnstile Token<input class="v6-input" name="turnstile_input"></label>'}` : ''}<p class="v6-error" id="auth-error" role="alert"></p><div class="v6-dialog-foot">${mode === 'login' ? button('forgot-password', '忘记密码', '', '', 'v6-link') : ''}${button(mode === 'register' ? 'show-login' : 'show-register', mode === 'register' ? '已有账号，去登录' : '没有账号，去注册')}<button class="v6-btn primary" type="submit">${mode === 'register' ? '注册并登录' : '登录'}</button></div></form>`,
     )
+    if (turnstile && siteKey) loadTurnstile()
+  }
+
+  function resetDialog() {
+    const turnstile = Boolean(platform.status?.turnstile_check)
+    const siteKey = platform.status?.turnstile_site_key
+    showDialog(
+      '找回密码',
+      `<form id="reset-form"><label class="v6-form-label">邮箱<input class="v6-input" name="email" type="email" required autocomplete="email"></label><div class="v6-row"><label class="v6-form-label" style="flex:1">邮箱验证码<input class="v6-input" name="code" required></label>${button('send-reset-code', '发送验证码', '', '', 'v6-btn')}</div><label class="v6-form-label">新密码<input class="v6-input" name="password" type="password" required autocomplete="new-password"></label>${turnstile ? '<div id="cf-turnstile" style="margin:6px 0"></div><input type="hidden" name="turnstile">' : ''}<p class="v6-error" id="reset-error" role="alert"></p><div class="v6-dialog-foot">${button('close-dialog', '取消')}<button class="v6-btn primary" type="submit">重置密码</button></div></form>`,
+    )
+    if (turnstile && siteKey) loadTurnstile()
   }
   function apiDialog() {
+    if (!allowApiOverride()) return toast('当前部署已锁定 API 地址')
     showDialog(
       '连接 Platform',
-      `<form id="api-base-form"><label class="v6-form-label">API Base URL<input class="v6-input" name="base" required value="${esc(SkinAPI.getBase())}" placeholder="http://localhost:3000"></label><p class="v6-small v6-muted">Skin 与 Platform 分属不同源时，Platform 必须允许本页来源携带 Cookie，并放行 New-API-User、X-Turnstile-Token 和 Authorization。</p><p class="v6-error" id="api-base-error" role="alert">${esc(platform.error || '')}</p><div class="v6-dialog-foot">${button('close-dialog', '取消')}<button class="v6-btn primary" type="submit">保存并重连</button></div></form>`,
+      `<form id="api-base-form"><label class="v6-form-label">API Base URL<input class="v6-input" name="base" required value="${esc(SkinAPI.getBase())}" placeholder="http://localhost:3000"></label><p class="v6-small v6-muted">Skin 与 Platform 分属不同源时，Platform 必须允许本页来源携带 Cookie，并放行 Authorization 请求头；Turnstile 通过查询参数传递。</p><p class="v6-error" id="api-base-error" role="alert">${esc(platform.error || '')}</p><div class="v6-dialog-foot">${button('close-dialog', '取消')}<button class="v6-btn primary" type="submit">保存并重连</button></div></form>`,
     )
   }
   async function refreshSession() {
-    if (!SkinAPI.getUid()) {
+    if (!SkinAPI.getToken()) {
       platform.authed = false
       platform.user = null
       return
     }
     platform.user = await SkinAPI.self()
-    platform.authed = true
+    platform.authed = Boolean(platform.user && platform.user.id)
     if (platform.user?.display_name || platform.user?.username)
       state.settings.name = platform.user.display_name || platform.user.username
   }
@@ -1636,15 +1789,27 @@
       platform.group = result.group || platform.group
       platform.error = ''
     } catch (error) {
-      applyCatalog(mockModels, false)
+      if (demoEnabled) applyCatalog(mockModels, false)
+      else models.splice(0, models.length)
       platform.error = error.message || '模型目录不可用'
     } finally {
       catalogReady = true
     }
   }
+  function onUnauthorized() {
+    if (!platform.authed) return
+    platform.authed = false
+    platform.user = null
+    platform.tokens = []
+    toast('登录已过期，请重新登录')
+    authDialog('login')
+    render()
+  }
+
   async function bootPlatform() {
     const fromQuery = new URLSearchParams(location.search).get('api')
-    if (fromQuery) SkinAPI.setBase(fromQuery)
+    if (fromQuery && SkinAPI.allowOverride()) SkinAPI.setBase(fromQuery)
+    else if (fromQuery) toast('当前部署已锁定 API 地址')
     try {
       platform.status = await SkinAPI.status()
       platform.online = true
@@ -1657,7 +1822,7 @@
     try {
       await refreshSession()
     } catch {
-      SkinAPI.setUid('')
+      SkinAPI.clearAuth()
       platform.authed = false
       platform.user = null
     }
@@ -1720,7 +1885,6 @@
       ['models', '模型目录', 'layers'],
       ['discover', '发现模型', 'compass'],
       ['providers', '提供商', 'server'],
-      ['rankings', '排行榜', 'trophy'],
       ['console/keys', 'API Keys', 'key-round'],
       ['console/credits', '余额与账单', 'wallet'],
       ['console/activity', '活动记录', 'activity'],
@@ -1789,17 +1953,22 @@
       const ranked = models
         .filter((model) => model.outputs.includes(params.get('output') || 'text'))
         .sort((a, b) => b.usage - a.usage)
-      const series =
-        canvas.id === 'rankings-usage'
+      const live = liveChartData[canvas.id]
+      const series = live
+        ? live.series
+        : canvas.id === 'rankings-usage'
           ? ranked.slice(0, 5).map((model) => model.usage)
           : [12.4, 8.6, 6.2, 4.7, 2.3]
-      const total = series.reduce((sum, usage) => sum + usage, 0)
+      const total = series.reduce((sum, usage) => sum + usage, 0) || 1
       const weights = Array.from(
         { length: points },
         (_, index) => 0.6 + (index / points) * 0.55 + Math.sin(index * 1.9) * 0.09,
       )
       const weightTotal = weights.reduce((sum, weight) => sum + weight, 0)
-      const buckets = weights.map((weight) => (total * periodScale * weight) / weightTotal)
+      const buckets =
+        live && live.buckets
+          ? live.buckets
+          : weights.map((weight) => (total * periodScale * weight) / weightTotal)
       const max =
         canvas.dataset.chart === 'performance'
           ? Math.ceil((parseInt(detail?.throughput || '100', 10) * 1.2) / 10) * 10
@@ -1899,33 +2068,34 @@
     route = queryIndex < 0 ? raw : raw.slice(0, queryIndex)
     params = new URLSearchParams(queryIndex < 0 ? '' : raw.slice(queryIndex + 1))
     if (route === 'models/anthropic-claude-3-7-sonnet') route = 'models/claude-3.7'
+    const allowedRoutes = [
+      'home',
+      'models',
+      'discover',
+      'providers',
+      'pricing',
+      'docs',
+      'console',
+      'console/activity',
+      'console/keys',
+      'console/credits',
+      'console/settings',
+      'console/profile',
+      'console/logs',
+      'console/notifications',
+      'console/privacy',
+      'console/preferences',
+      ...(feature('rankings') ? ['rankings'] : []),
+      ...(feature('files') ? ['console/files'] : []),
+      ...(feature('guardrails') ? ['console/guardrails'] : []),
+      ...(feature('byok') ? ['console/byok'] : []),
+      ...(feature('routing') ? ['console/routing'] : []),
+      ...(feature('presets') ? ['console/presets'] : []),
+      ...(feature('tools') ? ['console/tools'] : []),
+      ...(feature('observability') ? ['console/observability'] : []),
+    ]
     if (
-      ![
-        'home',
-        'models',
-        'discover',
-        'rankings',
-        'providers',
-        'pricing',
-        'docs',
-        'console',
-        'console/activity',
-        'console/keys',
-        'console/credits',
-        'console/settings',
-        'console/files',
-        'console/guardrails',
-        'console/byok',
-        'console/routing',
-        'console/presets',
-        'console/tools',
-        'console/observability',
-        'console/profile',
-        'console/logs',
-        'console/notifications',
-        'console/privacy',
-        'console/preferences',
-      ].includes(route) &&
+      !allowedRoutes.includes(route) &&
       !(route.startsWith('models/') && (getModel(routeModelId()) || !catalogReady))
     ) {
       route = 'home'
@@ -1994,7 +2164,7 @@
         ? state.pins.filter((item) => item !== id)
         : [...state.pins, id]
       save()
-      app.querySelectorAll(`[data-action="pin"][data-id="${id}"]`).forEach((node) => {
+      app.querySelectorAll(`[data-action="pin"][data-id="${esc(id)}"]`).forEach((node) => {
         const pinned = state.pins.includes(id)
         node.setAttribute('aria-pressed', pinned)
         node.setAttribute('aria-label', pinned ? '取消收藏' : '收藏模型')
@@ -2063,7 +2233,7 @@
     else if (action === 'show-register') authDialog('register')
     else if (action === 'logout') {
       SkinAPI.logout()
-        .catch(() => SkinAPI.setUid(''))
+        .catch(() => SkinAPI.clearAuth())
         .finally(() => {
           platform.authed = false
           platform.user = null
@@ -2074,6 +2244,7 @@
         })
     } else if (action === 'api-settings') apiDialog()
     else if (action === 'save-api-base') {
+      if (!allowApiOverride()) return toast('当前部署已锁定 API 地址')
       const input = document.getElementById('pref-api-base')
       if (!input?.value.trim()) return
       SkinAPI.setBase(input.value.trim())
@@ -2085,15 +2256,7 @@
       const key = platform.tokens.find((item) => String(item.id) === String(id))
       if (!key) return
       const next = key.status === 1 ? 2 : 1
-      SkinAPI.updateToken(key.id, {
-        name: key.name,
-        status: next,
-        expired_time: key.expired_time,
-        remain_quota: key.remain_quota,
-        unlimited_quota: key.unlimited_quota,
-        model_limits: '',
-        group: key.group || platform.group,
-      })
+      SkinAPI.updateToken(key.id, { name: key.name, status: next, status_only: true })
         .then(async () => {
           await refreshTokens()
           renderKeys()
@@ -2116,41 +2279,90 @@
           toast('密钥已删除')
         })
         .catch((error) => toast(error.message || '删除密钥失败'))
-    } else if (action === 'add-credits')
+    } else if (action === 'refresh-credits') {
+      refreshSession()
+        .then(() => render())
+        .then(() => toast('余额已刷新'))
+        .catch((error) => toast(error.message || '刷新失败'))
+    } else if (action === 'redeem-code')
       showDialog(
-        '增加演示余额',
-        `<form id="credits-form"><label class="v6-form-label">金额（USD）<input class="v6-input" name="amount" type="number" min="1" max="10000" step="0.01" value="20" required></label><p class="v6-muted v6-small">仅更新本地演示余额，不会进行真实支付。</p><div class="v6-dialog-foot">${button('close-dialog', '取消')}<button class="v6-btn primary" type="submit">增加余额</button></div></form>`,
+        '兑换充值码',
+        `<form id="topup-form"><label class="v6-form-label">兑换码<input class="v6-input" name="key" required autocomplete="off" placeholder="输入兑换码"></label><p class="v6-muted v6-small">通过 POST /api/user/topup 充值，成功后自动刷新余额。</p><div class="v6-dialog-foot">${button('close-dialog', '取消')}<button class="v6-btn primary" type="submit">兑换</button></div></form>`,
       )
-    else if (action === 'activity-detail') {
-      const item = activity.find((entry) => entry.id === id)
-      showDialog(
-        '请求详情',
-        `<div class="v6-stack"><div class="v6-muted mono v6-small">${item.id}</div>${stat('模型', esc(item.model.name))}${stat('输入 / 输出 tokens', `${item.input} / ${item.output}`)}${stat('首 token 延迟', item.latency + ' ms')}${stat('状态', item.ok ? '200 · 成功' : '429 · 请求限流')}</div>`,
-      )
+    else if (action === 'send-email-code') {
+      const email = document.querySelector('#auth-form [name="email"]')?.value.trim()
+      const err = document.getElementById('auth-error')
+      if (!email) {
+        if (err) err.textContent = '请先填写邮箱'
+        return
+      }
+      target.disabled = true
+      SkinAPI.sendVerification(email, 'register', document.querySelector('#auth-form [name="turnstile"]')?.value || '')
+        .then(() => toast('验证码已发送'))
+        .catch((error) => {
+          if (err) err.textContent = error.message || '发送失败'
+        })
+        .finally(() => { target.disabled = false })
+    } else if (action === 'send-reset-code') {
+      const email = document.querySelector('#reset-form [name="email"]')?.value.trim()
+      const err = document.getElementById('reset-error')
+      if (!email) {
+        if (err) err.textContent = '请先填写邮箱'
+        return
+      }
+      target.disabled = true
+      SkinAPI.sendResetEmail(email, document.querySelector('#reset-form [name="turnstile"]')?.value || '')
+        .then(() => toast('验证码已发送'))
+        .catch((error) => {
+          if (err) err.textContent = error.message || '发送失败'
+        })
+        .finally(() => { target.disabled = false })
+    } else if (action === 'forgot-password') {
+      resetDialog()
+    }
+    else if (action === 'activity-prev' || action === 'activity-next') {
+      const page = (liveData.logs.page || 1) + (action === 'activity-next' ? 1 : -1)
+      if (page >= 1) loadActivity(page)
     } else if (action === 'export-activity') {
-      const rows = [
-        ['时间', '请求 ID', '模型', '输入 tokens', '输出 tokens', '成本 USD', '状态'],
-        ...filteredActivity().map((item) => [
-          item.time,
-          item.id,
-          item.model.slug,
-          item.input,
-          item.output,
-          item.cost,
-          item.ok ? '成功' : '失败',
-        ]),
-      ]
-      const csv =
-        '\uFEFF' +
-        rows
-          .map((row) => row.map((cell) => '"' + String(cell).replaceAll('"', '""') + '"').join(','))
-          .join('\r\n')
-      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
-      const download = document.createElement('a')
-      download.href = url
-      download.download = 'tokenflux-demo-activity.csv'
-      download.click()
-      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      const { query } = activityFilters()
+      const rows = [['时间', '模型', '输入 tokens', '输出 tokens', '密钥', '成本', '类型']]
+      const exportRows = (items) => {
+        items.forEach((item) =>
+          rows.push([
+            formatTime(item.created_at),
+            item.model_name || '',
+            item.prompt_tokens || 0,
+            item.completion_tokens || 0,
+            item.token_name || '',
+            (Number(item.quota || 0) / SkinAPI.quotaPerUnit()).toFixed(6),
+            logTypeLabel(item.type),
+          ]),
+        )
+      }
+      // 拉取全部匹配页（上限 500 条）
+      const fetchAll = async () => {
+        for (let page = 1; page <= 25; page++) {
+          const result = await SkinAPI.listLogs({ ...query, page, size: 20 })
+          exportRows(result.items || [])
+          if ((result.items || []).length < 20) break
+        }
+      }
+      fetchAll()
+        .catch(() => {})
+        .then(() => {
+          const csv =
+            '\uFEFF' +
+            rows
+              .map((row) => row.map((cell) => '"' + String(cell).replaceAll('"', '""') + '"').join(','))
+              .join('\r\n')
+          const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+          const download = document.createElement('a')
+          download.href = url
+          download.download = 'activity.csv'
+          download.click()
+          setTimeout(() => URL.revokeObjectURL(url), 1000)
+          toast(`已导出 ${rows.length - 1} 条记录`)
+        })
     } else if (action === 'mobile-menu')
       showDialog(
         '导航',
@@ -2159,7 +2371,6 @@
           ['models', '模型'],
           ['discover', '发现模型'],
           ['providers', '提供商'],
-          ['rankings', '排行榜'],
           ['pricing', '价格'],
           ['docs', '文档'],
           ['console', '工作台'],
@@ -2174,7 +2385,8 @@
     if (
       ![
         'key-form',
-        'credits-form',
+        'topup-form',
+        'reset-form',
         'settings-form',
         'auth-form',
         'api-base-form',
@@ -2186,19 +2398,28 @@
     if (form.id === 'auth-form') {
       const username = String(data.get('username') || '').trim()
       const password = String(data.get('password') || '')
-      const turnstile = String(data.get('turnstile') || '').trim()
+      const turnstile =
+        String(data.get('turnstile') || '').trim() ||
+        String(data.get('turnstile_input') || '').trim()
       const mode = form.dataset.mode
       const errorNode = document.getElementById('auth-error')
       if (!username || !password) return
+      const credentials = {
+        username,
+        password,
+        email: String(data.get('email') || '').trim(),
+        emailCode: String(data.get('email_code') || '').trim(),
+        turnstile,
+      }
       const action = mode === 'register' ? SkinAPI.register : SkinAPI.login
       action
-        .call(SkinAPI, {
-          username,
-          password,
-          email: String(data.get('email') || '').trim(),
-          turnstile,
-        })
-        .then(async () => {
+        .call(SkinAPI, credentials)
+        .then(async (result) => {
+          if (result && result._loginChallenge) {
+            if (errorNode)
+              errorNode.textContent = '此账户需要二次验证，请使用 Platform 自带页面登录。'
+            return
+          }
           await refreshSession()
           try {
             platform.group = await SkinAPI.resolveFullModelGroup()
@@ -2216,7 +2437,41 @@
         })
       return
     }
+
+    if (form.id === 'reset-form') {
+      const email = String(data.get('email') || '').trim()
+      const code = String(data.get('code') || '').trim()
+      const newPassword = String(data.get('password') || '')
+      const errorNode = document.getElementById('reset-error')
+      if (!email || !code || !newPassword) return
+      SkinAPI.resetPassword({ email, code, password: newPassword })
+        .then(() => {
+          closeDialog()
+          toast('密码已重置，请用新密码登录')
+          authDialog('login')
+        })
+        .catch((error) => {
+          if (errorNode) errorNode.textContent = error.message || '重置失败'
+        })
+      return
+    }
+
+    if (form.id === 'topup-form') {
+      const key = String(data.get('key') || '').trim()
+      if (!key) return
+      SkinAPI.topup(key)
+        .then(async () => {
+          await refreshSession()
+          closeDialog()
+          render()
+          toast('兑换成功，余额已更新')
+        })
+        .catch((error) => toast(error.message || '兑换失败'))
+      return
+    }
+
     if (form.id === 'api-base-form') {
+      if (!allowApiOverride()) return
       SkinAPI.setBase(String(data.get('base') || '').trim())
       closeDialog()
       bootPlatform()
@@ -2260,21 +2515,7 @@
         if (submit) submit.disabled = false
         toast(error.message || '保存密钥失败')
       })
-    } else if (form.id === 'credits-form') {
-      const amount = Number(data.get('amount'))
-      if (!Number.isFinite(amount) || amount < 1 || amount > 10000) return
-      state.balance = Math.round((state.balance + amount) * 100) / 100
-      state.transactions.unshift({
-        date: new Date().toLocaleDateString('sv-SE'),
-        amount,
-        type: '演示余额',
-        status: '已完成',
-      })
-      save()
-      closeDialog()
-      render()
-      toast('演示余额已更新')
-    } else if (form.id === 'settings-form') {
+        } else if (form.id === 'settings-form') {
       const name = String(data.get('workspace')).trim()
       if (!name) return
       state.settings.name = name
@@ -2289,7 +2530,10 @@
     if (id === 'provider-search') filterProviders()
     if (id === 'key-search') renderKeys()
     if (id === 'global-search') renderSearchResults()
-    if (id === 'activity-search') filterActivity()
+    if (id === 'activity-search') {
+      clearTimeout(activitySearchTimer)
+      activitySearchTimer = setTimeout(filterActivity, 400)
+    }
     if (id === 'estimate-input' || id === 'estimate-output') {
       const model = getModel(routeModelId())
       const input = Math.max(
@@ -2412,6 +2656,7 @@
   app.addEventListener('pointerout', (event) => {
     if (event.target.matches('canvas[data-chart]')) event.target.nextElementSibling.hidden = true
   })
+  window.addEventListener('skin:unauthorized', onUnauthorized)
   window.addEventListener('hashchange', render)
   render()
   bootPlatform()

@@ -6,21 +6,42 @@
   'use strict'
 
   const BASE_KEY = 'aitokensflux.apiBase'
-  const UID_KEY = 'uid'
-  const SECRET_KEY = 'aitokensflux.keySecrets'
+  const TOKEN_KEY = 'aitokensflux.accessToken'
+  const EXPIRES_KEY = 'aitokensflux.accessExpiresAt'
+  const USER_KEY = 'aitokensflux.user'
   const DEFAULT_BASE = 'http://localhost:3000'
 
   function createSkinClient(options) {
     const settings = options || {}
     const storage = settings.storage || root.localStorage
-    const session = settings.session || root.sessionStorage
     const fetchImpl = settings.fetch || root.fetch.bind(root)
     let cachedStatus = null
     let cachedGroup = ''
+    let lastTokenMaxId = 0
+
+    function cfg() {
+      return (typeof root !== 'undefined' && root.SKIN_CONFIG) || {}
+    }
+
+    function allowOverride() {
+      // config.js 明确关闭，或页面运行在 http(s) 源下时默认不允许 ?api= 改写；
+      // Node 测试等没有 location 的环境默认允许。
+      if (cfg().allowApiOverride === false) return false
+      if (cfg().allowApiOverride === true) return true
+      return !(root.location && /^https?:/.test(String(root.location.origin || '')))
+    }
 
     function getBase() {
-      const value = String(storage.getItem(BASE_KEY) || '').trim()
-      return (value || DEFAULT_BASE).replace(/\/+$/, '')
+      const fixed = String(cfg().apiBase || '').trim()
+      if (fixed) return fixed.replace(/\/+$/, '')
+      if (allowOverride()) {
+        const value = String(storage.getItem(BASE_KEY) || '').trim()
+        if (value) return value.replace(/\/+$/, '')
+      }
+      const origin = root.location && /^https?:/.test(String(root.location.origin || ''))
+        ? String(root.location.origin)
+        : ''
+      return (origin || DEFAULT_BASE).replace(/\/+$/, '')
     }
 
     function setBase(url) {
@@ -31,13 +52,51 @@
       cachedGroup = ''
     }
 
+    function publicBase() {
+      return String(cfg().publicApiBase || '').trim().replace(/\/+$/, '') || getBase()
+    }
+
+    function getToken() {
+      return String(storage.getItem(TOKEN_KEY) || '')
+    }
+
+    function getUser() {
+      try {
+        return JSON.parse(storage.getItem(USER_KEY) || 'null')
+      } catch {
+        return null
+      }
+    }
+
+    // 登录成功：保存 dashboard access_token、过期时间与用户信息
+    function saveAuth(bundle) {
+      const token = bundle && bundle.access_token
+      if (!token) return
+      storage.setItem(TOKEN_KEY, String(token))
+      const expiresAt = Number(bundle.access_expires_at || 0)
+      if (expiresAt > 0) storage.setItem(EXPIRES_KEY, String(expiresAt))
+      else storage.removeItem(EXPIRES_KEY)
+      if (bundle.user) storage.setItem(USER_KEY, JSON.stringify(bundle.user))
+    }
+
+    function clearAuth() {
+      storage.removeItem(TOKEN_KEY)
+      storage.removeItem(EXPIRES_KEY)
+      storage.removeItem(USER_KEY)
+      cachedGroup = ''
+    }
+
+    // 兼容旧接口：uid 仍可用于显示（来自 user.id），但鉴权不再用它
     function getUid() {
-      return String(storage.getItem(UID_KEY) || '')
+      const user = getUser()
+      return user && user.id !== undefined ? String(user.id) : ''
     }
 
     function setUid(id) {
-      if (id === undefined || id === null || id === '') storage.removeItem(UID_KEY)
-      else storage.setItem(UID_KEY, String(id))
+      if (id === undefined || id === null || id === '') return
+      const user = getUser() || {}
+      user.id = id
+      storage.setItem(USER_KEY, JSON.stringify(user))
     }
 
     function quotaPerUnit() {
@@ -93,9 +152,13 @@
     async function api(path, options) {
       const request = options || {}
       const headers = { Accept: 'application/json' }
-      const uid = getUid()
-      if (request.auth !== false && uid) headers['New-API-User'] = uid
-      if (request.turnstile) headers['X-Turnstile-Token'] = request.turnstile
+      const token = getToken()
+      if (request.auth !== false && token) headers['Authorization'] = 'Bearer ' + token
+      let url = join(getBase(), path)
+      if (request.turnstile) {
+        const sep = url.includes('?') ? '&' : '?'
+        url += sep + 'turnstile=' + encodeURIComponent(request.turnstile)
+      }
       let body
       if (request.body !== undefined) {
         headers['Content-Type'] = 'application/json'
@@ -104,7 +167,7 @@
       if (request.headers) Object.assign(headers, request.headers)
       let response
       try {
-        response = await fetchImpl(join(getBase(), path), {
+        response = await fetchImpl(url, {
           method: request.method || 'GET',
           credentials: 'include',
           headers,
@@ -119,6 +182,17 @@
       }
       const payload = await parseBody(response)
       if (!response.ok || (payload && payload.success === false)) {
+        if (response.status === 401 && request.auth !== false && request.retry !== false) {
+          // access_token 过期：先尝试用 refresh cookie 换新 token，再重试一次
+          const refreshed = await refreshAuth().catch(() => false)
+          if (refreshed) return api(path, Object.assign({}, request, { retry: false }))
+          clearAuth()
+          if (typeof root.dispatchEvent === 'function' && typeof root.Event === 'function') {
+            try {
+              root.dispatchEvent(new root.Event('skin:unauthorized'))
+            } catch { /* event dispatch is best-effort */ }
+          }
+        }
         const error = new Error(messageFrom(payload, response.statusText || '请求失败'))
         error.status = response.status
         error.payload = payload
@@ -133,47 +207,124 @@
       return cachedStatus
     }
 
-    async function login(credentials) {
-      const payload = await api('/api/user/login', {
-        method: 'POST',
-        auth: false,
-        turnstile: credentials.turnstile,
-        body: { username: credentials.username, password: credentials.password },
-      })
-      const user = unwrap(payload) || {}
-      const id = user.id
-      if (id === undefined || id === null || id === '') throw new Error('登录成功但未返回用户 id')
-      setUid(id)
-      return user
+    let encryptionKeyCache = null
+    async function encryptPassword(password) {
+      // GET /api/user/login/encryption-key → 服务端要求时用 RSA-OAEP/SHA-256 加密密码
+      let info = encryptionKeyCache
+      if (info === null) {
+        try {
+          info = unwrap(await api('/api/user/login/encryption-key', { auth: false })) || {}
+        } catch {
+          info = {}
+        }
+        encryptionKeyCache = info
+      }
+      if (!info.enabled || !info.public_key || !info.kid) return null
+      if (typeof crypto === 'undefined' || !crypto.subtle) return null
+      const der = Uint8Array.from(
+        atob(String(info.public_key).replace(/-----[^-]+-----|\s+/g, '')),
+        (char) => char.charCodeAt(0),
+      )
+      const key = await crypto.subtle.importKey(
+        'spki',
+        der.buffer,
+        { name: 'RSA-OAEP', hash: 'SHA-256' },
+        false,
+        ['encrypt'],
+      )
+      const encrypted = await crypto.subtle.encrypt(
+        { name: 'RSA-OAEP' },
+        key,
+        new TextEncoder().encode(String(password)),
+      )
+      return {
+        passwordEncrypted: btoa(String.fromCharCode(...new Uint8Array(encrypted))),
+        encryptionKeyId: info.kid,
+      }
     }
 
-    async function register(credentials) {
-      const body = { username: credentials.username, password: credentials.password }
-      if (credentials.email) body.email = credentials.email
-      await api('/api/user/register', {
+    function applyLoginResult(payload) {
+      // 成功返回 {access_token, token_type, access_expires_at, session, user}；
+      // 需要二次验证时 Platform 返回 challenge 对象（无 access_token）。
+      const data = unwrap(payload) || {}
+      if (!data.access_token) {
+        const challenge = data
+        challenge._loginChallenge = true
+        return challenge
+      }
+      saveAuth(data)
+      return data
+    }
+
+    async function login(credentials) {
+      const body = {}
+      if (credentials.passwordEncrypted && credentials.encryptionKeyId) {
+        body.password_encrypted = credentials.passwordEncrypted
+        body.encryption_key_id = credentials.encryptionKeyId
+      } else {
+        // 服务端开启密码加密时，改用 RSA-OAEP 密文提交
+        const encrypted = await encryptPassword(credentials.password).catch(() => null)
+        if (encrypted) {
+          body.password_encrypted = encrypted.passwordEncrypted
+          body.encryption_key_id = encrypted.encryptionKeyId
+        } else {
+          body.username = credentials.username
+          body.password = credentials.password
+        }
+      }
+      const payload = await api('/api/user/login', {
         method: 'POST',
         auth: false,
         turnstile: credentials.turnstile,
         body,
       })
-      return login(credentials)
+      return applyLoginResult(payload)
+    }
+
+    async function register(credentials) {
+      const body = { username: credentials.username, password: credentials.password }
+      if (credentials.email) body.email = credentials.email
+      if (credentials.emailCode) body.verification_code = credentials.emailCode
+      const payload = await api('/api/user/register', {
+        method: 'POST',
+        auth: false,
+        turnstile: credentials.turnstile,
+        body,
+      })
+      return applyLoginResult(payload)
     }
 
     async function self() {
       const payload = await api('/api/user/self')
-      return unwrap(payload) || {}
+      const user = unwrap(payload) || {}
+      if (user && user.id !== undefined) storage.setItem(USER_KEY, JSON.stringify(user))
+      return user
+    }
+
+    // 用 HttpOnly refresh cookie 换新的 access_token
+    async function refreshAuth() {
+      if (!getToken()) return false
+      try {
+        const payload = await api('/api/user/auth/refresh', { method: 'POST', auth: false })
+        const data = unwrap(payload) || {}
+        if (!data.access_token) return false
+        saveAuth(data)
+        return true
+      } catch {
+        return false
+      }
     }
 
     async function logout() {
       try {
-        await api('/api/user/logout')
+        await api('/api/user/auth/logout', { method: 'POST' })
       } finally {
-        setUid('')
-        cachedGroup = ''
+        clearAuth()
       }
     }
 
     function normalizeToken(token) {
+      // 新版响应为 {token 字段平铺, auto_groups}
       return {
         id: token.id,
         name: token.name || '未命名密钥',
@@ -191,8 +342,22 @@
     }
 
     async function listTokens() {
-      const payload = await api('/api/token/?p=1&size=100')
-      return asList(unwrap(payload)).map(normalizeToken)
+      // GET /api/token/?p=&page_size= → {items,total,page,page_size}
+      const size = 100
+      const all = []
+      let total = Infinity
+      for (let page = 1; page <= 50 && all.length < total; page++) {
+        const payload = await api(`/api/token/?p=${page}&page_size=${size}`)
+        const data = unwrap(payload) || {}
+        const rows = Array.isArray(data.items) ? data.items : asList(data)
+        if (typeof data.total === 'number') total = data.total
+        all.push(...rows)
+        if (rows.length < size) break
+      }
+      const normalized = all.map(normalizeToken)
+      const maxId = normalized.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0)
+      if (maxId > lastTokenMaxId) lastTokenMaxId = maxId
+      return normalized
     }
 
     function groupNames(groups) {
@@ -336,16 +501,21 @@
 
     // Used only when POST /api/token/ has no id. new-api's AddToken body is
     // {success:true,message:""}, so the new row has to be taken from the list.
-    async function findTokenByListDiff(name) {
+    // 并发同名令牌可能同时新建：取 created_time 新鲜、id 大于创建前基准的最小 id，
+    // 避免冒认其他客户端刚创建的同名令牌。
+    async function findTokenByListDiff(name, baselineId) {
       const list = await listTokens()
-      const named = list.filter((item) => item.name === name)
-      if (!named.length) return null
+      const baseline = Number(baselineId) || 0
+      const named = list.filter((item) => item.name === name && Number(item.id) > baseline)
+      const pool = named.length ? named : list.filter((item) => item.name === name)
+      if (!pool.length) return null
       const now = Math.floor(Date.now() / 1000)
-      const timed = named.filter((item) => Number(item.created_time || 0) > 0)
+      const timed = pool.filter((item) => Number(item.created_time || 0) > 0)
       const fresh = timed.filter((item) => Math.abs(now - Number(item.created_time)) <= 600)
       if (timed.length && !fresh.length) return null
-      const pool = fresh.length ? fresh : named
-      return pool.sort((a, b) => Number(b.id) - Number(a.id))[0]
+      const candidates = fresh.length ? fresh : pool
+      // 升序：小于并发新建的同名令牌
+      return candidates.sort((a, b) => Number(a.id) - Number(b.id))[0]
     }
 
     async function createToken(input) {
@@ -386,7 +556,7 @@
         if (fields.model_limits_enabled === undefined) merged.model_limits_enabled = false
         token = normalizeToken(merged)
       } else {
-        token = await findTokenByListDiff(body.name)
+        token = await findTokenByListDiff(body.name, lastTokenMaxId)
       }
       if (!token || !token.id) throw new Error('密钥已创建，但列表里没有找到它')
       let secret = ''
@@ -399,20 +569,25 @@
       }
       if (!secret) secret = inline
       if (!secret) throw new Error('Platform 没有返回完整密钥')
-      rememberKey(token.id, token.name, secret)
+      // 完整密钥只交给创建弹窗展示一次，不落盘
       return { token, secret, group }
     }
 
     async function updateToken(id, fields) {
-      const body = Object.assign({ id: Number(id) }, fields, { model_limits_enabled: false })
-      const payload = await api('/api/token/' + id, { method: 'PUT', body })
+      // 真实路由为 PUT /api/token/，id 在请求体内；可用 ?status_only 只改启停
+      const statusOnly = fields && fields.status_only === true
+      const body = Object.assign({ id: Number(id) }, fields)
+      delete body.status_only
+      const payload = await api('/api/token/' + (statusOnly ? '?status_only=true' : ''), {
+        method: 'PUT',
+        body,
+      })
       const data = unwrap(payload)
       return data && data.id ? normalizeToken(data) : body
     }
 
     async function deleteToken(id) {
       await api('/api/token/' + id, { method: 'DELETE' })
-      forgetKey(id)
     }
 
     async function getTokenKey(id) {
@@ -429,17 +604,16 @@
       return key
     }
 
+    async function fetchPricing() {
+      // GET /api/pricing → {data, vendors, group_ratio, usable_group, supported_endpoint}
+      const payload = await api('/api/pricing', { auth: false })
+      return unwrap(payload) || {}
+    }
+
     async function fetchPricingItems() {
-      let payload
-      try {
-        payload = await api('/api/pricing/public', { auth: false })
-      } catch (error) {
-        if (error.status !== 404) throw error
-        payload = await api('/api/pricing', { auth: false })
-      }
-      const data = unwrap(payload)
-      if (Array.isArray(data)) return data
-      return asList(data)
+      const data = await fetchPricing()
+      const items = Array.isArray(data.data) ? data.data : asList(data)
+      return items
     }
 
     function modelNames(data) {
@@ -561,25 +735,104 @@
       }
     }
 
-    function knownKeys() {
-      try {
-        const parsed = JSON.parse(session.getItem(SECRET_KEY) || '{}')
-        return parsed && typeof parsed === 'object' ? parsed : {}
-      } catch {
-        return {}
-      }
+    async function selfData(days) {
+      const now = Math.floor(Date.now() / 1000)
+      const start = now - (Number(days) || 7) * 86400
+      const payload = await api(
+        `/api/data/self?start_timestamp=${start}&end_timestamp=${now}&timezone=${encodeURIComponent('local')}`,
+      )
+      return unwrap(payload) || {}
     }
 
-    function rememberKey(id, name, secret) {
-      const all = knownKeys()
-      all[String(id)] = { id: String(id), name: name || 'API Key', secret: asSecret(secret) }
-      session.setItem(SECRET_KEY, JSON.stringify(all))
+    async function listLogs(params) {
+      const q = new URLSearchParams()
+      const p = params || {}
+      q.set('p', String(p.page || 1))
+      q.set('page_size', String(p.size || 20))
+      if (p.type !== undefined && p.type !== null && p.type !== '') q.set('type', String(p.type))
+      if (p.model) q.set('model_name', String(p.model))
+      if (p.token) q.set('token_name', String(p.token))
+      if (p.start) q.set('start_timestamp', String(p.start))
+      if (p.end) q.set('end_timestamp', String(p.end))
+      if (p.group) q.set('group', String(p.group))
+      const payload = await api('/api/log/self?' + q.toString())
+      const data = unwrap(payload) || {}
+      const items = Array.isArray(data.items) ? data.items : asList(data)
+      return { items, total: Number(data.total || items.length), page: p.page || 1 }
     }
 
-    function forgetKey(id) {
-      const all = knownKeys()
-      delete all[String(id)]
-      session.setItem(SECRET_KEY, JSON.stringify(all))
+    async function logStats(params) {
+      const q = new URLSearchParams()
+      const p = params || {}
+      if (p.type !== undefined && p.type !== null && p.type !== '') q.set('type', String(p.type))
+      if (p.start) q.set('start_timestamp', String(p.start))
+      if (p.end) q.set('end_timestamp', String(p.end))
+      if (p.token) q.set('token_name', String(p.token))
+      if (p.model) q.set('model_name', String(p.model))
+      if (p.group) q.set('group', String(p.group))
+      const payload = await api('/api/log/self/stat?' + q.toString())
+      return unwrap(payload) || {}
+    }
+
+    async function topup(key) {
+      const payload = await api('/api/user/topup', {
+        method: 'POST',
+        body: { key: String(key || '').trim() },
+      })
+      return unwrap(payload) || {}
+    }
+
+    async function sendVerification(email, purpose, turnstile) {
+      const q = new URLSearchParams({
+        email: String(email || '').trim(),
+        purpose: String(purpose || 'register'),
+      })
+      await api('/api/verification?' + q.toString(), { auth: false, turnstile })
+    }
+
+    async function sendResetEmail(email, turnstile) {
+      const q = new URLSearchParams({ email: String(email || '').trim() })
+      await api('/api/reset_password?' + q.toString(), { auth: false, turnstile })
+    }
+
+    async function resetPassword(input) {
+      const payload = await api('/api/user/reset', {
+        method: 'POST',
+        auth: false,
+        body: {
+          email: String(input.email || '').trim(),
+          password: String(input.password || ''),
+          verification_code: String(input.code || '').trim(),
+        },
+      })
+      return unwrap(payload) || {}
+    }
+
+    async function rankings(period) {
+      const payload = await api('/api/rankings?period=' + encodeURIComponent(period || 'week'), {
+        auth: false,
+      })
+      return unwrap(payload) || {}
+    }
+
+    async function perfMetrics(params) {
+      const q = new URLSearchParams()
+      if (params && params.period) q.set('period', String(params.period))
+      const path = params && params.summary
+        ? '/api/perf-metrics/summary' + (q.size ? '?' + q : '')
+        : '/api/perf-metrics' + (q.size ? '?' + q : '')
+      const payload = await api(path, { auth: false })
+      return unwrap(payload) || {}
+    }
+
+    async function topupHistory() {
+      const payload = await api('/api/user/topup/self')
+      return asList(unwrap(payload))
+    }
+
+    async function updateSetting(fields) {
+      const payload = await api('/api/user/setting', { method: 'PUT', body: fields || {} })
+      return unwrap(payload) || {}
     }
 
     return {
@@ -601,9 +854,24 @@
       getTokenKey,
       resolveFullModelGroup,
       loadCatalog,
-      knownKeys,
-      rememberKey,
-      forgetKey,
+      allowOverride,
+      publicBase,
+      selfData,
+      listLogs,
+      logStats,
+      topup,
+      topupHistory,
+      sendVerification,
+      sendResetEmail,
+      resetPassword,
+      refreshAuth,
+      rankings,
+      perfMetrics,
+      updateSetting,
+      getToken,
+      getUser,
+      saveAuth,
+      clearAuth,
     }
   }
 

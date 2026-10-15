@@ -1,0 +1,12 @@
+{
+  "name": "aitokensflux-skin",
+  "version": "6.1.0",
+  "private": true,
+  "description": "aitokensflux Skin — OpenRouter-style frontend for the Ai Tokens Flux / new-api Platform",
+  "type": "commonjs",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node scripts/skin-contract-test.mjs",
+    "release": "sh scripts/release.sh"
+  }
+}
