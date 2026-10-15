@@ -1,6 +1,8 @@
 #!/bin/sh
 # 构建发布包并启动 Docker 部署。
-# 用法：sh deploy/docker.sh [版本号] [--no-up]
+# 用法：
+#   sh deploy/docker.sh [版本号] [--no-up]
+#   NEW_API_SRC=/path/to/new-api sh deploy/docker.sh   # 用本地 new-api 源码构建
 set -eu
 cd "$(dirname "$0")/.."
 VER="${1:-$(node -e "process.stdout.write(require('./package.json').version)" 2>/dev/null || echo dev)}"
@@ -15,9 +17,14 @@ for f in "$OUT"/*.html; do
 done
 echo "dist -> $OUT"
 
-# 2. compose up
+# 2. compose up：提供 NEW_API_SRC 时才走本地构建
 case "${2:-}" in --no-up) exit 0 ;; esac
-docker compose -f deploy/docker-compose.yml up -d --build
+if [ -n "${NEW_API_SRC:-}" ]; then
+  docker compose -f deploy/docker-compose.yml up -d --build
+else
+  docker compose -f deploy/docker-compose.yml up -d
+fi
 echo
 echo "Skin:     http://localhost:${SKIN_PORT:-8080}"
 echo "Platform: http://localhost:${SKIN_PORT:-8080}/api/status"
+echo "联调验证： node scripts/verify.mjs http://localhost:${SKIN_PORT:-8080}"

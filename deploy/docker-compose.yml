@@ -39,8 +39,8 @@ services:
 
   new-api:
     image: calciumion/new-api:latest
-    # 用本地源码构建时，取消下一行注释并设置 NEW_API_SRC 指向源码目录：
-    build: ${NEW_API_SRC:-.build-skip}
+    # 使用本地源码构建：NEW_API_SRC=/path/to/new-api sh deploy/docker.sh
+    build: ${NEW_API_SRC:-.}
     container_name: aitokensflux-new-api
     restart: always
     environment:
