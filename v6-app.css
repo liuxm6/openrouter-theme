@@ -1754,3 +1754,20 @@
     padding-top: 20px;
   }
 }
+
+/* OAuth 三方登录分隔 */
+.v6-oauth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.v6-oauth-divider::before,
+.v6-oauth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}

@@ -1695,6 +1695,75 @@
       `<p class="v6-muted">完整密钥只展示这一次。请立即复制。列表里之后只会显示掩码。</p><div class="v6-row"><input class="v6-input mono" id="created-key" readonly aria-label="新密钥" style="flex:1" value="${esc(secret)}">${iconButton('copy', '复制密钥', 'copy', `data-copy="${esc(secret)}"`)}</div><div class="v6-dialog-foot">${button('close-dialog', '完成', 'check', '', 'v6-btn primary')}</div>`,
     )
   }
+  // 按 Platform /api/status 的开关显示三方登录入口
+  function oauthProviders() {
+    const status = platform.status || {}
+    const out = []
+    if (status.github_oauth && status.github_client_id) out.push({ type: 'github', name: 'GitHub' })
+    if (status.discord_oauth && status.discord_client_id) out.push({ type: 'discord', name: 'Discord' })
+    if (status.oidc_enabled && status.oidc_client_id && status.oidc_authorization_endpoint)
+      out.push({ type: 'oidc', name: 'OIDC' })
+    if (status.linuxdo_oauth && status.linuxdo_client_id) out.push({ type: 'linuxdo', name: 'LinuxDO' })
+    if (status.telegram_oauth || status.telegram_oauth_configured) out.push({ type: 'telegram', name: 'Telegram' })
+    if (status.wechat_login) out.push({ type: 'wechat', name: '微信' })
+    return out
+  }
+  function oauthButtons() {
+    const items = oauthProviders()
+    if (!items.length) return ''
+    return `<div class="v6-oauth-divider"><span>或继续用</span></div><div class="v6-row v6-wrap">${items
+      .map((item) => button('oauth-login', item.name, 'log-in', `data-provider="${item.type}"`, 'v6-btn'))
+      .join('')}</div>`
+  }
+  function oauthAuthorizeUrl(provider, flow) {
+    const status = platform.status || {}
+    const state = flow.flow_token
+    switch (provider) {
+      case 'github':
+        return `https://github.com/login/oauth/authorize?client_id=${encodeURIComponent(status.github_client_id)}&state=${encodeURIComponent(state)}&scope=user:email`
+      case 'discord': {
+        const url = new URL('https://discord.com/oauth2/authorize')
+        url.searchParams.set('client_id', status.discord_client_id)
+        url.searchParams.set('redirect_uri', location.origin + '/oauth/discord')
+        url.searchParams.set('response_type', 'code')
+        url.searchParams.set('scope', 'identify+openid')
+        url.searchParams.set('state', state)
+        return url.toString()
+      }
+      case 'oidc': {
+        const url = new URL(status.oidc_authorization_endpoint)
+        url.searchParams.set('client_id', status.oidc_client_id)
+        url.searchParams.set('redirect_uri', location.origin + '/oauth/oidc')
+        url.searchParams.set('response_type', 'code')
+        url.searchParams.set('scope', 'openid profile email')
+        url.searchParams.set('state', state)
+        return url.toString()
+      }
+      case 'linuxdo':
+        return `https://connect.linux.do/oauth2/authorize?response_type=code&client_id=${encodeURIComponent(status.linuxdo_client_id)}&state=${encodeURIComponent(state)}`
+      case 'telegram':
+        return flow.authorization_url || ''
+      case 'wechat':
+        return (SkinAPI.getBase() === location.origin ? '' : SkinAPI.getBase()) + '/api/oauth/wechat'
+      default:
+        return ''
+    }
+  }
+  async function startOAuthLogin(provider, buttonEl) {
+    const errorNode = document.getElementById('auth-error')
+    try {
+      if (buttonEl) buttonEl.disabled = true
+      const flow = await SkinAPI.oauthState(provider, 'login')
+      const url = oauthAuthorizeUrl(provider, flow)
+      if (!url) throw new Error('该登录方式暂不可用')
+      sessionStorage.setItem('aitokensflux.oauthProvider', provider)
+      location.assign(url)
+    } catch (error) {
+      if (errorNode) errorNode.textContent = error.message || '发起三方登录失败'
+      if (buttonEl) buttonEl.disabled = false
+    }
+  }
+
   function loadTurnstile() {
     // 仅在启用时加载 Cloudflare Turnstile；站点需在 CSP 中放行 challenges.cloudflare.com
     const siteKey = platform.status?.turnstile_site_key
@@ -1738,7 +1807,7 @@
                 : ''
             }`
           : ''
-      }${turnstile ? `<div id="cf-turnstile" style="margin:6px 0"></div><input type="hidden" name="turnstile">${siteKey ? '' : '<label class="v6-form-label">Turnstile Token<input class="v6-input" name="turnstile_input"></label>'}` : ''}<p class="v6-error" id="auth-error" role="alert"></p><div class="v6-dialog-foot">${mode === 'login' ? button('forgot-password', '忘记密码', '', '', 'v6-link') : ''}${button(mode === 'register' ? 'show-login' : 'show-register', mode === 'register' ? '已有账号，去登录' : '没有账号，去注册')}<button class="v6-btn primary" type="submit">${mode === 'register' ? '注册并登录' : '登录'}</button></div></form>`,
+      }${turnstile ? `<div id="cf-turnstile" style="margin:6px 0"></div><input type="hidden" name="turnstile">${siteKey ? '' : '<label class="v6-form-label">Turnstile Token<input class="v6-input" name="turnstile_input"></label>'}` : ''}<p class="v6-error" id="auth-error" role="alert"></p>${oauthButtons()}<div class="v6-dialog-foot">${mode === 'login' ? button('forgot-password', '忘记密码', '', '', 'v6-link') : ''}${button(mode === 'register' ? 'show-login' : 'show-register', mode === 'register' ? '已有账号，去登录' : '没有账号，去注册')}<button class="v6-btn primary" type="submit">${mode === 'register' ? '注册并登录' : '登录'}</button></div></form>`,
     )
     if (turnstile && siteKey) loadTurnstile()
   }
@@ -2319,6 +2388,9 @@
         .finally(() => { target.disabled = false })
     } else if (action === 'forgot-password') {
       resetDialog()
+    } else if (action === 'oauth-login') {
+      const provider = target.dataset.provider
+      if (provider) startOAuthLogin(provider, target)
     }
     else if (action === 'activity-prev' || action === 'activity-next') {
       const page = (liveData.logs.page || 1) + (action === 'activity-next' ? 1 : -1)

@@ -1,0 +1,23 @@
+#!/bin/sh
+# 构建发布包并启动 Docker 部署。
+# 用法：sh deploy/docker.sh [版本号] [--no-up]
+set -eu
+cd "$(dirname "$0")/.."
+VER="${1:-$(node -e "process.stdout.write(require('./package.json').version)" 2>/dev/null || echo dev)}"
+
+# 1. 生成发布包（dist/current 供 nginx 挂载）
+OUT="dist/current"
+rm -rf "$OUT" && mkdir -p "$OUT"
+cp index.html v6.html v6-app.js v6-app.css skin-api.js oauth-callback.html "$OUT/"
+cp deploy/config.prod.js "$OUT/config.js"
+for f in "$OUT"/*.html; do
+  sed -i "s|v6-app\.css|v6-app.css?v=$VER|g; s|skin-api\.js|skin-api.js?v=$VER|g; s|v6-app\.js|v6-app.js?v=$VER|g" "$f" 2>/dev/null || true
+done
+echo "dist -> $OUT"
+
+# 2. compose up
+case "${2:-}" in --no-up) exit 0 ;; esac
+docker compose -f deploy/docker-compose.yml up -d --build
+echo
+echo "Skin:     http://localhost:${SKIN_PORT:-8080}"
+echo "Platform: http://localhost:${SKIN_PORT:-8080}/api/status"

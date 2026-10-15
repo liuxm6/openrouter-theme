@@ -808,6 +808,16 @@
       return unwrap(payload) || {}
     }
 
+    // 三方登录第一步：POST /api/oauth/state 拿 flow_token（telegram 还会返回 authorization_url）
+    async function oauthState(provider, intent) {
+      const payload = await api('/api/oauth/state', {
+        method: 'POST',
+        auth: false,
+        body: { provider: String(provider || ''), intent: intent || 'login' },
+      })
+      return unwrap(payload) || {}
+    }
+
     async function rankings(period) {
       const payload = await api('/api/rankings?period=' + encodeURIComponent(period || 'week'), {
         auth: false,
@@ -865,6 +875,7 @@
       sendResetEmail,
       resetPassword,
       refreshAuth,
+      oauthState,
       rankings,
       perfMetrics,
       updateSetting,
