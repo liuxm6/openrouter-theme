@@ -67,7 +67,6 @@ function createPlatform() {
     keyMethods: [],
     tokenLists: 0,
     issued: [],
-    chats: [],
     createShape: 'id',
     plantDecoy: false,
     allowKeyGet: false,
@@ -369,33 +368,6 @@ function createPlatform() {
         send(res, 200, { success: true, message: '' })
         return
       }
-      if (req.method === 'POST' && url.pathname === '/v1/chat/completions') {
-        const body = await readBody(req)
-        const authorization = req.headers.authorization || ''
-        seen.chats.push({ authorization, body })
-        const raw = authorization.replace(/^Bearer\s+/i, '').replace(/^sk-/, '')
-        const token = tokens.find((item) => item.key === raw && item.status === 1)
-        if (!token) {
-          send(res, 401, { error: { message: '无效的令牌' } })
-          return
-        }
-        const text = (body.stream ? 'stream:' : 'sync:') + body.model
-        if (body.stream) {
-          res.writeHead(200, {
-            'Content-Type': 'text/event-stream; charset=utf-8',
-            'Cache-Control': 'no-cache',
-          })
-          res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: text.slice(0, 7) } }] })}\n\n`)
-          res.write(
-            `data: ${JSON.stringify({ choices: [{ delta: { content: text.slice(7) } }] })}\n\n`,
-          )
-          res.write('data: [DONE]\n\n')
-          res.end()
-          return
-        }
-        send(res, 200, { choices: [{ message: { role: 'assistant', content: text } }] })
-        return
-      }
       send(res, 404, { success: false, message: '未知接口 ' + url.pathname })
     } catch (error) {
       send(res, 500, { success: false, message: error.message })
@@ -550,32 +522,6 @@ async function clientTests(base, seen, tokens) {
   )
   assert(catalog.models[0].slug === 'gpt-test-a', 'TC2 slug is the platform model id')
 
-  const streamed = await client.chat({
-    model: 'gpt-test-b',
-    messages: [{ role: 'user', content: 'hi' }],
-    stream: true,
-    apiKey: created.secret,
-  })
-  assert(streamed === 'stream:gpt-test-b', 'TC3 stream uses model id, got ' + streamed)
-  const synced = await client.chat({
-    model: 'gpt-test-a',
-    messages: [{ role: 'user', content: 'hi' }],
-    stream: false,
-    apiKey: created.secret,
-  })
-  assert(synced === 'sync:gpt-test-a', 'TC3 non-stream switches model, got ' + synced)
-  let chatFailed = false
-  try {
-    await client.chat({
-      model: 'gpt-test-a',
-      messages: [{ role: 'user', content: 'hi' }],
-      stream: false,
-      apiKey: 'sk-not-a-real-key',
-    })
-  } catch (error) {
-    chatFailed = error.message.includes('无效的令牌')
-  }
-  assert(chatFailed, 'TC3 readable error on failure')
   console.log('client contract checks passed')
 }
 
@@ -800,61 +746,12 @@ async function uiTests(pageUrl, seen) {
       `document.querySelectorAll('[data-model-id]').length === 1 && document.querySelector('[data-model-id="gpt-test-b"]')`,
       'TC2 filter',
     )
-    await evalJson(`document.querySelector('[data-model-id="gpt-test-b"] a[href*="chat?model="]').click()`)
-    await waitPage(`document.querySelector('[data-chat-model="gpt-test-b"]')`, 'TC2 chat opens filtered model')
-    await evalJson(`
-      document.getElementById('chat-prompt').value = 'hello stream'
-      document.getElementById('chat-form').requestSubmit()
-    `)
+    await evalJson(`location.hash = '#/models/gpt-test-b'`)
     await waitPage(
-      `document.body.innerText.includes('stream:gpt-test-b') && document.querySelector('[aria-label="发送消息"]')`,
-      'TC3 stream response',
+      `document.querySelector('.v6-detail-head')?.innerText.includes('gpt-test-b')`,
+      'TC2 model detail opens',
     )
-
-    await evalJson(`document.querySelector('[data-action="choose-model"]').click()`)
-    await waitPage(`document.querySelector('#chat-models-form')`, 'model switcher')
-    await evalJson(`{
-      document.querySelectorAll('[name="chat-model"]').forEach((input) => { input.checked = input.value === 'gpt-test-a' })
-      document.getElementById('chat-models-form').requestSubmit()
-    }`)
-    await waitPage(`document.querySelector('[data-chat-model="gpt-test-a"]')`, 'TC3 switched model')
-    await evalJson(`{
-      const box = document.getElementById('chat-stream')
-      box.checked = false
-      box.dispatchEvent(new Event('change', { bubbles: true }))
-      document.getElementById('chat-prompt').value = 'hello sync'
-      document.getElementById('chat-form').requestSubmit()
-    }`)
-    await waitPage(
-      `document.body.innerText.includes('sync:gpt-test-a') && document.querySelector('[aria-label="发送消息"]')`,
-      'TC3 non-stream response',
-    )
-    const uiChats = seen.chats.filter((item) => item.authorization === 'Bearer ' + revealed.secret)
-    assert(uiChats.length >= 2, 'TC3 both chats use the same key')
-    assert(uiChats.some((item) => item.body.stream === true && item.body.model === 'gpt-test-b'), 'TC3 stream model id')
-    assert(uiChats.some((item) => item.body.stream === false && item.body.model === 'gpt-test-a'), 'TC3 non-stream model id')
-
-    await evalJson(`{
-      const select = document.getElementById('chat-key')
-      select.value = '__paste'
-      select.dispatchEvent(new Event('change', { bubbles: true }))
-    }`)
-    await waitPage(`document.querySelector('#paste-key-form')`, 'paste key')
-    await evalJson(`{
-      const form = document.querySelector('#paste-key-form')
-      form.secret.value = 'sk-not-a-real-key'
-      form.requestSubmit()
-    }`)
-    await waitPage(`document.getElementById('chat-key')?.value === 'pasted'`, 'bad key selected')
-    await evalJson(`
-      document.getElementById('chat-prompt').value = 'fail please'
-      document.getElementById('chat-form').requestSubmit()
-    `)
-    await waitPage(
-      `document.querySelector('.v6-chat-error')?.textContent.includes('无效的令牌')`,
-      'TC3 readable chat error',
-    )
-    await shot('skin_chat_stream_and_error.png')
+    await shot('skin_model_detail.png')
     console.log('ui contract checks passed')
   } finally {
     launched.chrome.kill('SIGKILL')

@@ -20,8 +20,6 @@ OpenRouter 风格的浅色绿色界面。它是独立的 Skin，只通过 HTTP �
    - 使用 `credentials: 'include'`，带上 Cookie 会话
    - 带上请求头 `New-API-User: <uid>`
 
-聊天请求走 `POST {API Base}/v1/chat/completions`，使用 `Authorization: Bearer sk-...`，不依赖登录 Cookie。
-
 ## CORS
 
 Skin 和 Platform 往往不在同一个源（例如 Skin 在 `:8080`，Platform 在 `:3000`）。Platform 需要：
@@ -41,6 +39,5 @@ Skin 和 Platform 往往不在同一个源（例如 Skin 在 `:8080`，Platform 
 - 密钥：`GET/POST /api/token/`，`PUT/DELETE /api/token/:id`，`POST /api/token/:id/key`（仅当 POST 返回 404/405 时再 GET）
 - 创建密钥时 `model_limits_enabled` 为 `false`，`group` 为覆盖模型最多的全模型分组。创建响应里若带有令牌 id（或其它字段）则直接采用；响应没有 id 时，才用列表对照找出新建项。一次性完整 `sk-` 密钥优先通过 `POST /api/token/:id/key` 读取。
 - 目录：`GET /api/user/models` 与 `GET /api/pricing/public`。Platform 不可达时回退到内置演示目录
-- 对话：`POST /v1/chat/completions`，支持 `stream: true` 和 `stream: false`
 
-完整密钥只在创建成功时展示一次，并可以复制。列表里之后只显示掩码。当前标签页会记住这把密钥，供聊天切换模型时复用。
+完整密钥只在创建成功时展示一次，并可以复制。列表里之后只显示掩码。当前标签页会记住这把密钥。

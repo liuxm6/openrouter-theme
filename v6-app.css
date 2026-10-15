@@ -921,135 +921,6 @@
 .v6-docs-layout p {
   color: var(--text-2);
 }
-.v6-chat {
-  height: calc(100dvh - 64px);
-  display: grid;
-  grid-template-columns: 250px minmax(0, 1fr);
-}
-.v6-chat-sidebar {
-  padding: 18px 12px;
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-height: 0;
-}
-.v6-chat-rooms {
-  overflow: auto;
-  flex: 1;
-}
-.v6-chat-sidebar > .v6-search {
-  flex: 0 0 auto;
-}
-.v6-chat-room {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 10px;
-  border: 0;
-  border-radius: 4px;
-  background: none;
-  cursor: pointer;
-  color: var(--text-2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.v6-chat-room.active {
-  background: var(--accent-faint);
-  color: var(--accent-soft);
-}
-.v6-chat-workspace {
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-.v6-chat-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 18px;
-  border-bottom: 1px solid var(--border);
-  flex-wrap: wrap;
-}
-.v6-chat-body {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 36px 28px;
-}
-.v6-chat-welcome {
-  width: min(100%, 660px);
-  margin: 24px auto;
-}
-.v6-chat-welcome h2 {
-  font-size: 25px;
-  text-align: center;
-  margin-bottom: 28px;
-}
-.v6-chat-welcome .v6-item {
-  min-height: 122px;
-  cursor: pointer;
-  text-align: left;
-}
-.v6-chat-welcome .v6-item .v6-row {
-  margin-top: auto;
-  justify-content: flex-end;
-}
-.v6-message {
-  max-width: 900px;
-  margin: 0 auto 26px;
-}
-.v6-message.user {
-  padding: 12px 16px;
-  border-radius: 8px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-}
-.v6-message p {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-size: 14px;
-  margin: 10px 0;
-}
-.v6-responses {
-  display: grid;
-  grid-template-columns: repeat(var(--response-columns, 1), minmax(0, 1fr));
-  gap: 20px;
-}
-.v6-response {
-  min-width: 0;
-  padding: 16px 0;
-  border-top: 1px solid var(--border);
-}
-.v6-compose {
-  padding: 0 22px 14px;
-}
-.v6-compose form {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 12px;
-  border: 1px solid var(--border-strong);
-  background: var(--surface-1);
-  border-radius: 8px;
-}
-.v6-compose textarea {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  color: var(--text);
-  resize: none;
-  min-height: 55px;
-  outline: none;
-  font: inherit;
-}
-.v6-compose-note {
-  text-align: center;
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 8px;
-}
 .v6-console {
   display: grid;
   grid-template-columns: 232px minmax(0, 1fr);
@@ -1522,8 +1393,7 @@
 .v6-mobile-menu {
   display: none;
 }
-.v6-error,
-.v6-chat-error {
+.v6-error {
   color: var(--danger);
 }
 .v6-error:empty {
@@ -1627,15 +1497,6 @@
   .v6-section-layout {
     grid-template-columns: 160px minmax(0, 1fr);
     gap: 22px;
-  }
-  .v6-chat {
-    grid-template-columns: 205px minmax(0, 1fr);
-  }
-  .v6-chat-body {
-    padding: 20px;
-  }
-  .v6-chat-welcome h2 {
-    font-size: 22px;
   }
   .v6-account {
     grid-template-columns: 170px minmax(0, 1fr);
@@ -1830,54 +1691,6 @@
   }
   .v6-docs-layout article h1 {
     font-size: 27px;
-  }
-  .v6-chat {
-    grid-template-columns: 1fr;
-  }
-  .v6-chat-sidebar {
-    display: none;
-  }
-  .v6-chat-sidebar.open {
-    display: flex;
-    position: fixed;
-    inset: 64px 0 0;
-    background: var(--surface-1);
-    z-index: 45;
-  }
-  .v6-chat-head {
-    padding: 10px 12px;
-    gap: 6px;
-  }
-  .v6-chat-head .v6-btn {
-    font-size: 11px;
-    min-height: 32px;
-    padding: 5px 8px;
-  }
-  .v6-chat-body {
-    padding: 14px 16px;
-  }
-  .v6-chat-welcome {
-    margin-top: 12px;
-  }
-  .v6-chat-welcome .v6-grid-2 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-  }
-  .v6-chat-welcome .v6-item {
-    padding: 14px;
-    min-height: 116px;
-  }
-  .v6-chat-welcome h3 {
-    font-size: 13px;
-  }
-  .v6-chat-welcome h2 {
-    font-size: 22px;
-  }
-  .v6-compose {
-    padding: 0 12px 12px;
-  }
-  .v6-responses {
-    grid-template-columns: 1fr;
   }
   .v6-account {
     display: block;

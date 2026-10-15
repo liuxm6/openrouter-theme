@@ -561,95 +561,6 @@
       }
     }
 
-    async function readError(response) {
-      const payload = await parseBody(response)
-      return messageFrom(payload, response.statusText || '对话失败')
-    }
-
-    async function readSSE(response, onDelta) {
-      if (!response.body || !response.body.getReader) {
-        const text = await response.text()
-        throw new Error(text || '浏览器无法读取流式响应')
-      }
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      let full = ''
-      const consume = (line) => {
-        const trimmed = line.trim()
-        if (!trimmed.startsWith('data:')) return
-        const data = trimmed.slice(5).trim()
-        if (!data || data === '[DONE]') return
-        let json
-        try {
-          json = JSON.parse(data)
-        } catch {
-          return
-        }
-        if (json.error) throw new Error(messageFrom(json, '流式响应失败'))
-        const delta =
-          json.choices?.[0]?.delta?.content ||
-          json.choices?.[0]?.message?.content ||
-          ''
-        if (typeof delta === 'string' && delta) {
-          full += delta
-          if (onDelta) onDelta(full)
-        }
-      }
-      while (true) {
-        const step = await reader.read()
-        if (step.done) break
-        buffer += decoder.decode(step.value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-        lines.forEach(consume)
-      }
-      if (buffer) consume(buffer)
-      if (!full) throw new Error('流式响应没有返回内容')
-      return full
-    }
-
-    async function chat(options) {
-      const request = options || {}
-      const apiKey = asSecret(request.apiKey)
-      if (!apiKey) throw new Error('缺少 API Key。请先创建密钥，或在聊天里粘贴 sk- 密钥。')
-      if (!request.model) throw new Error('缺少模型 ID')
-      const payload = {
-        model: request.model,
-        messages: request.messages || [],
-        stream: Boolean(request.stream),
-      }
-      if (typeof request.temperature === 'number') payload.temperature = request.temperature
-      let response
-      try {
-        response = await fetchImpl(join(getBase(), '/v1/chat/completions'), {
-          method: 'POST',
-          credentials: 'omit',
-          signal: request.signal,
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: 'Bearer ' + apiKey,
-          },
-          body: JSON.stringify(payload),
-        })
-      } catch (error) {
-        if (error && error.name === 'AbortError') throw error
-        throw new Error('无法连接对话接口（' + getBase() + '/v1/chat/completions）')
-      }
-      if (!response.ok) throw new Error(await readError(response))
-      if (!request.stream) {
-        const body = await parseBody(response)
-        if (body && body.error) throw new Error(messageFrom(body, '对话失败'))
-        const text = body && body.choices && body.choices[0] && body.choices[0].message
-          ? body.choices[0].message.content
-          : ''
-        if (typeof text !== 'string' || !text) throw new Error('模型返回了空内容')
-        if (request.onDelta) request.onDelta(text)
-        return text
-      }
-      return readSSE(response, request.onDelta)
-    }
-
     function knownKeys() {
       try {
         const parsed = JSON.parse(session.getItem(SECRET_KEY) || '{}')
@@ -690,7 +601,6 @@
       getTokenKey,
       resolveFullModelGroup,
       loadCatalog,
-      chat,
       knownKeys,
       rememberKey,
       forgetKey,
