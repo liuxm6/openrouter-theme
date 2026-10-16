@@ -25,6 +25,6 @@ else
   docker compose -f deploy/docker-compose.yml up -d
 fi
 echo
-echo "Skin:     http://localhost:${SKIN_PORT:-8080}"
-echo "Platform: http://localhost:${SKIN_PORT:-8080}/api/status"
-echo "联调验证： node scripts/verify.mjs http://localhost:${SKIN_PORT:-8080}"
+echo "Skin:     http://localhost:${SKIN_PORT:-8088}"
+echo "Platform: http://localhost:${SKIN_PORT:-8088}/api/status"
+echo "联调验证： node scripts/verify.mjs http://localhost:${SKIN_PORT:-8088}"

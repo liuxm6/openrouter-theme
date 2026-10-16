@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登录中… · aitokensflux</title>
+<style>
+  :root { color-scheme: light }
+  body { font: 14px/1.6 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; background: #f6f8f7; display: grid; place-items: center; min-height: 100vh; margin: 0 }
+  .card { background: #fff; border: 1px solid #d5ded9; border-radius: 12px; padding: 32px 36px; max-width: 420px; text-align: center }
+  h1 { font-size: 18px; color: #0b4f38; margin: 0 0 8px }
+  p { color: #5b6b66; margin: 0 }
+  .err { color: #b42318 }
+  a { color: #0e7a55 }
+</style>
+</head>
+<body>
+<div class="card"><h1 id="t">正在完成登录…</h1><p id="m">请稍候。</p></div>
+<script src="./config.js"></script>
+<script src="./skin-api.js"></script>
+<script>
+// OAuth 回调页：provider 授权后跳转到 {origin}/oauth/<provider>?code&state
+// 这里调 GET /api/oauth/<provider> 完成登录，保存 access_token 后回应用首页。
+(async () => {
+  const title = document.getElementById('t')
+  const msg = document.getElementById('m')
+  const fail = (text) => {
+    title.textContent = '登录失败'
+    msg.innerHTML = `<span class="err">${text}</span> <a href="./v6.html">返回首页</a>`
+  }
+  try {
+    const parts = location.pathname.split('/').filter(Boolean)
+    const provider = parts[1] || parts[0] || ''
+    const params = new URLSearchParams(location.search)
+    const state = params.get('state') || ''
+    const code = params.get('code') || ''
+    if (!provider || !state || (!code && !params.get('access_token'))) {
+      throw new Error('回调参数不完整（缺少 state 或 code）')
+    }
+    const base = (window.SkinAPI && SkinAPI.getBase()) || location.origin
+    const url = new URL(base + '/api/oauth/' + encodeURIComponent(provider))
+    url.searchParams.set('state', state)
+    if (code) url.searchParams.set('code', code)
+    const res = await fetch(url, { credentials: 'include', headers: { Accept: 'application/json' } })
+    const payload = await res.json().catch(() => null)
+    const data = payload && (payload.data !== undefined ? payload.data : payload)
+    if (!res.ok || (payload && payload.success === false) || !(data && data.access_token)) {
+      throw new Error((payload && (payload.message || (payload.error && payload.error.message))) || 'Platform 未返回登录凭据')
+    }
+    SkinAPI.saveAuth(data)
+    location.replace('./v6.html#/console')
+  } catch (error) {
+    fail(error.message || '回调处理失败')
+  }
+})()
+</script>
+</body>
+</html>

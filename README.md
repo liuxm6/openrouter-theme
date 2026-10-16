@@ -57,13 +57,13 @@ window.SKIN_CONFIG = {
 # 一键：构建发布包并 docker compose up -d
 sh deploy/docker.sh
 
-# 访问 http://localhost:8080
+# 访问 http://localhost:8088
 ```
 
 - new-api 默认使用镜像 `calciumion/new-api:latest`；改用本地源码构建：`NEW_API_SRC=/path/to/new-api docker compose -f deploy/docker-compose.yml up -d --build`
 - 数据库为 PostgreSQL（`pg_data` 持久化卷）；`POSTGRES_*` / `REDIS_PASSWORD` 环境变量可覆盖默认口令
 - 本机 HTTP 联调：`SESSION_COOKIE_SECURE=false`（compose 默认）；上 HTTPS 时改为 `true` 并配置 `SESSION_COOKIE_TRUSTED_URL`
-- 联调冒烟：`node scripts/verify.mjs http://localhost:8080`
+- 联调冒烟：`node scripts/verify.mjs http://localhost:8088`
 
 ## 三方登录（按 Platform 配置驱动）
 
@@ -78,7 +78,7 @@ sh deploy/docker.sh
 | Telegram | `telegram_oauth(_configured)` | 用 `/api/oauth/state` 返回的 `authorization_url` |
 | 微信 | `wechat_login` | 走 `GET /api/oauth/wechat?code=` 扫码流程 |
 
-流程：`POST /api/oauth/state {provider, intent:'login'}` 拿 `flow_token` → 构造授权 URL 跳转 → provider 回跳 `{skin origin}/oauth/<provider>?code&state` → `oauth-callback.html` 调 `GET /api/oauth/<provider>` 换取登录 bundle → 保存 access_token 回到控制台。**需要在 provider 侧把 `{skin origin}/oauth/<provider>` 注册为回调地址**（Docker 默认 `http://localhost:8080/oauth/<provider>`）。
+流程：`POST /api/oauth/state {provider, intent:'login'}` 拿 `flow_token` → 构造授权 URL 跳转 → provider 回跳 `{skin origin}/oauth/<provider>?code&state` → `oauth-callback.html` 调 `GET /api/oauth/<provider>` 换取登录 bundle → 保存 access_token 回到控制台。**需要在 provider 侧把 `{skin origin}/oauth/<provider>` 注册为回调地址**（Docker 默认 `http://localhost:8088/oauth/<provider>`）。
 
 ## 本地开发
 
@@ -87,7 +87,7 @@ sh deploy/docker.sh
 # 2. 静态服务
 python3 -m http.server 8080
 # 3. 打开页面（config.js 中 allowApiOverride 开启时可用 ?api= 指定）
-open "http://localhost:8080/v6.html?api=http://localhost:3000"
+open "http://localhost:8088/v6.html?api=http://localhost:3000"
 ```
 
 ## CORS（跨域部署时）
