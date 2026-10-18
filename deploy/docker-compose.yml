@@ -43,6 +43,9 @@ services:
     build: ${NEW_API_SRC:-.}
     container_name: aitokensflux-new-api
     restart: always
+    ports:
+      # 仅绑回环地址：与 socat forwarder 一致，不暴露到局域网
+      - "127.0.0.1:${NEW_API_PORT:-3000}:3000"
     environment:
       - SQL_DSN=postgresql://${POSTGRES_USER:-root}:${POSTGRES_PASSWORD:-123456}@postgres:5432/${POSTGRES_DB:-new-api}
       - REDIS_CONN_STRING=redis://:${REDIS_PASSWORD:-123456}@redis:6379

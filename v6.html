@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light">
-  <title>aitokensflux V6 · Unified Model Gateway Demo</title>
+  <title>aitokensflux · 统一模型网关</title>
   <meta name="description" content="aitokensflux V6 interactive demo for a unified multi-provider AI model gateway.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='115' fill='%230B1020'/%3E%3Cpath d='M256 199C270.5 169.7 343.5 94.9 324.1 59.2A51 51 0 0 1 260.8 59.2C241.5 94.9 259.7 169.7 256 199Z' fill='%23FF4D8D'/%3E%3Cpath d='M305.4 227.5C338 225.5 439.3 251.2 460.5 216.6A51 51 0 0 1 428.9 161.8C388.3 162.8 332.6 216.1 305.4 227.5Z' fill='%23FF9E3D'/%3E%3Cpath d='M305.4 284.5C323.5 311.7 351.8 412.3 392.4 413.4A51 51 0 0 1 424.1 358.6C402.8 324 328.9 302.3 305.4 284.5Z' fill='%23FFCE2E'/%3E%3Cpath d='M256 313C241.5 342.3 168.5 417.1 187.9 452.8A51 51 0 0 1 251.2 452.8C270.5 417.1 252.3 342.3 256 313Z' fill='%2334E08A'/%3E%3Cpath d='M206.7 284.5C174 286.6 72.7 260.8 51.5 295.5A51 51 0 0 1 83.1 350.2C123.7 349.2 179.4 296 206.7 284.5Z' fill='%2333BFFF'/%3E%3Cpath d='M206.7 227.5C188.5 200.3 160.2 99.7 119.6 98.6A51 51 0 0 1 87.9 153.4C109.2 188 183.1 209.7 206.7 227.5Z' fill='%239B6BFF'/%3E%3Ccircle cx='256' cy='256' r='34' fill='%23FFFFFF'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='115' fill='%230B1020'/%3E%3Cpath d='M256 199C270.5 169.7 343.5 94.9 324.1 59.2A51 51 0 0 1 260.8 59.2C241.5 94.9 259.7 169.7 256 199Z' fill='%230fb477'/%3E%3Cpath d='M305.4 227.5C338 225.5 439.3 251.2 460.5 216.6A51 51 0 0 1 428.9 161.8C388.3 162.8 332.6 216.1 305.4 227.5Z' fill='%2363e6b3'/%3E%3Cpath d='M305.4 284.5C323.5 311.7 351.8 412.3 392.4 413.4A51 51 0 0 1 424.1 358.6C402.8 324 328.9 302.3 305.4 284.5Z' fill='%230fb477'/%3E%3Cpath d='M256 313C241.5 342.3 168.5 417.1 187.9 452.8A51 51 0 0 1 251.2 452.8C270.5 417.1 252.3 342.3 256 313Z' fill='%2363e6b3'/%3E%3Cpath d='M206.7 284.5C174 286.6 72.7 260.8 51.5 295.5A51 51 0 0 1 83.1 350.2C123.7 349.2 179.4 296 206.7 284.5Z' fill='%230fb477'/%3E%3Cpath d='M206.7 227.5C188.5 200.3 160.2 99.7 119.6 98.6A51 51 0 0 1 87.9 153.4C109.2 188 183.1 209.7 206.7 227.5Z' fill='%2363e6b3'/%3E%3Ccircle cx='256' cy='256' r='34' fill='%23FFFFFF'/%3E%3C/svg%3E">
   <!-- Skin UI. Talks to the Ai Tokens Flux / new-api Platform over HTTP. -->
   <style>
     :root {
@@ -6174,6 +6174,10 @@
     background: var(--accent);
     box-shadow: 0 0 0 4px var(--accent-faint);
   }
+  .sr-footer-status.offline i {
+    background: var(--muted);
+    box-shadow: none;
+  }
   .sr-footer-columns {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -7487,11 +7491,146 @@
       padding-top: 36px;
     }
   }
+
+  /* ===== 上线修正：品牌色统一 / 等宽字体收敛 / 移动端适配 ===== */
+  .brand em,
+  .brand-word em,
+  .sr-footer-logo em {
+    color: var(--accent-soft);
+  }
+  /* 等宽字体只保留在模型 ID / 密钥等语义位置；小标签、统计数字、卡片数值回到正文字体 */
+  .premium-home .premium-overline,
+  .premium-home .route-provider,
+  .premium-home .route-origin,
+  .premium-home .sr-metric strong,
+  .premium-home .sr-metric span,
+  .premium-home .sr-model-data b {
+    font-family: inherit;
+  }
+  /* hero：压缩按钮与架构图之间的空隙 */
+  .premium-home .premium-hero-copy {
+    padding-bottom: 76px;
+  }
+  .premium-home .premium-hero {
+    min-height: 560px;
+  }
+  /* 架构图节点：放大到可读尺寸 */
+  .premium-home .route-provider small,
+  .premium-home .route-origin small {
+    font-size: 11px;
+    letter-spacing: 0;
+  }
+  .premium-home .route-provider b.provider-logo,
+  .premium-home .route-origin b {
+    width: 30px;
+    height: 30px;
+  }
+  .premium-home .route-provider b.provider-logo svg {
+    width: 20px;
+    height: 20px;
+  }
+  .premium-home .provider-a b.provider-logo svg {
+    width: 22px;
+    height: 22px;
+  }
+  /* 可用性插图：主干—横杆—三条垂直落线，完整的路由树 */
+  .premium-home .sr-availability-tree {
+    position: absolute;
+    inset: 52px 12px 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .premium-home .sr-availability-stem {
+    width: 1px;
+    height: 20px;
+    flex: none;
+    background: var(--border-strong);
+  }
+  .premium-home .sr-availability-drops {
+    position: relative;
+    display: grid;
+    flex: 1;
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .premium-home .sr-availability-drops::before {
+    position: absolute;
+    top: 0;
+    right: calc(100% / 6);
+    left: calc(100% / 6);
+    height: 1px;
+    background: var(--border-strong);
+    content: "";
+  }
+  .premium-home .sr-availability-drop {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+    align-items: center;
+  }
+  .premium-home .sr-availability-drop > i {
+    flex: 1;
+    width: 1px;
+    min-height: 16px;
+    background: var(--border-strong);
+  }
+  .premium-home .sr-availability-drop .sr-availability-node {
+    margin-bottom: 2px;
+  }
+  /* 精选模型卡片：价格/上下文数据行 */
+  .premium-home .sr-model-data b {
+    font-weight: 650;
+    font-size: 13px;
+    letter-spacing: -0.01em;
+  }
+  .premium-home .sr-model-logo .v6-logo {
+    display: grid;
+    width: 100%;
+    height: 100%;
+    place-items: center;
+    font-weight: 700;
+  }
+  .premium-home .sr-model-logo .v6-logo svg {
+    width: 24px;
+    height: 24px;
+  }
+  @media (max-width: 767px) {
+    .premium-home .premium-hero {
+      min-height: 500px;
+    }
+    .premium-home .premium-hero-copy {
+      padding-bottom: 56px;
+    }
+    .premium-home .sr-metric strong {
+      font-size: 24px;
+    }
+    .premium-home .sr-metrics {
+      gap: 22px 0;
+    }
+  }
+  @media (max-width: 560px) {
+    .premium-home .premium-actions {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .premium-home .premium-actions .button {
+      width: 100%;
+      justify-content: center;
+    }
+    .premium-home .premium-title {
+      font-size: clamp(28px, 9vw, 34px);
+    }
+    .premium-home .route-provider small,
+    .premium-home .route-origin small {
+      font-size: 10px;
+    }
+  }
 </style>
   <link rel="stylesheet" href="./v6-app.css">
 </head>
 <body><svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
-<symbol id="sym-0" viewBox="0 0 24 24"><path d="M256 202.24C272.38 174.59 349.18 103.99 330.9 70.3A48.13 48.13 0 0 1 271.22 70.3C252.93 103.99 262.14 174.59 256 202.24Z" fill="#E81E6A"/><path d="M302.56 229.12C334.69 229.48 434.24 260.69 454.27 228.01A48.13 48.13 0 0 1 424.43 176.33C386.11 177.33 329.57 220.62 302.56 229.12Z" fill="#FF6A1A"/><path d="M302.56 282.88C318.31 310.89 341.05 412.71 379.38 413.71A48.13 48.13 0 0 1 409.21 362.03C389.18 329.35 323.43 302.02 302.56 282.88Z" fill="#F0A800"/><path d="M256 309.76C239.62 337.41 162.82 408.01 181.1 441.7A48.13 48.13 0 0 1 240.78 441.7C259.07 408.01 249.86 337.41 256 309.76Z" fill="#12B268"/><path d="M209.44 282.88C177.31 282.52 77.76 251.31 57.73 283.99A48.13 48.13 0 0 1 87.57 335.67C125.89 334.67 182.43 291.38 209.44 282.88Z" fill="#1391E6"/><path d="M209.44 229.12C193.69 201.11 170.95 99.29 132.62 98.29A48.13 48.13 0 0 1 102.79 149.97C122.82 182.65 188.57 209.98 209.44 229.12Z" fill="#6B3DF2"/><circle cx="256" cy="256" r="30" fill="#11142A"/></symbol>
+<symbol id="sym-0" viewBox="0 0 512 512"><path d="M256 202.24C272.38 174.59 349.18 103.99 330.9 70.3A48.13 48.13 0 0 1 271.22 70.3C252.93 103.99 262.14 174.59 256 202.24Z" fill="#045e3f"/><path d="M302.56 229.12C334.69 229.48 434.24 260.69 454.27 228.01A48.13 48.13 0 0 1 424.43 176.33C386.11 177.33 329.57 220.62 302.56 229.12Z" fill="#067647"/><path d="M302.56 282.88C318.31 310.89 341.05 412.71 379.38 413.71A48.13 48.13 0 0 1 409.21 362.03C389.18 329.35 323.43 302.02 302.56 282.88Z" fill="#0a9055"/><path d="M256 309.76C239.62 337.41 162.82 408.01 181.1 441.7A48.13 48.13 0 0 1 240.78 441.7C259.07 408.01 249.86 337.41 256 309.76Z" fill="#0fb477"/><path d="M209.44 282.88C177.31 282.52 77.76 251.31 57.73 283.99A48.13 48.13 0 0 1 87.57 335.67C125.89 334.67 182.43 291.38 209.44 282.88Z" fill="#1bc98c"/><path d="M209.44 229.12C193.69 201.11 170.95 99.29 132.62 98.29A48.13 48.13 0 0 1 102.79 149.97C122.82 182.65 188.57 209.98 209.44 229.12Z" fill="#34d399"/><circle cx="256" cy="256" r="30" fill="#03301f"/></symbol>
 <symbol id="sym-1" viewBox="0 0 24 24">
               <path id="sym1-g0" class="route-trace" pathLength="1" d="M600 395 C600 478 174 430 174 558"></path>
               <path id="sym1-g1" class="route-trace" pathLength="1" d="M600 395 C600 478 386 462 386 580"></path>
@@ -7593,7 +7732,7 @@
   <header class="app-header">
     <div class="header-inner">
       <button class="brand" type="button" data-route="#/home" aria-label="返回首页">
-        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 512 512" fill="none"><path d="M256 202.24C272.38 174.59 349.18 103.99 330.9 70.3A48.13 48.13 0 0 1 271.22 70.3C252.93 103.99 262.14 174.59 256 202.24Z" fill="#E81E6A"/><path d="M302.56 229.12C334.69 229.48 434.24 260.69 454.27 228.01A48.13 48.13 0 0 1 424.43 176.33C386.11 177.33 329.57 220.62 302.56 229.12Z" fill="#FF6A1A"/><path d="M302.56 282.88C318.31 310.89 341.05 412.71 379.38 413.71A48.13 48.13 0 0 1 409.21 362.03C389.18 329.35 323.43 302.02 302.56 282.88Z" fill="#F0A800"/><path d="M256 309.76C239.62 337.41 162.82 408.01 181.1 441.7A48.13 48.13 0 0 1 240.78 441.7C259.07 408.01 249.86 337.41 256 309.76Z" fill="#12B268"/><path d="M209.44 282.88C177.31 282.52 77.76 251.31 57.73 283.99A48.13 48.13 0 0 1 87.57 335.67C125.89 334.67 182.43 291.38 209.44 282.88Z" fill="#1391E6"/><path d="M209.44 229.12C193.69 201.11 170.95 99.29 132.62 98.29A48.13 48.13 0 0 1 102.79 149.97C122.82 182.65 188.57 209.98 209.44 229.12Z" fill="#6B3DF2"/><circle cx="256" cy="256" r="30" fill="#11142A"/></svg></span>
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 512 512" fill="none"><path d="M256 202.24C272.38 174.59 349.18 103.99 330.9 70.3A48.13 48.13 0 0 1 271.22 70.3C252.93 103.99 262.14 174.59 256 202.24Z" fill="#045e3f"/><path d="M302.56 229.12C334.69 229.48 434.24 260.69 454.27 228.01A48.13 48.13 0 0 1 424.43 176.33C386.11 177.33 329.57 220.62 302.56 229.12Z" fill="#067647"/><path d="M302.56 282.88C318.31 310.89 341.05 412.71 379.38 413.71A48.13 48.13 0 0 1 409.21 362.03C389.18 329.35 323.43 302.02 302.56 282.88Z" fill="#0a9055"/><path d="M256 309.76C239.62 337.41 162.82 408.01 181.1 441.7A48.13 48.13 0 0 1 240.78 441.7C259.07 408.01 249.86 337.41 256 309.76Z" fill="#0fb477"/><path d="M209.44 282.88C177.31 282.52 77.76 251.31 57.73 283.99A48.13 48.13 0 0 1 87.57 335.67C125.89 334.67 182.43 291.38 209.44 282.88Z" fill="#1bc98c"/><path d="M209.44 229.12C193.69 201.11 170.95 99.29 132.62 98.29A48.13 48.13 0 0 1 102.79 149.97C122.82 182.65 188.57 209.98 209.44 229.12Z" fill="#34d399"/><circle cx="256" cy="256" r="30" fill="#03301f"/></svg></span>
         <span class="brand-word">aitokens<em>flux</em></span>
       </button>
       <button class="header-search" id="open-command" type="button" aria-label="打开全局搜索">
@@ -7604,14 +7743,11 @@
       <nav class="primary-nav" aria-label="主导航">
         <button class="nav-link" type="button" data-nav="home" data-route="#/home">首页</button>
         <button class="nav-link" type="button" data-nav="models" data-route="#/models">模型</button>
-        <button class="nav-link" type="button" data-nav="rankings" data-route="#/rankings">排行榜</button>
         <button class="nav-link" type="button" data-nav="pricing" data-route="#/pricing">价格</button>
         <button class="nav-link" type="button" data-nav="docs" data-route="#/docs">文档</button>
       </nav>
       <div class="header-actions">
-        <span class="status-pill"><i class="status-dot"></i>服务正常</span>
         <button class="button small" type="button" data-route="#/console">控制台</button>
-          <button class="button icon-only mobile-toggle" type="button" id="mobile-toggle" aria-label="打开菜单" aria-controls="mobile-backdrop" aria-expanded="false">☰</button>
       </div>
     </div>
   </header>
@@ -7726,37 +7862,24 @@
             <p class="premium-subtitle">比较价格、性能与可用性，用一套接口在主流模型之间灵活切换。</p>
             <div class="premium-actions">
               <button class="button primary" type="button" data-route="#/console/keys">创建 API Key</button>
-              <button class="button provider-roll-button" type="button" data-route="#/models">
-                <span class="provider-roll-label">发现模型</span>
-                <span class="provider-roll-window" aria-hidden="true">
-                  <span class="provider-roll-reel">
-                  <span class="provider-roll-item" data-provider="Anthropic"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-2"/></svg></span>
-                  <span class="provider-roll-item" data-provider="OpenAI"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-3"/></svg></span>
-                  <span class="provider-roll-item" data-provider="Google"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-4"/></svg></span>
-                  <span class="provider-roll-item" data-provider="DeepSeek"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-5"/></svg></span>
-                  <span class="provider-roll-item" data-provider="Qwen"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-6"/></svg></span>
-                  <span class="provider-roll-item" data-provider="Anthropic" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-2"/></svg></span>
-                  </span>
-                </span>
-              </button>
+              <button class="button" type="button" data-route="#/models">发现模型</button>
             </div>
           </div>
         </section>
 
         <section class="sr-metrics" aria-label="平台指标">
-          <div class="sr-metric"><strong>40+</strong><span>模型提供商</span></div>
-          <div class="sr-metric"><strong>1</strong><span>统一 API</span></div>
-          <div class="sr-metric"><strong>99.98%</strong><span>Demo 成功率</span></div>
-          <div class="sr-metric"><strong>24/7</strong><span>状态监测</span></div>
+          <div class="sr-metric" id="sr-metric-models"><strong>0</strong><span>可用模型</span></div>
+          <div class="sr-metric"><strong>OpenAI</strong><span>兼容接口</span></div>
+          <div class="sr-metric"><strong>实时</strong><span>目录与费率</span></div>
+          <div class="sr-metric"><strong>统一</strong><span>计费与限流</span></div>
         </section>
 
         <section class="sr-feature-grid" aria-label="平台核心能力">
           <article class="sr-feature-card">
             <div class="sr-feature-visual" aria-hidden="true">
               <div class="sr-logo-cloud">
-                <span class="sr-logo-dot" data-logo="google"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-4"/></svg></span><span class="sr-logo-dot sr-logo-generic">N</span><span class="sr-logo-dot sr-logo-generic">M</span><span class="sr-logo-dot" data-logo="gemini"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-4"/></svg></span><span class="sr-logo-dot" data-logo="qwen"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-6"/></svg></span>
-                <span class="sr-logo-dot" data-logo="deepseek"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-5"/></svg></span><span class="sr-logo-dot sr-logo-generic">K</span><span class="sr-logo-dot sr-logo-generic">S</span><span class="sr-logo-dot sr-logo-generic">Z</span><span class="sr-logo-dot sr-logo-generic">L</span>
-                <span class="sr-logo-dot sr-logo-generic">H</span><span class="sr-logo-dot sr-logo-anthropic" data-logo="anthropic"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-2"/></svg></span><span class="sr-logo-dot" data-logo="openai"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-3"/></svg></span><span class="sr-logo-dot sr-logo-generic">C</span><span class="sr-logo-dot sr-logo-generic">X</span>
+                <span class="sr-logo-dot" data-logo="google"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-4"/></svg></span><span class="sr-logo-dot sr-logo-anthropic" data-logo="anthropic"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-2"/></svg></span><span class="sr-logo-dot" data-logo="deepseek"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-5"/></svg></span><span class="sr-logo-dot" data-logo="qwen"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-6"/></svg></span><span class="sr-logo-dot" data-logo="openai"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-3"/></svg></span>
+                <span class="sr-logo-dot" data-logo="deepseek"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-5"/></svg></span><span class="sr-logo-dot" data-logo="openai"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-3"/></svg></span><span class="sr-logo-dot" data-logo="qwen"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-6"/></svg></span><span class="sr-logo-dot sr-logo-anthropic" data-logo="anthropic"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-2"/></svg></span><span class="sr-logo-dot" data-logo="google"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-4"/></svg></span>
               </div>
             </div>
             <div class="sr-feature-body">
@@ -7769,15 +7892,21 @@
           <article class="sr-feature-card">
             <div class="sr-feature-visual" aria-hidden="true">
               <div class="sr-availability">
-                <div class="sr-availability-label">anthropic/claude-3.7-sonnet</div>
-                <div class="sr-availability-lines"></div>
-                <div class="sr-availability-providers"><span class="sr-availability-node" data-logo="google"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-4"/></svg></span><span class="sr-availability-node sr-logo-anthropic" data-logo="anthropic"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-2"/></svg></span><span class="sr-availability-node" data-logo="deepseek"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-5"/></svg></span></div>
+                <div class="sr-availability-label">anthropic/claude-sonnet</div>
+                <div class="sr-availability-tree">
+                  <i class="sr-availability-stem"></i>
+                  <div class="sr-availability-drops">
+                    <span class="sr-availability-drop"><i></i><span class="sr-availability-node" data-logo="google"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-4"/></svg></span></span>
+                    <span class="sr-availability-drop"><i></i><span class="sr-availability-node sr-logo-anthropic" data-logo="anthropic"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-2"/></svg></span></span>
+                    <span class="sr-availability-drop"><i></i><span class="sr-availability-node" data-logo="deepseek"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-5"/></svg></span></span>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="sr-feature-body">
               <h3>更高可用性</h3>
               <p>通过分布式提供商访问可靠模型，当一条路径不可用时切换到其他提供商。</p>
-              <button class="sr-card-link" type="button" data-route="#/rankings">了解路由表现</button>
+              <button class="sr-card-link" type="button" data-route="#/providers">查看提供商</button>
             </div>
           </article>
 
@@ -7810,28 +7939,12 @@
           </article>
         </section>
 
-        <section class="sr-section sr-models" aria-labelledby="sr-models-title">
+        <section class="sr-section sr-models" aria-labelledby="sr-models-title" hidden>
           <header class="sr-section-head">
-            <div><h2 id="sr-models-title">精选模型</h2><p>当前热门模型与每周调用趋势</p></div>
-            <button class="sr-view-all" type="button" data-route="#/rankings">查看全部</button>
+            <div><h2 id="sr-models-title">精选模型</h2><p>来自当前模型目录的推荐</p></div>
+            <button class="sr-view-all" type="button" data-route="#/models">查看全部</button>
           </header>
-          <div class="sr-model-grid">
-            <article class="sr-model-card" data-route="#/models/gemini-2.5" tabindex="0" role="link"><div class="sr-model-head"><span class="sr-model-logo" data-logo="google"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-4"/></svg></span><p><strong>Gemini 2.5 Pro</strong><small>Google</small></p></div><div class="sr-model-data"><span><small>Tokens</small><b>6.8B</b></span><span><small>每周趋势</small><b class="sr-trend-up">+9%</b></span></div></article>
-            <article class="sr-model-card" data-route="#/models/gpt-4.1" tabindex="0" role="link"><div class="sr-model-head"><span class="sr-model-logo" data-logo="openai"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-3"/></svg></span><p><strong>GPT-4.1</strong><small>OpenAI</small></p></div><div class="sr-model-data"><span><small>Tokens</small><b>7.6B</b></span><span><small>每周趋势</small><b class="sr-trend-up">+12%</b></span></div></article>
-            <article class="sr-model-card" data-route="#/models/claude-3.7" tabindex="0" role="link"><div class="sr-model-head"><span class="sr-model-logo sr-logo-anthropic" data-logo="anthropic"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-2"/></svg></span><p><strong>Claude 3.7 Sonnet</strong><small>Anthropic</small></p></div><div class="sr-model-data"><span><small>Tokens</small><b>8.2B</b></span><span><small>每周趋势</small><b class="sr-trend-up">+18%</b></span></div></article>
-          </div>
-        </section>
-
-        <section class="sr-section sr-agents" aria-labelledby="sr-agents-title">
-          <header class="sr-section-head">
-            <div><h2 id="sr-agents-title">精选 Agent</h2><p>使用统一模型接口构建的代表性工作流</p></div>
-            <button class="sr-view-all" type="button" data-route="#/docs">查看接入方式</button>
-          </header>
-          <div class="sr-agent-grid">
-            <article class="sr-agent-card" data-route="#/docs" tabindex="0" role="link"><div class="sr-agent-canvas" aria-hidden="true"><div class="sr-builder-pages"><span></span><span></span><span></span></div><div class="sr-builder-prompt">为本地商家制作一个网站，支持<u>订阅专属内容</u>和灵活付款。<small>生成界面与交互原型</small></div></div><div class="sr-agent-meta"><span class="sr-agent-logo"><b>BF</b></span><p><strong>BuildFlow</strong><span>从想法快速生成可用应用</span></p></div></article>
-            <article class="sr-agent-card" data-route="#/console" tabindex="0" role="link"><div class="sr-agent-canvas" aria-hidden="true"><div class="sr-agent-wordmark">OPS AGENT</div></div><div class="sr-agent-meta"><span class="sr-agent-logo"><b>OA</b></span><p><strong>Ops Agent</strong><span>持续执行和恢复任务的自动化代理</span></p></div></article>
-            <article class="sr-agent-card" data-route="#/models" tabindex="0" role="link"><div class="sr-agent-canvas" aria-hidden="true"><div class="sr-codepilot-mark"><span><b>TF</b>CodePilot</span></div></div><div class="sr-agent-meta"><span class="sr-agent-logo"><b>CP</b></span><p><strong>CodePilot</strong><span>面向 Agent 开发的一体化工具链</span></p></div></article>
-          </div>
+          <div class="sr-model-grid" id="sr-model-grid"></div>
         </section>
 
         <section class="sr-onboarding" aria-label="快速接入步骤">
@@ -7840,26 +7953,7 @@
           <article class="sr-step"><div class="sr-step-head"><span class="sr-step-number">3</span><h3>获取 API Key</h3></div><p>创建密钥，并通过完全兼容 OpenAI 的接口开始请求。</p><div class="sr-step-visual" aria-hidden="true"><div class="sr-key-box"><div class="sr-key-line"><span class="sr-key-icon">⌁</span><span class="sr-key-field">TOKENFLUX_API_KEY</span></div><div class="sr-key-line"><span class="sr-key-icon">•••</span><span class="sr-key-field">••••••••••••••••••••</span></div></div></div></article>
         </section>
 
-        <section class="sr-section sr-blog" aria-labelledby="sr-blog-title">
-          <header class="sr-section-head">
-            <div><h2 id="sr-blog-title">最新博客</h2><p>模型接入、路由策略与成本控制的最新指南</p></div>
-            <button class="sr-view-all" type="button" data-route="#/docs">查看全部</button>
-          </header>
-          <div class="sr-blog-grid">
-            <article class="sr-blog-card" data-route="#/docs" tabindex="0" role="link">
-              <div class="sr-blog-cover" aria-hidden="true"><div class="sr-blog-route-art"><i></i><i></i><i></i><i></i></div></div>
-              <div class="sr-blog-body"><div class="sr-blog-meta"><span>路由指南</span><time datetime="2026-08-28">2026.08.28</time></div><h3>如何为多模型应用设计稳定的路由策略</h3><p>从健康状态、首 Token 延迟和备用提供商出发，构建更可靠的模型调用链路。</p></div>
-            </article>
-            <article class="sr-blog-card" data-route="#/pricing" tabindex="0" role="link">
-              <div class="sr-blog-cover" aria-hidden="true"><div class="sr-blog-cost-art"><div class="sr-blog-cost-row"><span>GPT-4.1</span><i style="--score:82%"></i><b>$8.00</b></div><div class="sr-blog-cost-row"><span>Gemini</span><i style="--score:64%"></i><b>$10.00</b></div><div class="sr-blog-cost-row"><span>DeepSeek</span><i style="--score:38%"></i><b>$1.10</b></div></div></div>
-              <div class="sr-blog-body"><div class="sr-blog-meta"><span>价格</span><time datetime="2026-08-21">2026.08.21</time></div><h3>理解输入输出价格，建立清楚的预算边界</h3><p>比较不同模型的输入与输出价格，并把预算、模型范围和应用 Key 联系起来。</p></div>
-            </article>
-            <article class="sr-blog-card" data-route="#/rankings" tabindex="0" role="link">
-              <div class="sr-blog-cover" aria-hidden="true"><div class="sr-blog-chart-art"><svg viewBox="0 0 360 150" preserveAspectRatio="none"><path class="sr-blog-chart-grid" d="M0 30H360M0 75H360M0 120H360"></path><polyline class="sr-blog-chart-line" points="8,118 34,104 60,109 86,82 112,91 138,64 164,72 190,49 216,62 242,38 268,53 294,29 324,37 352,20"></polyline><polyline class="sr-blog-chart-line-secondary" points="8,129 34,121 60,124 86,110 112,114 138,98 164,104 190,87 216,92 242,79 268,86 294,68 324,73 352,59"></polyline></svg></div></div>
-              <div class="sr-blog-body"><div class="sr-blog-meta"><span>性能对比</span><time datetime="2026-08-14">2026.08.14</time></div><h3>如何比较模型性能、延迟与调用趋势</h3><p>用同一组指标观察上下文、吞吐量和近期调用变化，减少模型选型中的猜测。</p></div>
-            </article>
-          </div>
-        </section>
+        <!-- 精选 Agent 与最新博客为虚构内容，上线前移除；接入步骤保留 -->
       </div>
       <footer class="sr-footer">
         <div class="sr-footer-shell">
@@ -7867,12 +7961,12 @@
             <div class="sr-footer-brand">
               <div class="sr-footer-logo"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 512 512" fill="none"><use href="#sym-0"/></svg></span><span class="brand-word">aitokens<em>flux</em></span></div>
               <p>通过一个统一、OpenAI 兼容的接口，连接不同模型与提供商。</p>
-              <span class="sr-footer-status"><i aria-hidden="true"></i>所有服务正常</span>
+              <span class="sr-footer-status" id="sr-footer-status"><i aria-hidden="true"></i>所有服务正常</span>
             </div>
             <div class="sr-footer-columns">
-              <div class="sr-footer-column"><h3>产品</h3><button type="button" data-route="#/models">模型目录</button><button type="button" data-route="#/rankings">排行榜</button><button type="button" data-route="#/pricing">价格</button></div>
+              <div class="sr-footer-column"><h3>产品</h3><button type="button" data-route="#/models">模型目录</button><button type="button" data-route="#/discover">发现模型</button><button type="button" data-route="#/pricing">价格</button></div>
               <div class="sr-footer-column"><h3>开发者</h3><button type="button" data-route="#/docs">API 文档</button><button type="button" data-route="#/console/keys">API Keys</button><button type="button" data-route="#/console">控制台</button></div>
-              <div class="sr-footer-column"><h3>平台</h3><button type="button" data-route="#/rankings">路由状态</button><button type="button" data-route="#/models">Providers</button><button type="button" data-route="#/pricing">计费方式</button></div>
+              <div class="sr-footer-column"><h3>平台</h3><button type="button" data-route="#/providers">提供商</button><button type="button" data-route="#/models">模型目录</button><button type="button" data-route="#/pricing">计费方式</button></div>
               <div class="sr-footer-column"><h3>资源</h3><button type="button" data-route="#/docs">快速开始</button><button type="button" data-route="#/docs">错误处理</button><button type="button" data-route="#/home">返回首页</button></div>
             </div>
           </div>

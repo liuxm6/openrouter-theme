@@ -213,7 +213,7 @@
   order: 0;
 }
 .v6-header .primary-nav {
-  margin-left: auto;
+  margin-inline: auto;
   gap: 3px;
   order: 0;
 }
@@ -572,6 +572,22 @@
 }
 .v6-empty h3 {
   color: var(--text);
+}
+.v6-empty .v6-btn + .v6-btn,
+.v6-empty a + a,
+.v6-empty button + a,
+.v6-empty a + button {
+  margin-left: 8px;
+}
+/* 价格页空状态后与 FAQ 分区拉开间距 */
+.v6-pricing > .v6-section {
+  margin-top: 44px;
+}
+/* 横向溢出保险：hero 的 100vw 等场景裁掉越界内容而不产生滚动条 */
+html,
+body {
+  overflow-x: hidden;
+  overflow-x: clip;
 }
 .v6-table-wrap {
   width: 100%;
@@ -1529,6 +1545,13 @@
   }
   .v6-header .header-actions {
     gap: 5px;
+  }
+  /* 小屏优先保住登录与汉堡入口：开发用的 API 连接按钮让位 */
+  .v6-header .header-actions [data-action="api-settings"] {
+    display: none;
+  }
+  .v6-mobile-menu {
+    flex: none;
   }
   .v6-header .v6-account-label {
     display: none;

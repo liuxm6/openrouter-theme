@@ -8,12 +8,14 @@ cd "$(dirname "$0")/.."
 VER="${1:-$(node -e "process.stdout.write(require('./package.json').version)" 2>/dev/null || echo dev)}"
 
 # 1. 生成发布包（dist/current 供 nginx 挂载）
+# 清空目录内容而不删目录本身：目录被 bind mount 后 rm -rf 重建会让容器挂到已删除的 inode 上
 OUT="dist/current"
-rm -rf "$OUT" && mkdir -p "$OUT"
+mkdir -p "$OUT" && find "$OUT" -mindepth 1 -delete
 cp index.html v6.html v6-app.js v6-app.css skin-api.js oauth-callback.html "$OUT/"
 cp deploy/config.prod.js "$OUT/config.js"
 for f in "$OUT"/*.html; do
-  sed -i "s|v6-app\.css|v6-app.css?v=$VER|g; s|skin-api\.js|skin-api.js?v=$VER|g; s|v6-app\.js|v6-app.js?v=$VER|g" "$f" 2>/dev/null || true
+  sed -i '' "s|v6-app\.css|v6-app.css?v=$VER|g; s|skin-api\.js|skin-api.js?v=$VER|g; s|v6-app\.js|v6-app.js?v=$VER|g" "$f" 2>/dev/null \
+    || sed -i "s|v6-app\.css|v6-app.css?v=$VER|g; s|skin-api\.js|skin-api.js?v=$VER|g; s|v6-app\.js|v6-app.js?v=$VER|g" "$f"
 done
 echo "dist -> $OUT"
 

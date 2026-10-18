@@ -291,7 +291,12 @@
         turnstile: credentials.turnstile,
         body,
       })
-      return applyLoginResult(payload)
+      const result = applyLoginResult(payload)
+      // 上游 new-api 注册成功只回 {success:true} 不带登录 bundle，需要补一次登录
+      if (!unwrap(payload)?.access_token) {
+        return login(credentials).catch(() => result)
+      }
+      return result
     }
 
     async function self() {
@@ -719,7 +724,12 @@
         if (name) byName.set(String(name), item)
       })
       if (!names.length) names = [...byName.keys()]
-      if (!names.length) throw modelError || pricingError || new Error('Platform 没有返回模型')
+      // 拉取失败才算连接异常；接口正常返回但目录为空时，按"平台在线、目录为空"处理
+      if (!names.length) {
+        if (pricingError) throw pricingError
+        if (modelError && !getUid()) throw modelError
+        return { source: 'platform', group: cachedGroup, models: [] }
+      }
       let group = cachedGroup
       if (getUid()) {
         try {
