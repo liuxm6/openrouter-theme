@@ -651,12 +651,6 @@
 .v6-model-heading .v6-icon-btn[aria-pressed='true'] {
   opacity: 1;
 }
-.v6-volume {
-  margin-left: auto;
-  color: var(--text-2);
-  font-size: 13px;
-  white-space: nowrap;
-}
 .v6-model-description {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -944,11 +938,6 @@ body {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
-}
-.v6-grid-2 {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
 }
 .v6-item {
   display: flex;
@@ -1337,41 +1326,12 @@ body {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.v6-limit {
-  min-width: 130px;
-}
-.v6-limit-bar {
-  margin-top: 5px;
-  height: 5px;
-  border-radius: 99px;
-  background: var(--surface-3);
-  overflow: hidden;
-}
-.v6-limit-bar i {
-  display: block;
-  height: 100%;
-  border-radius: 99px;
-  background: var(--accent);
-}
 .v6-balance {
   font-size: 40px;
   line-height: 1.1;
   font-weight: 600;
   letter-spacing: -0.03em;
   margin: 10px 0 22px;
-}
-.v6-account-stat {
-  padding: 18px 20px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface-1);
-}
-.v6-account-stat strong {
-  display: block;
-  font-size: 24px;
-  margin-top: 8px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
 }
 .v6-form-label {
   display: grid;
@@ -1382,24 +1342,6 @@ body {
 .v6-form-label textarea {
   resize: vertical;
   font: inherit;
-}
-.v6-settings-row {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--border);
-  padding: 22px 0;
-}
-.v6-settings-row small {
-  display: block;
-  color: var(--muted);
-  margin-top: 6px;
-}
-.v6-settings-row input[type='checkbox'] {
-  accent-color: var(--accent);
-  width: 18px;
-  height: 18px;
 }
 .v6-dialog {
   width: min(560px, calc(100% - 32px));
@@ -1494,15 +1436,6 @@ body {
 .v6-home-band p {
   color: var(--muted);
 }
-.v6-home-feature {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 40px;
-}
-.v6-home-feature h3 {
-  font-size: 18px;
-  margin: 14px 0 8px;
-}
 .v6-mobile-filter,
 .v6-mobile-filter-head,
 .v6-mobile-menu,
@@ -1560,9 +1493,6 @@ body {
   .v6-header .nav-link {
     padding-inline: 7px;
   }
-  .v6-volume {
-    font-size: 12px;
-  }
   .v6-toolbar .v6-select {
     width: 130px;
     flex-basis: 130px;
@@ -1600,10 +1530,6 @@ body {
   .v6-model-heading {
     flex-wrap: wrap;
   }
-  .v6-volume {
-    flex-basis: 100%;
-    margin-left: 31px;
-  }
   .v6-model-heading .v6-icon-btn {
     opacity: 1;
   }
@@ -1613,10 +1539,6 @@ body {
   .v6-section-layout {
     grid-template-columns: 160px minmax(0, 1fr);
     gap: 22px;
-  }
-  .v6-account {
-    grid-template-columns: 170px minmax(0, 1fr);
-    gap: 24px;
   }
   .v6-console {
     grid-template-columns: 190px minmax(0, 1fr);
@@ -1761,10 +1683,6 @@ body {
     min-height: 25px;
     height: 25px;
   }
-  .v6-volume {
-    flex-basis: auto;
-    margin-left: auto;
-  }
   .v6-model-description {
     font-size: 13px;
     min-height: 45px;
@@ -1807,9 +1725,7 @@ body {
   }
   .v6-stat-band strong {
     font-size: var(--fs-24);
-  }
-  .v6-grid-2,
-  .v6-grid-3 {
+  }.v6-grid-3 {
     grid-template-columns: 1fr;
   }
   .v6-discover-lead {
@@ -1827,9 +1743,6 @@ body {
   .v6-docs-layout article h1 {
     font-size: var(--fs-24);
   }
-  .v6-account {
-    display: block;
-  }
   .v6-footer {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     padding: 28px 16px;
@@ -1844,10 +1757,6 @@ body {
   }
   .v6-home-band h2 {
     font-size: var(--fs-18);
-  }
-  .v6-home-feature {
-    grid-template-columns: 1fr;
-    gap: 20px;
   }
   .v6-dialog-body {
     padding: 18px;
@@ -2025,11 +1934,6 @@ body {
   padding: 3px 10px;
   font-size: var(--fs-12);
 }
-.v6-btn.lg {
-  min-height: var(--control-lg);
-  padding: 9px 16px;
-  font-size: var(--fs-14);
-}
 .v6-icon-btn {
   width: var(--control-md);
   height: var(--control-md);
@@ -2089,41 +1993,10 @@ textarea.v6-input,
   -moz-appearance: textfield;
   appearance: textfield;
 }
-input[type='range'].v6-range {
-  -webkit-appearance: none;
-  appearance: none;
-  height: 4px;
-  border-radius: var(--radius-full);
-  background: var(--border-strong);
-  outline-offset: 4px;
-}
-input[type='range'].v6-range::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--surface-1);
-  border: 1.5px solid var(--accent-button);
-  cursor: pointer;
-}
-input[type='range'].v6-range::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--surface-1);
-  border: 1.5px solid var(--accent-button);
-  cursor: pointer;
-}
 /* 字段级错误（G-38） */
 .v6-input[aria-invalid='true'],
 .v6-select[aria-invalid='true'] {
   border-color: var(--danger);
-}
-.v6-field-error {
-  display: block;
-  margin-top: 4px;
-  font-size: var(--fs-12);
-  color: var(--danger);
 }
 /* 表单级 inline 提示（AU-06）：#auth-error 等错误节点统一为 alert 样式 */
 .v6-error:not(:empty),
@@ -2234,21 +2107,15 @@ input[type='range'].v6-range::-moz-range-thumb {
 }
 .v6-table th.num {
   text-align: right;
-}
-
-/* ---------- 卡片统一（G-03/19） ---------- */
-.v6-ws-card,
-.v6-panel,
-.v6-stat,
-.v6-item,
-.v6-model-card {
+}.v6-ws-card,
+  .v6-panel,
+  .v6-stat,
+  .v6-item {
   transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease),
     transform var(--dur) var(--ease), background var(--dur) var(--ease);
-}
-.v6-ws-card:hover,
-.v6-item:hover,
-a.v6-item:hover,
-.v6-model-card:hover {
+}.v6-ws-card:hover,
+  .v6-item:hover,
+  a.v6-item:hover {
   border-color: var(--border-strong);
   box-shadow: var(--shadow-1);
 }
@@ -2347,9 +2214,6 @@ a.v6-item:hover,
 .v6-skeleton-row {
   height: 40px;
   margin-bottom: 8px;
-}
-.v6-skeleton-card {
-  height: 96px;
 }
 
 /* ---------- 错误组件（G-36） ---------- */
@@ -2676,10 +2540,6 @@ a.v6-item:hover,
 .v6-app * {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
-}
-.v6-scroll-fade {
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent);
 }
 
 /* ---------- 时间/链接细节 ---------- */
@@ -3092,7 +2952,6 @@ time.rel {
     display: none;
   }
 }
-
 
 /* OL-04：内嵌复制成功的对勾态 */
 .v6-input-eye.copied {
