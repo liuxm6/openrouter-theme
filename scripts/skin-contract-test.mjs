@@ -768,6 +768,10 @@ async function uiTests(pageUrl, platform) {
       deviceScaleFactor: 1,
       mobile: false,
     })
+    // 深色模式现在是合法主题：固定浅色媒体查询，让 --accent 断言确定性
+    await cdp.send('Emulation.setEmulatedMedia', {
+      features: [{ name: 'prefers-color-scheme', value: 'light' }],
+    })
     const shot = async (name) => {
       const dir = process.env.SKIN_SHOTS
       if (!dir) return
@@ -808,7 +812,7 @@ async function uiTests(pageUrl, platform) {
     await evalJson(`{
       const form = document.querySelector('#auth-form')
       form.username.value = 'ui-user'
-      form.password.value = 'ui-pass'
+      form.password.value = 'ui-pass-8'
       form.requestSubmit()
     }`)
     await waitPage(
@@ -840,7 +844,7 @@ async function uiTests(pageUrl, platform) {
     await evalJson(`{
       const form = document.querySelector('#auth-form')
       form.username.value = 'ui-user'
-      form.password.value = 'ui-pass'
+      form.password.value = 'ui-pass-8'
       form.requestSubmit()
     }`)
     await waitPage(`document.querySelector('.v6-account-label')?.textContent === 'ui-user'`, 'TC0 login self')

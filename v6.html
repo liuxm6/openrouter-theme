@@ -2424,7 +2424,7 @@
       display: none;
     }
 
-    @media (max-width: 1080px) {
+    @media (max-width: 900px) {
       .primary-nav,
       .status-pill {
         display: none;
@@ -7627,6 +7627,120 @@
     }
   }
 </style>
+  <style>
+  /* ===== HM 精修：指标行 / hero / 能力卡 / 步骤配图 / 模型卡 / 页脚 ===== */
+  /* HM-02：只保留真实数字指标，其余改特性标签，列数固定 */
+  .premium-home .sr-metrics {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 20px 48px;
+  }
+  .premium-home .sr-metric {
+    padding: 0;
+    text-align: left;
+  }
+  .premium-home .sr-feature-tags {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+  .premium-home .sr-feature-tag {
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    color: var(--text-2);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  /* HM-03：收紧 hero；≤640 隐藏路由图 */
+  .premium-home .premium-hero {
+    min-height: 480px;
+  }
+  @media (max-width: 640px) {
+    .premium-home .route-field {
+      display: none;
+    }
+    .premium-home .premium-hero {
+      min-height: 0;
+      padding: 56px 0 44px;
+    }
+    .premium-home .premium-hero-copy {
+      padding-bottom: 0;
+    }
+  }
+  /* HM-01：可用性插图上移收矮，140px 视窗内完整显示 */
+  .premium-home .sr-availability {
+    height: 140px;
+  }
+  .premium-home .sr-availability-tree {
+    inset: 34px 10px 4px;
+  }
+  .premium-home .sr-availability-stem {
+    height: 10px;
+  }
+  .premium-home .sr-availability-drop > i {
+    min-height: 8px;
+  }
+  .premium-home .sr-availability-node {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+  }
+  .premium-home .sr-availability-node svg {
+    width: 18px;
+    height: 18px;
+  }
+  .premium-home .sr-availability-node.sr-logo-anthropic svg {
+    width: 21px;
+    height: 21px;
+  }
+  /* HM-04：三个步骤配图统一卡片容器 */
+  .premium-home .sr-step-visual {
+    margin-top: 18px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-1);
+  }
+  .premium-home .sr-step-visual .sr-credit-card,
+  .premium-home .sr-step-visual .sr-key-box {
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  .premium-home .sr-user-icon svg,
+  .premium-home .sr-key-icon svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+  }
+  /* HM-05：精选模型卡并入统一卡族（r8 / 灰边 / 无阴影 / hover 不上浮） */
+  .premium-home .sr-model-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: none;
+    transition: border-color 160ms ease;
+  }
+  .premium-home .sr-model-card:hover {
+    border-color: var(--border-strong);
+    box-shadow: none;
+    transform: none;
+  }
+  /* HM-06：区块头按钮与标题行对齐 */
+  .premium-home .sr-section-head {
+    align-items: start;
+  }
+  /* HM-07：页脚链接行距 28px、列距收紧 */
+  .premium-home .sr-footer-column button {
+    min-height: 28px;
+  }
+  .premium-home .sr-footer-columns {
+    gap: 24px;
+  }
+</style>
   <link rel="stylesheet" href="./v6-app.css">
 </head>
 <body><svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
@@ -7868,10 +7982,12 @@
         </section>
 
         <section class="sr-metrics" aria-label="平台指标">
-          <div class="sr-metric" id="sr-metric-models"><strong>0</strong><span>可用模型</span></div>
-          <div class="sr-metric"><strong>OpenAI</strong><span>兼容接口</span></div>
-          <div class="sr-metric"><strong>实时</strong><span>目录与费率</span></div>
-          <div class="sr-metric"><strong>统一</strong><span>计费与限流</span></div>
+          <div class="sr-metric" id="sr-metric-models"><strong>—</strong><span>可用模型</span></div>
+          <div class="sr-feature-tags">
+            <span class="sr-feature-tag">OpenAI 兼容接口</span>
+            <span class="sr-feature-tag">实时目录与费率</span>
+            <span class="sr-feature-tag">统一计费与限流</span>
+          </div>
         </section>
 
         <section class="sr-feature-grid" aria-label="平台核心能力">
@@ -7948,9 +8064,9 @@
         </section>
 
         <section class="sr-onboarding" aria-label="快速接入步骤">
-          <article class="sr-step"><div class="sr-step-head"><span class="sr-step-number">1</span><h3>选择模型</h3></div><p>比较模型能力、上下文、价格和当前可用状态。</p><div class="sr-step-visual" aria-hidden="true"><div class="sr-auth-line"><span class="sr-user-icon">♙</span><span class="sr-skeleton"><i></i><i></i></span></div><div class="sr-auth-providers"><span class="sr-auth-provider" data-logo="google"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-4"/></svg></span><span class="sr-auth-provider" data-logo="openai"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-3"/></svg></span><span class="sr-auth-provider sr-logo-anthropic" data-logo="anthropic"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-2"/></svg></span><span class="sr-auth-provider" data-logo="deepseek"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-5"/></svg></span></div></div></article>
+          <article class="sr-step"><div class="sr-step-head"><span class="sr-step-number">1</span><h3>选择模型</h3></div><p>比较模型能力、上下文、价格和当前可用状态。</p><div class="sr-step-visual" aria-hidden="true"><div class="sr-auth-line"><span class="sr-user-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span class="sr-skeleton"><i></i><i></i></span></div><div class="sr-auth-providers"><span class="sr-auth-provider" data-logo="google"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-4"/></svg></span><span class="sr-auth-provider" data-logo="openai"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-3"/></svg></span><span class="sr-auth-provider sr-logo-anthropic" data-logo="anthropic"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-2"/></svg></span><span class="sr-auth-provider" data-logo="deepseek"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#sym-5"/></svg></span></div></div></article>
           <article class="sr-step"><div class="sr-step-head"><span class="sr-step-number">2</span><h3>设置预算</h3></div><p>为应用设置额度、可用模型和有效期限。</p><div class="sr-step-visual" aria-hidden="true"><div class="sr-credit-card"><div class="sr-credit-row"><span>本月预算</span><i style="--amount:78%"></i><b>$50</b></div><div class="sr-credit-row"><span>已使用</span><i style="--amount:36%"></i><b>$18</b></div><div class="sr-credit-row"><span>请求额度</span><i style="--amount:58%"></i><b>58%</b></div></div></div></article>
-          <article class="sr-step"><div class="sr-step-head"><span class="sr-step-number">3</span><h3>获取 API Key</h3></div><p>创建密钥，并通过完全兼容 OpenAI 的接口开始请求。</p><div class="sr-step-visual" aria-hidden="true"><div class="sr-key-box"><div class="sr-key-line"><span class="sr-key-icon">⌁</span><span class="sr-key-field">TOKENFLUX_API_KEY</span></div><div class="sr-key-line"><span class="sr-key-icon">•••</span><span class="sr-key-field">••••••••••••••••••••</span></div></div></div></article>
+          <article class="sr-step"><div class="sr-step-head"><span class="sr-step-number">3</span><h3>获取 API Key</h3></div><p>创建密钥，并通过完全兼容 OpenAI 的接口开始请求。</p><div class="sr-step-visual" aria-hidden="true"><div class="sr-key-box"><div class="sr-key-line"><span class="sr-key-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg></span><span class="sr-key-field">TOKENFLUX_API_KEY</span></div><div class="sr-key-line"><span class="sr-key-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span><span class="sr-key-field">••••••••••••••••••••</span></div></div></div></article>
         </section>
 
         <!-- 精选 Agent 与最新博客为虚构内容，上线前移除；接入步骤保留 -->
@@ -7970,7 +8086,7 @@
               <div class="sr-footer-column"><h3>资源</h3><button type="button" data-route="#/docs">快速开始</button><button type="button" data-route="#/docs">错误处理</button><button type="button" data-route="#/home">返回首页</button></div>
             </div>
           </div>
-          <div class="sr-footer-bottom"><span>© 2026 aitokensflux · Unified model gateway</span><div class="sr-footer-bottom-links"><button type="button" data-route="#/docs">使用文档</button><button type="button" data-route="#/pricing">价格说明</button><button type="button" data-route="#/console">账户控制台</button></div></div>
+          <div class="sr-footer-bottom"><span>© 2026 aitokensflux · 统一模型网关</span><div class="sr-footer-bottom-links"><button type="button" data-route="#/docs">使用文档</button><button type="button" data-route="#/pricing">价格说明</button><button type="button" data-route="#/console">账户控制台</button></div></div>
         </div>
       </footer>
     </div>
