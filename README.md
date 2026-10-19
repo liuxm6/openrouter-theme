@@ -8,9 +8,8 @@ OpenRouter 风格的浅色绿色界面。它是独立的 Skin，只通过 HTTP �
 
 ```js
 window.SKIN_CONFIG = {
-  apiBase: '',               // '' = 与页面同源；跨域部署时填 Platform 地址
+  apiBase: '',               // '' = 与页面同源；跨域部署时填 Platform 地址。前端不提供修改入口，只在此文件配置
   publicApiBase: '',         // 调用示例中展示的地址，空则与 apiBase 相同
-  allowApiOverride: false,   // 是否允许 ?api= 参数与页面内修改 API 地址（仅开发环境开启）
   demoFallback: false,       // Platform 不可达时是否回退演示目录（生产关闭）
   featuredModels: [],        // 首页 / 发现页的精选模型 id，目录中没有的自动跳过
   features: {                // 未接入真实数据的模块默认隐藏
@@ -44,7 +43,8 @@ window.SKIN_CONFIG = {
 - 目录：`GET /api/user/models`（需登录）与 `GET /api/pricing`（返回 `data`、`group_ratio`、`usable_group`）
 - 日志与用量：`GET /api/log/self`（分页、按类型/模型/时间筛选），`GET /api/log/self/stat`，`GET /api/data/self`
 - 充值：`POST /api/user/topup`（兑换码，`{key}`）
-- 排行与指标：`GET /api/rankings?period=`，`GET /api/perf-metrics`
+- 排行与指标：`GET /api/rankings?period=`，`GET /api/perf-metrics?model=&hours=`，`GET /api/perf-metrics/summary?hours=&recent_model=`（需在后台开启"性能指标监控"；接口为空或报错时监控区块自动隐藏）
+- 服务状态：`GET /api/uptime/status`（公开接口，`#/status` 页 + 首页状态药丸；后台配置 Uptime Kuma 分组后自动显示）
 - 其他：`GET /api/verification`，`GET /api/reset_password`，`POST /api/user/reset`，`PUT /api/user/setting`
 
 完整密钥只在创建成功时展示一次，并可以复制；列表里之后只显示掩码。**密钥明文不落盘**：新建密钥的完整 sk- 仅保存在内存，弹窗关闭即丢弃。
@@ -84,10 +84,12 @@ sh deploy/docker.sh
 
 ```bash
 # 1. 启动 Platform（默认 http://localhost:3000）
-# 2. 静态服务
-python3 -m http.server 8080
-# 3. 打开页面（config.js 中 allowApiOverride 开启时可用 ?api= 指定）
-open "http://localhost:8088/v6.html?api=http://localhost:3000"
+# 2. 静态服务 + /api 同源代理（连真实 Platform 用这个；
+#    API_TARGET/PORT 环境变量可覆盖默认值）
+node scripts/dev-serve.mjs
+#    只想看演示目录时任意静态服务都行：python3 -m http.server 8088
+# 3. 打开页面
+open "http://localhost:8088/v6.html"
 ```
 
 ## CORS（跨域部署时）

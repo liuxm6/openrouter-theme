@@ -24,11 +24,9 @@
     }
 
     function allowOverride() {
-      // config.js 明确关闭，或页面运行在 http(s) 源下时默认不允许 ?api= 改写；
-      // Node 测试等没有 location 的环境默认允许。
-      if (cfg().allowApiOverride === false) return false
-      if (cfg().allowApiOverride === true) return true
-      return !(root.location && /^https?:/.test(String(root.location.origin || '')))
+      // API 地址在 config.js 中写死（或跟随页面同源），页面不提供任何修改入口。
+      // 仅 Node 测试等没有浏览器地址栏的环境允许 setBase 覆写。
+      return !root.location
     }
 
     function getBase() {
@@ -836,13 +834,32 @@
     }
 
     async function perfMetrics(params) {
+      // GET /api/perf-metrics?model=&hours=&group= → QueryResult（单模型性能监控）
       const q = new URLSearchParams()
-      if (params && params.period) q.set('period', String(params.period))
-      const path = params && params.summary
-        ? '/api/perf-metrics/summary' + (q.size ? '?' + q : '')
-        : '/api/perf-metrics' + (q.size ? '?' + q : '')
-      const payload = await api(path, { auth: false })
+      const p = params || {}
+      q.set('model', String(p.model || ''))
+      if (p.hours) q.set('hours', String(p.hours))
+      if (p.group) q.set('group', String(p.group))
+      // 不带 auth:false：pricing 模块设为需登录时，已登录用户仍可取到数据
+      const payload = await api('/api/perf-metrics?' + q)
       return unwrap(payload) || {}
+    }
+
+    async function perfMetricsSummary(params) {
+      // GET /api/perf-metrics/summary?hours=&recent_model=(≤50) → SummaryAllResult
+      const q = new URLSearchParams()
+      const p = params || {}
+      if (p.hours) q.set('hours', String(p.hours))
+      const recent = Array.isArray(p.recentModels) ? p.recentModels.slice(0, 50) : []
+      recent.forEach((name) => q.append('recent_model', String(name)))
+      const payload = await api('/api/perf-metrics/summary' + (q.size ? '?' + q : ''))
+      return unwrap(payload) || {}
+    }
+
+    async function uptimeStatus() {
+      // GET /api/uptime/status → [{categoryName, monitors:[{name, uptime, status, group}]}]（公开接口）
+      const payload = await api('/api/uptime/status', { auth: false })
+      return asList(unwrap(payload))
     }
 
     async function topupHistory() {
@@ -888,6 +905,8 @@
       oauthState,
       rankings,
       perfMetrics,
+      perfMetricsSummary,
+      uptimeStatus,
       updateSetting,
       getToken,
       getUser,

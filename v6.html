@@ -36,7 +36,7 @@
       --radius-lg: 18px;
       --shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
       --max-width: 1240px;
-      --header-height: 64px;
+      --header-height: 56px;
       font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
@@ -173,36 +173,38 @@
     }
 
     .nav-link {
-      padding: 8px 10px;
+      display: inline-flex;
+      align-items: center;
+      height: 32px;
+      padding: 0 8px;
       border: 0;
-      border-radius: 8px;
+      border-radius: 6px;
       background: transparent;
       color: var(--muted);
       cursor: pointer;
       font-size: 13px;
-      font-weight: 550;
+      font-weight: 500;
       transition: 160ms ease;
     }
 
-    .nav-link:hover,
-    .nav-link.active {
+    .nav-link:hover {
       background: rgba(255, 255, 255, 0.055);
       color: var(--text);
     }
 
     .nav-link.active {
-      box-shadow: inset 0 -1px 0 var(--accent);
+      color: var(--text);
     }
 
     .header-search {
       display: flex;
-      width: min(260px, 24vw);
+      width: min(240px, 22vw);
       align-items: center;
       gap: 9px;
-      margin-left: auto;
-      padding: 8px 10px;
+      margin-left: 0;
+      padding: 0 10px;
       border: 1px solid var(--border);
-      border-radius: 9px;
+      border-radius: 6px;
       background: rgba(255, 255, 255, 0.035);
       color: var(--muted);
       cursor: pointer;
@@ -235,6 +237,7 @@
       display: flex;
       align-items: center;
       gap: 9px;
+      margin-left: auto;
     }
 
     .button {
@@ -529,7 +532,7 @@
 
     .app-header {
       border-bottom-color: var(--border);
-      background: rgba(255, 255, 255, 0.9);
+      background: color-mix(in srgb, var(--canvas) 90%, transparent);
       box-shadow: 0 1px 0 rgba(16, 24, 40, 0.02);
     }
 
@@ -538,8 +541,8 @@
     }
 
     .brand {
-      order: 1;
-      color: #11142a;
+      order: 0;
+      color: var(--text);
     }
 
     .brand-mark {
@@ -554,55 +557,53 @@
     }
 
     .primary-nav {
-      order: 3;
-      margin-left: auto;
+      order: 0;
+      margin-left: 0;
     }
 
     .header-search {
-      order: 2;
-      width: min(280px, 23vw);
-      margin-left: 12px;
+      width: min(240px, 22vw);
+      margin-left: 0;
       border-color: var(--border);
-      background: #f8fafb;
+      background: var(--surface-1);
       color: var(--muted);
     }
 
     .header-search:hover {
-      border-color: #abefc6;
-      background: #ffffff;
-      box-shadow: 0 0 0 3px rgba(15, 180, 119, 0.08);
+      border-color: var(--border-strong);
+      background: var(--surface-hover);
     }
 
     .header-actions {
-      order: 4;
+      order: 0;
+      margin-left: auto;
     }
 
     .keycap {
       border-color: var(--border);
-      background: #ffffff;
+      background: var(--surface-1);
       color: var(--muted);
     }
 
-    .nav-link:hover,
-    .nav-link.active {
-      background: var(--accent-faint);
-      color: var(--accent-soft);
+    .nav-link:hover {
+      background: var(--surface-hover);
+      color: var(--text);
     }
 
     .nav-link.active {
-      box-shadow: inset 0 -2px 0 var(--accent);
+      color: var(--text);
     }
 
     .button {
       border-color: var(--border-strong);
-      background: #ffffff;
+      background: var(--surface-1);
       color: var(--text);
       box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
     }
 
     .button:hover {
-      border-color: #abefc6;
-      background: #f8fafb;
+      border-color: var(--border-strong);
+      background: var(--surface-hover);
     }
 
     .button.primary {
@@ -920,9 +921,14 @@
       }
 
       .header-search {
-        width: 40px;
+        width: 32px;
+        height: 32px;
         justify-content: center;
-        margin-left: auto;
+        padding: 0;
+      }
+
+      .header-search span:not(:first-child) {
+        display: none;
       }
     }
 
@@ -964,11 +970,12 @@
   .header-search,
   .nav-link,
   .app-header .button {
-    min-height: 40px;
+    min-height: 32px;
   }
 
-  .header-search {
-    border-radius: 10px;
+  .header-search,
+  .app-header .button {
+    border-radius: 6px;
   }
 
   .button {
@@ -1220,7 +1227,11 @@
 
   
 
-  .app-header button,
+  .app-header button {
+    min-width: 32px;
+    min-height: 32px;
+  }
+
   .premium-home button {
     min-width: 44px;
     min-height: 44px;
@@ -1262,9 +1273,9 @@
 
   @media (max-width: 900px) {
     .header-search {
-      width: 44px;
-      min-width: 44px;
-      height: 44px;
+      width: 32px;
+      min-width: 32px;
+      height: 32px;
       justify-content: center;
       margin-left: auto;
       padding: 0;
@@ -1468,22 +1479,6 @@
 </style>
 <style>
   /* V6 HOME SYSTEM: unified Header and Hero-below presentation. */
-  @media (min-width: 1081px) {
-    .header-search {
-      order: 2;
-      margin-left: 14px;
-    }
-    .primary-nav {
-      order: 3;
-      margin-left: auto;
-    }
-    .primary-nav [data-nav="home"] {
-      display: none;
-    }
-    .header-actions {
-      order: 4;
-    }
-  }
   .sr-metrics {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2170,6 +2165,10 @@
     gap: 8px;
     color: var(--muted);
     font-size: 10px;
+    text-decoration: none;
+  }
+  a.sr-footer-status:hover {
+    color: var(--ink);
   }
   .sr-footer-status i {
     width: 7px;
@@ -2408,26 +2407,26 @@
   }
   @media (min-width: 1081px) {
     :root {
-      --header-height: 60px;
+      --header-height: 56px;
     }
     .header-inner {
       gap: 14px;
     }
     .header-search {
-      width: min(250px, 21vw);
-      min-height: 40px;
+      width: min(240px, 20vw);
+      min-height: 32px;
     }
     .app-header button {
-      min-width: 40px;
-      min-height: 40px;
+      min-width: 32px;
+      min-height: 32px;
     }
     .app-header .button.small {
-      min-width: 40px;
-      min-height: 40px;
+      min-width: 32px;
+      min-height: 32px;
     }
     .app-header .nav-link {
-      min-width: 40px;
-      min-height: 40px;
+      min-width: 32px;
+      min-height: 32px;
     }
   }
   @media (min-width: 1121px) and (max-width: 1180px) {
@@ -2580,7 +2579,7 @@
   }
   @media (min-width: 1081px) {
     :root {
-      --header-height: 64px;
+      --header-height: 56px;
     }
   }
   @media (max-width: 767px) {
@@ -3500,11 +3499,6 @@
         <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 512 512" fill="none"><path d="M256 202.24C272.38 174.59 349.18 103.99 330.9 70.3A48.13 48.13 0 0 1 271.22 70.3C252.93 103.99 262.14 174.59 256 202.24Z" fill="#045e3f"/><path d="M302.56 229.12C334.69 229.48 434.24 260.69 454.27 228.01A48.13 48.13 0 0 1 424.43 176.33C386.11 177.33 329.57 220.62 302.56 229.12Z" fill="#067647"/><path d="M302.56 282.88C318.31 310.89 341.05 412.71 379.38 413.71A48.13 48.13 0 0 1 409.21 362.03C389.18 329.35 323.43 302.02 302.56 282.88Z" fill="#0a9055"/><path d="M256 309.76C239.62 337.41 162.82 408.01 181.1 441.7A48.13 48.13 0 0 1 240.78 441.7C259.07 408.01 249.86 337.41 256 309.76Z" fill="#0fb477"/><path d="M209.44 282.88C177.31 282.52 77.76 251.31 57.73 283.99A48.13 48.13 0 0 1 87.57 335.67C125.89 334.67 182.43 291.38 209.44 282.88Z" fill="#1bc98c"/><path d="M209.44 229.12C193.69 201.11 170.95 99.29 132.62 98.29A48.13 48.13 0 0 1 102.79 149.97C122.82 182.65 188.57 209.98 209.44 229.12Z" fill="#34d399"/><circle cx="256" cy="256" r="30" fill="#03301f"/></svg></span>
         <span class="brand-word">aitokens<em>flux</em></span>
       </button>
-      <button class="header-search" id="open-command" type="button" aria-label="打开全局搜索">
-        <span aria-hidden="true">⌕</span>
-        <span>搜索模型与页面</span>
-        <span class="keycap">⌘ K</span>
-      </button>
       <nav class="primary-nav" aria-label="主导航">
         <button class="nav-link" type="button" data-nav="home" data-route="#/home">首页</button>
         <button class="nav-link" type="button" data-nav="models" data-route="#/models">模型</button>
@@ -3512,6 +3506,11 @@
         <button class="nav-link" type="button" data-nav="docs" data-route="#/docs">文档</button>
       </nav>
       <div class="header-actions">
+        <button class="header-search" id="open-command" type="button" aria-label="打开全局搜索">
+          <span aria-hidden="true">⌕</span>
+          <span>搜索模型与页面</span>
+          <span class="keycap">⌘ K</span>
+        </button>
         <button class="button small" type="button" data-route="#/console">控制台</button>
       </div>
     </div>
@@ -3728,10 +3727,10 @@
             <div class="sr-footer-brand">
               <div class="sr-footer-logo"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 512 512" fill="none"><use href="#sym-0"/></svg></span><span class="brand-word">aitokens<em>flux</em></span></div>
               <p>通过一个统一、OpenAI 兼容的接口，连接不同模型与提供商。</p>
-              <span class="sr-footer-status" id="sr-footer-status"><i aria-hidden="true"></i>所有服务正常</span>
+              <a class="sr-footer-status" id="sr-footer-status" href="#/status"><i aria-hidden="true"></i>所有服务正常</a>
             </div>
             <div class="sr-footer-columns">
-              <div class="sr-footer-column"><h3>产品</h3><button type="button" data-route="#/models">模型目录</button><button type="button" data-route="#/discover">发现模型</button><button type="button" data-route="#/pricing">价格</button></div>
+              <div class="sr-footer-column"><h3>产品</h3><button type="button" data-route="#/models">模型目录</button><button type="button" data-route="#/discover">发现模型</button><button type="button" data-route="#/pricing">价格</button><button type="button" data-route="#/status">服务状态</button></div>
               <div class="sr-footer-column"><h3>开发者</h3><button type="button" data-route="#/docs">API 文档</button><button type="button" data-route="#/console/keys">API Keys</button><button type="button" data-route="#/console">控制台</button></div>
               <div class="sr-footer-column"><h3>平台</h3><button type="button" data-route="#/providers">提供商</button><button type="button" data-route="#/models">模型目录</button><button type="button" data-route="#/pricing">计费方式</button></div>
               <div class="sr-footer-column"><h3>资源</h3><button type="button" data-route="#/docs">快速开始</button><button type="button" data-route="#/docs">错误处理</button><button type="button" data-route="#/home">返回首页</button></div>

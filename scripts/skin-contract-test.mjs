@@ -312,6 +312,103 @@ function createPlatform() {
         })
         return
       }
+      // ── 性能监控（/api/perf-metrics*，对齐 new-api perfmetrics 契约）──
+      if (req.method === 'GET' && url.pathname === '/api/perf-metrics/summary') {
+        const now = Math.floor(Date.now() / 1000)
+        send(res, 200, {
+          success: true,
+          data: {
+            summary: { avg_latency_ms: 820, success_rate: 99.2, avg_tps: 48.5 },
+            window_start: now - 86400,
+            window_end: now,
+            models: [
+              {
+                model_name: 'gpt-test-a',
+                avg_latency_ms: 640,
+                success_rate: 100,
+                avg_tps: 52.1,
+                recent_success_series: [
+                  { ts: now - 3600, success_rate: 100 },
+                  { ts: now, success_rate: 100 },
+                ],
+              },
+              {
+                model_name: 'gpt-test-b',
+                avg_latency_ms: 1230,
+                success_rate: 97.5,
+                avg_tps: 41.8,
+                recent_success_series: [
+                  { ts: now - 3600, success_rate: 95 },
+                  { ts: now, success_rate: 100 },
+                ],
+              },
+            ],
+            recent_success_series: {
+              'gpt-test-a': [
+                { ts: now - 3600, success_rate: 100 },
+                { ts: now, success_rate: 100 },
+              ],
+              'gpt-test-b': [
+                { ts: now - 3600, success_rate: 95 },
+                { ts: now, success_rate: 100 },
+              ],
+            },
+          },
+        })
+        return
+      }
+      if (req.method === 'GET' && url.pathname === '/api/perf-metrics') {
+        const model = url.searchParams.get('model')
+        if (!model) {
+          send(res, 400, { success: false, message: 'model is required' })
+          return
+        }
+        const now = Math.floor(Date.now() / 1000)
+        const series = Array.from({ length: 6 }, (_, i) => ({
+          ts: now - (5 - i) * 3600,
+          avg_ttft_ms: 320 + i * 15,
+          avg_latency_ms: 900 + i * 40,
+          success_rate: i === 3 ? 92.5 : 100,
+          avg_tps: 40 + i * 3,
+        }))
+        send(res, 200, {
+          success: true,
+          data: {
+            model_name: model,
+            series_schema: 'hourly',
+            summary: { avg_latency_ms: 980, success_rate: 98.75, avg_tps: 46.2 },
+            series,
+            window_start: now - 21600,
+            window_end: now,
+            groups: [
+              {
+                group: 'default',
+                avg_ttft_ms: 340,
+                avg_latency_ms: 960,
+                success_rate: 98.75,
+                avg_tps: 46.2,
+                series,
+              },
+            ],
+          },
+        })
+        return
+      }
+      if (req.method === 'GET' && url.pathname === '/api/uptime/status') {
+        send(res, 200, {
+          success: true,
+          data: [
+            {
+              categoryName: '默认分组',
+              monitors: [
+                { name: 'gpt-test-a 通道', uptime: 0.9993, status: 1, group: '默认分组' },
+                { name: '备用通道', uptime: 0.982, status: 1, group: '默认分组' },
+              ],
+            },
+          ],
+        })
+        return
+      }
       // ── 令牌
       if (req.method === 'GET' && url.pathname === '/api/token/') {
         const user = auth(req, res)
@@ -509,14 +606,31 @@ function createPlatform() {
   return { server, seen, tokens, users, logs }
 }
 
-function staticServer() {
+function staticServer(base) {
   const types = {
     '.html': 'text/html; charset=utf-8',
     '.js': 'text/javascript; charset=utf-8',
     '.css': 'text/css; charset=utf-8',
   }
+  // 浏览器端 API 地址只能来自 config.js（配置死、无覆写入口），
+  // 因此测试直接注入一份指向模拟 Platform 的 config.js。
+  const configJs =
+    'window.SKIN_CONFIG = ' +
+    JSON.stringify({
+      apiBase: base,
+      publicApiBase: '',
+      demoFallback: true,
+      featuredModels: [],
+      features: { rankings: true },
+    }) +
+    '\n'
   return http.createServer((req, res) => {
     const url = new URL(req.url, 'http://127.0.0.1')
+    if (url.pathname === '/config.js') {
+      res.writeHead(200, { 'Content-Type': types['.js'] })
+      res.end(configJs)
+      return
+    }
     const file = path.normalize(path.join(root, decodeURIComponent(url.pathname)))
     if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
       res.writeHead(404)
@@ -656,6 +770,27 @@ async function clientTests(base, platform) {
   const rankings = await client.rankings('week')
   const rankList = rankings.models || rankings.items || []
   assert(rankList.length === 2 && rankList[0].model_name === 'gpt-test-a', 'TC6 rankings data')
+
+  // TC7 性能监控 + 服务状态
+  const perf = await client.perfMetrics({ model: 'gpt-test-a', hours: 24 })
+  assert(perf.summary && perf.summary.success_rate === 98.75, 'TC7 perf summary')
+  assert(Array.isArray(perf.series) && perf.series.length === 6, 'TC7 perf series')
+  assert(perf.groups?.[0]?.group === 'default', 'TC7 perf groups')
+  const perfSum = await client.perfMetricsSummary({ hours: 24, recentModels: ['gpt-test-a'] })
+  assert(
+    perfSum.models?.length === 2 && perfSum.models[0].model_name === 'gpt-test-a',
+    'TC7 perf summary models',
+  )
+  assert(
+    Array.isArray(perfSum.recent_success_series?.['gpt-test-a']),
+    'TC7 recent success series',
+  )
+  const uptime = await client.uptimeStatus()
+  assert(
+    uptime[0]?.categoryName === '默认分组' && uptime[0].monitors.length === 2,
+    'TC7 uptime groups',
+  )
+  assert(uptime[0].monitors[0].status === 1 && uptime[0].monitors[0].uptime > 0.9, 'TC7 monitor')
 
   console.log('client contract checks passed')
 }
@@ -797,7 +932,7 @@ async function uiTests(pageUrl, platform) {
       await waitFor(async () => Boolean(await evalJson(expression)), label)
     }
     await waitPage(
-      `document.querySelector('[data-action="api-settings"]')?.getAttribute('aria-pressed') === 'true'`,
+      `document.querySelector('#model-count')?.dataset.catalogSource === 'platform'`,
       'TC0 platform status',
     )
     const accent = await evalJson(
@@ -907,7 +1042,36 @@ async function uiTests(pageUrl, platform) {
       `document.querySelector('.v6-detail-head')?.innerText.includes('gpt-test-b')`,
       'TC2 model detail opens',
     )
+    // TC7 详情页实测性能区：真实数据渲染，不出现"演示指标"徽标
+    await waitPage(
+      `document.querySelector('#model-perf .v6-stat-band')?.innerText.includes('98.75%')`,
+      'TC7 model perf renders',
+    )
+    await waitPage(
+      `document.querySelector('#model-uptime .v6-uptime i')`,
+      'TC7 model uptime bars',
+    )
+    const perfBadge = await evalJson(
+      `document.querySelector('#performance .v6-badge')?.innerText || ''`,
+    )
+    assert(!perfBadge.includes('演示'), 'TC7 no demo badge on live perf')
     await shot('skin_model_detail.png')
+
+    // TC7 模型列表性能徽标
+    await evalJson(`location.hash = '#/models'`)
+    await waitPage(
+      `[...document.querySelectorAll('[data-perf-for]')].some((n) => !n.hidden && n.innerText.includes('%'))`,
+      'TC7 list perf badges',
+    )
+    await shot('skin_models_perf.png')
+
+    // TC7 服务状态页
+    await evalJson(`location.hash = '#/status'`)
+    await waitPage(
+      `document.querySelector('#uptime-status')?.innerText.includes('默认分组') && document.querySelector('#uptime-status')?.innerText.includes('gpt-test-a 通道')`,
+      'TC7 status page monitors',
+    )
+    await shot('skin_status.png')
 
     // 余额与用量
     await evalJson(`location.hash = '#/console/credits'`)
@@ -930,13 +1094,13 @@ async function uiTests(pageUrl, platform) {
 }
 
 const platform = createPlatform()
-const files = staticServer()
 const apiPort = await listen(platform.server)
-const webPort = await listen(files)
 const base = `http://127.0.0.1:${apiPort}`
+const files = staticServer(base)
+const webPort = await listen(files)
 try {
   await clientTests(base, platform)
-  await uiTests(`${`http://127.0.0.1:${webPort}/v6.html?api=${encodeURIComponent(base)}#/models`}`, platform)
+  await uiTests(`${`http://127.0.0.1:${webPort}/v6.html#/models`}`, platform)
   const header = platform.seen.selfHeaders.at(-1)
   assert(header && header.authorization.startsWith('Bearer '), 'TC0 Bearer auth observed')
   console.log('all skin contract checks passed')

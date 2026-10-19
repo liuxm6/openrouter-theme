@@ -139,7 +139,7 @@
   letter-spacing: 0;
 }
 .v6-app {
-  min-height: calc(100vh - 64px);
+  min-height: calc(100vh - var(--header-height, 56px));
 }
 .v6-app h1 {
   margin: 0;
@@ -327,32 +327,55 @@
   height: 100%;
 }
 .v6-header .header-search {
-  width: 224px;
-  min-width: 36px;
-  flex: 0 1 224px;
-  height: 34px;
-  margin-left: 8px;
+  width: 240px;
+  min-width: 32px;
+  flex: 0 1 240px;
+  height: 32px;
+  min-height: 32px;
+  margin-left: 0;
+  border-radius: 6px;
   order: 0;
 }
 .v6-header .primary-nav {
-  margin-inline: auto;
-  gap: 3px;
+  margin-inline: 0;
+  gap: 4px;
   order: 0;
 }
 .v6-header .nav-link {
-  border-radius: 4px;
-  padding: 7px 10px;
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 8px;
+  border-radius: 6px;
   font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.v6-header .nav-link:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.v6-header .nav-link.active {
+  background: transparent;
+  color: var(--text);
+  box-shadow: none;
 }
 .v6-header .header-actions {
-  margin-left: 0;
+  margin-left: auto;
   gap: 8px;
+}
+.v6-header .header-actions .v6-btn {
+  height: 32px;
+  min-height: 32px;
+  padding: 0 12px;
 }
 .v6-account-btn {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 10px 5px 5px;
+  height: 32px;
+  padding: 0 10px 0 4px;
   border: 1px solid var(--border);
   border-radius: 99px;
   background: var(--surface-1);
@@ -379,10 +402,6 @@
 .v6-account-btn .v6-icon {
   width: 14px;
   color: var(--muted);
-}
-.v6-header .nav-link.active {
-  background: transparent;
-  color: var(--accent-soft);
 }
 .v6-dropdown {
   position: relative;
@@ -904,6 +923,120 @@ body {
 .v6-uptime i.warn {
   background: var(--warning-faint);
   outline: 1px solid var(--warning);
+}
+/* 实测可用性分桶条：按成功率分档（对齐 new-api 的 100/90/70 阈值） */
+.v6-uptime i.excellent {
+  background: var(--success);
+}
+.v6-uptime i.good {
+  background: color-mix(in srgb, var(--success) 65%, transparent);
+}
+.v6-uptime i.warning {
+  background: var(--warning);
+}
+.v6-uptime i.critical {
+  background: var(--danger);
+}
+.v6-uptime i.unknown {
+  background: var(--muted);
+}
+
+/* ---------- 性能监控徽标（模型卡片/详情） ---------- */
+.v6-perf {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 10px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.v6-perf[hidden] {
+  display: none;
+}
+.v6-perf-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.v6-perf-cell .v6-icon {
+  width: 13px;
+  height: 13px;
+}
+.v6-perf-cell b {
+  font-weight: 600;
+}
+.v6-perf-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  height: 12px;
+}
+.v6-perf-dots i {
+  width: 3px;
+  height: 100%;
+  border-radius: 1px;
+}
+.excellent,
+.v6-perf-dots i.excellent {
+  color: var(--success);
+  background: var(--success);
+}
+.good,
+.v6-perf-dots i.good {
+  color: color-mix(in srgb, var(--success) 70%, var(--ink));
+  background: color-mix(in srgb, var(--success) 65%, transparent);
+}
+.warning,
+.v6-perf-dots i.warning {
+  color: var(--warning);
+  background: var(--warning);
+}
+.critical,
+.v6-perf-dots i.critical {
+  color: var(--danger);
+  background: var(--danger);
+}
+.unknown,
+.v6-perf-dots i.unknown {
+  color: var(--muted);
+  background: var(--muted);
+}
+/* 文字用色重置：点阵元素才需要 background，文字节点只取 color */
+b.excellent,
+strong.excellent,
+h3.excellent,
+b.good,
+strong.good,
+h3.good,
+b.warning,
+strong.warning,
+h3.warning,
+b.critical,
+strong.critical,
+h3.critical,
+b.unknown,
+strong.unknown,
+h3.unknown {
+  background: none;
+}
+
+/* ---------- 服务状态页状态点 ---------- */
+.v6-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.v6-status-dot.s1 {
+  background: var(--success);
+}
+.v6-status-dot.s0 {
+  background: var(--danger);
+}
+.v6-status-dot.s3 {
+  background: var(--info);
 }
 .v6-faq {
   border-bottom: 1px solid var(--border);
@@ -1490,9 +1623,6 @@ body {
     width: 175px;
     flex-basis: 175px;
   }
-  .v6-header .nav-link {
-    padding-inline: 7px;
-  }
   .v6-toolbar .v6-select {
     width: 130px;
     flex-basis: 130px;
@@ -1556,9 +1686,9 @@ body {
     font-size: 17px;
   }
   .v6-header .header-search {
-    width: 34px;
-    height: 34px;
-    flex: 0 0 34px;
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
     justify-content: center;
     padding: 0;
   }
@@ -1567,10 +1697,6 @@ body {
   }
   .v6-header .header-actions {
     gap: 5px;
-  }
-  /* 小屏优先保住登录与汉堡入口：开发用的 API 连接按钮让位 */
-  .v6-header .header-actions [data-action="api-settings"] {
-    display: none;
   }
   .v6-mobile-menu {
     flex: none;
@@ -2580,11 +2706,11 @@ time.rel {
 .v6-header .v6-btn,
 .v6-header .v6-icon-btn,
 .v6-header .header-search {
-  min-height: var(--control-md);
-  height: var(--control-md);
+  min-height: 32px;
+  height: 32px;
 }
 .v6-header .v6-account-btn {
-  min-height: var(--control-md);
+  min-height: 32px;
 }
 
 /* ---------- 页面标题区统一（G-07） ---------- */
@@ -2937,8 +3063,8 @@ time.rel {
 /* SH-01 / SH-04：901–1200 收窄为图标搜索，≤900 导航隐藏改由汉堡接管（v6-app 层覆盖旧 1080 断点） */
 @media (min-width: 901px) and (max-width: 1200px) {
   .v6-header .header-search {
-    width: 36px;
-    flex: 0 0 36px;
+    width: 32px;
+    flex: 0 0 32px;
     padding: 0;
     justify-content: center;
   }
@@ -2948,8 +3074,8 @@ time.rel {
 }
 @media (max-width: 900px) {
   .v6-header .header-search {
-    width: 36px;
-    flex: 0 0 36px;
+    width: 32px;
+    flex: 0 0 32px;
     padding: 0;
     justify-content: center;
     margin-left: auto;
