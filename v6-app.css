@@ -2690,6 +2690,12 @@ time.rel {
   display: block;
   margin-bottom: 6px;
 }
+/* auth 密码字段为上下结构，覆盖设置项的左右行布局 */
+#auth-form .v6-field {
+  display: block;
+  padding: 0;
+  border-bottom: 0;
+}
 #auth-form > .v6-input,
 #reset-form > .v6-input {
   width: 100%;
