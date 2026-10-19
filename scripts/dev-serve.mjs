@@ -53,10 +53,9 @@ const server = http.createServer((req, res) => {
     req.pipe(upstream)
     return
   }
-  // 静态文件；/ 直接落到 v6.html
-  const file = path.normalize(
-    path.join(root, decodeURIComponent(url.pathname === '/' ? '/v6.html' : url.pathname)),
-  )
+  // 静态文件；/ 直接落到 v6.html，/oauth/<provider> 落到回调页（对齐 nginx 配置）
+  const page = url.pathname === '/' ? '/v6.html' : url.pathname.startsWith('/oauth/') ? '/oauth-callback.html' : url.pathname
+  const file = path.normalize(path.join(root, decodeURIComponent(page)))
   if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
     res.writeHead(404)
     res.end('not found')

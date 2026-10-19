@@ -1,5 +1,19 @@
 /* V6 product surfaces. Brand tokens and the original home hero are inherited. */
 
+/* 自托管 Inter（拉丁字符子集，OFL 授权见 fonts/Inter-LICENSE.txt）。
+   族名用 "Inter"，各处字体栈里现有的 Inter 直接命中；中文字符不在 unicode-range 内，
+   继续回退到苹方 / 微软雅黑。 */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('./fonts/inter-latin-wght-normal.woff2') format('woff2-variations'),
+    url('./fonts/inter-latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 /* ============================================================
    V6 DESIGN TOKENS —— 审计 §6 落地（第一步）
    本文件在 v6.html 内联样式之后加载，此处的 :root 重定义优先生效。
@@ -4687,4 +4701,197 @@ a.v6-item:hover .v6-link .v6-icon:last-child {
     padding-left: var(--space-3);
     border-left: 1px solid var(--border);
   }
+}
+
+/* ============================================================
+   V6 THEME SWITCH —— 日间 / 夜间切换（精修第 10 轮）
+   1. 顶栏太阳/月亮按钮：两枚图标叠放，按当前生效主题旋转淡入淡出；
+      图标状态完全由 CSS 推导（含"跟随系统"），顶栏每次路由重绘都不需要 JS 补状态。
+   2. 切换时以按钮为圆心做圆形揭幕（View Transitions），只作用于主题切换，
+      不影响其他交互；不支持的浏览器直接切换。
+   3. 品牌标志中心点、顶栏毛玻璃、标题排版等跨主题细节。
+   ============================================================ */
+:root {
+  --brand-core: #03301f;
+}
+:root[data-theme='dark'] {
+  --brand-core: #d9f7ea;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --brand-core: #d9f7ea;
+  }
+}
+.brand-core {
+  fill: var(--brand-core);
+}
+
+/* ---------- 切换按钮 ---------- */
+.v6-header .v6-theme-toggle {
+  position: relative;
+  width: 32px;
+  overflow: hidden;
+  color: var(--muted);
+}
+.v6-header .v6-theme-toggle:hover {
+  color: var(--text);
+}
+.v6-theme-toggle .v6-icon {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  transition:
+    transform 420ms cubic-bezier(0.34, 1.4, 0.64, 1),
+    opacity 220ms var(--ease);
+}
+/* 浅色下显示月亮（点击进入夜间），深色下显示太阳 */
+.v6-theme-toggle .v6-icon:first-child {
+  opacity: 0;
+  transform: rotate(-90deg) scale(0.4);
+}
+.v6-theme-toggle .v6-icon:last-child {
+  opacity: 1;
+  transform: none;
+}
+:root[data-theme='dark'] .v6-theme-toggle .v6-icon:first-child {
+  opacity: 1;
+  transform: none;
+}
+:root[data-theme='dark'] .v6-theme-toggle .v6-icon:last-child {
+  opacity: 0;
+  transform: rotate(90deg) scale(0.4);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .v6-theme-toggle .v6-icon:first-child {
+    opacity: 1;
+    transform: none;
+  }
+  :root:not([data-theme='light']) .v6-theme-toggle .v6-icon:last-child {
+    opacity: 0;
+    transform: rotate(90deg) scale(0.4);
+  }
+}
+
+/* ---------- 圆形揭幕：关掉默认交叉淡化，由 JS 驱动新画面的 clip-path ---------- */
+html.theme-transition::view-transition-old(root),
+html.theme-transition::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+html.theme-transition::view-transition-old(root) {
+  z-index: 1;
+}
+html.theme-transition::view-transition-new(root) {
+  z-index: 2;
+}
+
+/* ---------- 顶栏毛玻璃：滚动内容在下方透出，深浅主题共用 token ---------- */
+.v6-header {
+  background: color-mix(in srgb, var(--canvas) 78%, transparent);
+  -webkit-backdrop-filter: saturate(1.6) blur(16px);
+  backdrop-filter: saturate(1.6) blur(16px);
+}
+
+/* ---------- 排版：标题均衡断行，正文避免末行孤字 ---------- */
+.v6-app h1,
+.v6-app h2,
+.v6-app h3,
+.premium-home h1,
+.premium-home h2,
+.premium-home h3 {
+  text-wrap: balance;
+}
+.v6-app p,
+.premium-home p {
+  text-wrap: pretty;
+}
+
+/* 移动端顶栏的搜索、菜单都是描边方块，切换按钮跟随，避免一排里只有它"悬空" */
+@media (max-width: 680px) {
+  .v6-header .v6-btn.v6-theme-toggle {
+    border-color: var(--border);
+    background: var(--surface-1);
+  }
+  .v6-header .v6-btn.v6-theme-toggle:hover {
+    border-color: var(--border-strong);
+    background: var(--surface-hover);
+  }
+}
+
+/* ============================================================
+   V6 HOME METRICS —— 首页指标区（精修第 11 轮）
+   指标全部取自真实目录：可用模型 / 提供商 / 最长上下文 / 最低输入价，
+   无数据的项保持 hidden；指标之间用细竖线分隔，特性标签移到下一行居中。
+   ============================================================ */
+.premium-home .sr-metrics {
+  flex-direction: column;
+  gap: 24px;
+}
+.premium-home .sr-metric-group {
+  display: flex;
+  justify-content: center;
+}
+.premium-home .sr-metric-group .sr-metric {
+  padding: 0 32px;
+  text-align: center;
+}
+.premium-home .sr-metric-group .sr-metric + .sr-metric {
+  border-left: 1px solid var(--border);
+}
+.premium-home .sr-metric[hidden] {
+  display: none;
+}
+@media (max-width: 640px) {
+  .premium-home .sr-metric-group {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 20px 0;
+  }
+  .premium-home .sr-metric-group .sr-metric {
+    padding: 0 12px;
+  }
+  .premium-home .sr-metric-group .sr-metric + .sr-metric {
+    border-left: 0;
+  }
+  /* 三项时排成一行，避免 2 列网格里落单 */
+  .premium-home .sr-metric-group[data-count='3'] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .premium-home .sr-metric-group[data-count='1'] {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- 无品牌图标的首字母徽标：按名称取色相，深浅主题各一套明度 ---------- */
+.v6-logo.v6-logo-initial {
+  border-color: hsl(var(--logo-h) 55% 86%);
+  background: hsl(var(--logo-h) 80% 96%);
+  color: hsl(var(--logo-h) 55% 34%);
+}
+.premium-home .sr-model-logo .v6-logo.v6-logo-initial {
+  color: hsl(var(--logo-h) 55% 34%);
+}
+:root[data-theme='dark'] .v6-logo.v6-logo-initial {
+  border-color: hsl(var(--logo-h) 30% 26%);
+  background: hsl(var(--logo-h) 35% 15%);
+  color: hsl(var(--logo-h) 70% 76%);
+}
+:root[data-theme='dark'] .premium-home .sr-model-logo .v6-logo.v6-logo-initial {
+  color: hsl(var(--logo-h) 70% 76%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .v6-logo.v6-logo-initial {
+    border-color: hsl(var(--logo-h) 30% 26%);
+    background: hsl(var(--logo-h) 35% 15%);
+    color: hsl(var(--logo-h) 70% 76%);
+  }
+  :root:not([data-theme='light']) .premium-home .sr-model-logo .v6-logo.v6-logo-initial {
+    color: hsl(var(--logo-h) 70% 76%);
+  }
+}
+
+/* 上下文未知时卡片只剩价格一项：它同时是 :last-child，要撤掉为第二列准备的右对齐 */
+.premium-home .sr-model-data span:only-child {
+  text-align: left;
 }

@@ -11,11 +11,12 @@ VER="${1:-$(node -e "process.stdout.write(require('./package.json').version)" 2>
 # 清空目录内容而不删目录本身：目录被 bind mount 后 rm -rf 重建会让容器挂到已删除的 inode 上
 OUT="dist/current"
 mkdir -p "$OUT" && find "$OUT" -mindepth 1 -delete
-cp index.html v6.html v6-app.js v6-app.css skin-api.js oauth-callback.html "$OUT/"
+cp index.html v6.html v6-app.js v6-app.css skin-api.js theme-init.js oauth-callback.html oauth-callback.js "$OUT/"
+cp -R fonts "$OUT/"
 cp deploy/config.prod.js "$OUT/config.js"
 for f in "$OUT"/*.html; do
-  sed -i '' "s|v6-app\.css|v6-app.css?v=$VER|g; s|skin-api\.js|skin-api.js?v=$VER|g; s|v6-app\.js|v6-app.js?v=$VER|g" "$f" 2>/dev/null \
-    || sed -i "s|v6-app\.css|v6-app.css?v=$VER|g; s|skin-api\.js|skin-api.js?v=$VER|g; s|v6-app\.js|v6-app.js?v=$VER|g" "$f"
+  sed -i '' "s|v6-app\.css|v6-app.css?v=$VER|g; s|skin-api\.js|skin-api.js?v=$VER|g; s|v6-app\.js|v6-app.js?v=$VER|g; s|theme-init\.js|theme-init.js?v=$VER|g; s|oauth-callback\.js|oauth-callback.js?v=$VER|g" "$f" 2>/dev/null \
+    || sed -i "s|v6-app\.css|v6-app.css?v=$VER|g; s|skin-api\.js|skin-api.js?v=$VER|g; s|v6-app\.js|v6-app.js?v=$VER|g; s|theme-init\.js|theme-init.js?v=$VER|g; s|oauth-callback\.js|oauth-callback.js?v=$VER|g" "$f"
 done
 echo "dist -> $OUT"
 

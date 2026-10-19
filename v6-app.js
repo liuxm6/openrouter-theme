@@ -174,7 +174,7 @@
   // aitokensflux 品牌标：与 /aitokensflux-logo 套件同源的 6 瓣几何，
   // 小尺寸使用各瓣的深色变体以保证在白底上的可辨识度。
   const BRAND_MARK =
-    '<svg viewBox="0 0 512 512" fill="none"><path d="M256 202.24C272.38 174.59 349.18 103.99 330.9 70.3A48.13 48.13 0 0 1 271.22 70.3C252.93 103.99 262.14 174.59 256 202.24Z" fill="#045e3f"/><path d="M302.56 229.12C334.69 229.48 434.24 260.69 454.27 228.01A48.13 48.13 0 0 1 424.43 176.33C386.11 177.33 329.57 220.62 302.56 229.12Z" fill="#067647"/><path d="M302.56 282.88C318.31 310.89 341.05 412.71 379.38 413.71A48.13 48.13 0 0 1 409.21 362.03C389.18 329.35 323.43 302.02 302.56 282.88Z" fill="#0a9055"/><path d="M256 309.76C239.62 337.41 162.82 408.01 181.1 441.7A48.13 48.13 0 0 1 240.78 441.7C259.07 408.01 249.86 337.41 256 309.76Z" fill="#0fb477"/><path d="M209.44 282.88C177.31 282.52 77.76 251.31 57.73 283.99A48.13 48.13 0 0 1 87.57 335.67C125.89 334.67 182.43 291.38 209.44 282.88Z" fill="#1bc98c"/><path d="M209.44 229.12C193.69 201.11 170.95 99.29 132.62 98.29A48.13 48.13 0 0 1 102.79 149.97C122.82 182.65 188.57 209.98 209.44 229.12Z" fill="#34d399"/><circle cx="256" cy="256" r="30" fill="#03301f"/></svg>'
+    '<svg viewBox="0 0 512 512" fill="none"><path d="M256 202.24C272.38 174.59 349.18 103.99 330.9 70.3A48.13 48.13 0 0 1 271.22 70.3C252.93 103.99 262.14 174.59 256 202.24Z" fill="#045e3f"/><path d="M302.56 229.12C334.69 229.48 434.24 260.69 454.27 228.01A48.13 48.13 0 0 1 424.43 176.33C386.11 177.33 329.57 220.62 302.56 229.12Z" fill="#067647"/><path d="M302.56 282.88C318.31 310.89 341.05 412.71 379.38 413.71A48.13 48.13 0 0 1 409.21 362.03C389.18 329.35 323.43 302.02 302.56 282.88Z" fill="#0a9055"/><path d="M256 309.76C239.62 337.41 162.82 408.01 181.1 441.7A48.13 48.13 0 0 1 240.78 441.7C259.07 408.01 249.86 337.41 256 309.76Z" fill="#0fb477"/><path d="M209.44 282.88C177.31 282.52 77.76 251.31 57.73 283.99A48.13 48.13 0 0 1 87.57 335.67C125.89 334.67 182.43 291.38 209.44 282.88Z" fill="#1bc98c"/><path d="M209.44 229.12C193.69 201.11 170.95 99.29 132.62 98.29A48.13 48.13 0 0 1 102.79 149.97C122.82 182.65 188.57 209.98 209.44 229.12Z" fill="#34d399"/><circle class="brand-core" cx="256" cy="256" r="30" fill="#03301f"/></svg>'
   const logos = {
     google:
       '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" fill="#3186FF"/><path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" fill="url(#replica-logo-0-provider-gemini-green)"/><path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" fill="url(#replica-logo-0-provider-gemini-red)"/><path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z" fill="url(#replica-logo-0-provider-gemini-yellow)"/><defs><linearGradient id="replica-logo-0-provider-gemini-green" gradientUnits="userSpaceOnUse" x1="7" x2="11" y1="15.5" y2="12"><stop stop-color="#08B962"/><stop offset="1" stop-color="#08B962" stop-opacity="0"/></linearGradient><linearGradient id="replica-logo-0-provider-gemini-red" gradientUnits="userSpaceOnUse" x1="8" x2="11.5" y1="5.5" y2="11"><stop stop-color="#F94543"/><stop offset="1" stop-color="#F94543" stop-opacity="0"/></linearGradient><linearGradient id="replica-logo-0-provider-gemini-yellow" gradientUnits="userSpaceOnUse" x1="3.5" x2="17.5" y1="13.5" y2="12"><stop stop-color="#FABC12"/><stop offset=".46" stop-color="#FABC12" stop-opacity="0"/></linearGradient></defs></svg>',
@@ -608,11 +608,80 @@
   }
   state.pins = state.pins.filter((id) => models.some((model) => model.id === id))
   // PE-01：启动时应用主题偏好；system 时移除 data-theme，交给 prefers-color-scheme
+  const darkQuery = window.matchMedia('(prefers-color-scheme: dark)')
+  function effectiveTheme(theme = state.settings.theme) {
+    if (theme === 'light' || theme === 'dark') return theme
+    return darkQuery.matches ? 'dark' : 'light'
+  }
+  function themeToggleLabel() {
+    return effectiveTheme() === 'dark' ? '切换到浅色模式' : '切换到深色模式'
+  }
   function applyTheme() {
     const theme = state.settings.theme || 'system'
     if (theme === 'system') delete document.documentElement.dataset.theme
     else document.documentElement.dataset.theme = theme
+    syncThemeControls()
   }
+  // 顶栏按钮与偏好页分段控件可能同时在场，任一处切换都要让另一处同步
+  function syncThemeControls() {
+    const label = themeToggleLabel()
+    document.querySelectorAll('[data-action="theme-toggle"]').forEach((node) => {
+      node.setAttribute('aria-label', label)
+      node.title = label
+    })
+    const value = state.settings.theme || 'system'
+    document.querySelectorAll('[data-action="theme-set"]').forEach((node) => {
+      const on = node.dataset.value === value
+      node.classList.toggle('active', on)
+      node.setAttribute('aria-checked', String(on))
+      node.setAttribute('aria-pressed', String(on))
+    })
+    const meta = document.querySelector('meta[name="theme-color"]')
+    const canvas = getComputedStyle(document.documentElement).getPropertyValue('--canvas').trim()
+    if (meta && canvas) meta.content = canvas
+  }
+  // 以触发按钮为圆心做圆形揭幕；不支持 View Transitions 或偏好减少动效时直接切换
+  function setTheme(value, origin) {
+    const commit = () => {
+      state.settings.theme = value
+      save()
+      applyTheme()
+      redrawThemedCharts()
+    }
+    const root = document.documentElement
+    if (
+      effectiveTheme(value) === effectiveTheme() ||
+      typeof document.startViewTransition !== 'function' ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
+      commit()
+      return
+    }
+    const rect = origin?.getBoundingClientRect()
+    const x = rect ? rect.left + rect.width / 2 : window.innerWidth / 2
+    const y = rect ? rect.top + rect.height / 2 : 0
+    const radius = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y))
+    root.classList.add('theme-transition')
+    const transition = document.startViewTransition(commit)
+    transition.ready
+      .then(() =>
+        root.animate(
+          { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] },
+          { duration: 560, easing: 'cubic-bezier(0.65, 0, 0.35, 1)', pseudoElement: '::view-transition-new(root)' },
+        ),
+      )
+      .catch(() => {})
+    transition.finished.finally(() => root.classList.remove('theme-transition'))
+  }
+  // canvas 图表在绘制时读取颜色 token，换主题后要重画，否则网格和文字停留在旧主题配色
+  function redrawThemedCharts() {
+    if (document.querySelector('#app canvas[data-chart]')) drawCharts()
+  }
+  darkQuery.addEventListener?.('change', () => {
+    if ((state.settings.theme || 'system') !== 'system') return
+    syncThemeControls()
+    redrawThemedCharts()
+  })
   applyTheme()
   let route = 'home'
   let params = new URLSearchParams()
@@ -708,7 +777,13 @@
     const svg = logos[provider.toLowerCase()]
       ?.replaceAll('id="', 'id="' + prefix)
       .replaceAll('url(#', 'url(#' + prefix)
-    return `<span class="v6-logo" aria-hidden="true">${svg || esc(provider.slice(0, 1))}</span>`
+    if (svg) return `<span class="v6-logo" aria-hidden="true">${svg}</span>`
+    // 无品牌图标时用首字母徽标，色相由名称哈希得出：同一提供商处处同色，不同提供商可区分
+    const name = String(provider || '')
+    const letter = (name.match(/[\p{L}\p{N}]/u) || ['?'])[0].toUpperCase()
+    let hue = 0
+    for (const char of name.toLowerCase()) hue = (hue * 31 + char.codePointAt(0)) % 360
+    return `<span class="v6-logo v6-logo-initial" style="--logo-h:${hue}" aria-hidden="true">${esc(letter)}</span>`
   }
   function link(path, label, className = 'v6-btn', symbol = '', iconAfter = false) {
     const svg = symbol ? icon(symbol) : ''
@@ -821,6 +896,9 @@
         ? `${money(model.audioPrice)} / 分钟`
         : `${money(model.inputRate)}/M 输入 tokens`
   }
+  function hasContext(model) {
+    return Boolean(model.context) && model.context !== '—'
+  }
   function modelCard(model) {
     // MD-01~03：标题只放模型名；meta 一行承载 作者/上下文/价格/日期/模态；
     // 图标型徽标（小尺寸下像字母 T）移除，模态改成文字小标
@@ -828,7 +906,7 @@
       model.imagePrice || model.audioPrice
         ? modelPrice(model)
         : `输入 ${money(model.inputRate)}/M · 输出 ${money(model.outputRate)}/M`
-    return `<article class="v6-model" data-model-id="${esc(model.id)}"><div class="v6-model-heading">${logo(model.provider)}${link('models/' + encodeURIComponent(model.id), esc(model.name), 'v6-model-title')}${iconButton('copy', '复制模型 ID', 'copy', `data-copy="${esc(model.slug)}"`)}${pin(model)}</div><a class="v6-model-description" href="#/models/${encodeURIComponent(model.id)}">${esc(model.description)}</a><div class="v6-meta">${link('models?author=' + encodeURIComponent(model.provider), esc(model.provider), '')}<span>上下文 ${esc(model.context)}</span><span>${price}</span>${model.date ? `<span>${model.date}</span>` : ''}<span class="v6-meta-modality">${icon(modalityIcons[model.outputs[0]] || 'layers')}${modalityNames[model.outputs[0]]}</span></div><div class="v6-perf" data-perf-for="${esc(model.id)}" hidden>${perfBadgeHTML(model.id)}</div></article>`
+    return `<article class="v6-model" data-model-id="${esc(model.id)}"><div class="v6-model-heading">${logo(model.provider)}${link('models/' + encodeURIComponent(model.id), esc(model.name), 'v6-model-title')}${iconButton('copy', '复制模型 ID', 'copy', `data-copy="${esc(model.slug)}"`)}${pin(model)}</div>${model.description ? `<a class="v6-model-description" href="#/models/${encodeURIComponent(model.id)}">${esc(model.description)}</a>` : ''}<div class="v6-meta">${link('models?author=' + encodeURIComponent(model.provider), esc(model.provider), '')}${hasContext(model) ? `<span>上下文 ${esc(model.context)}</span>` : ''}<span>${price}</span>${model.date ? `<span>${model.date}</span>` : ''}<span class="v6-meta-modality">${icon(modalityIcons[model.outputs[0]] || 'layers')}${modalityNames[model.outputs[0]]}</span></div><div class="v6-perf" data-perf-for="${esc(model.id)}" hidden>${perfBadgeHTML(model.id)}</div></article>`
   }
   function rankedRows(list, metric = 'usage') {
     return list
@@ -862,7 +940,11 @@
           .map(([path, name, symbol]) => link(path, name, '', symbol))
           .join('')}<span class="v6-menu-sep" aria-hidden="true"></span><button type="button" class="danger" data-action="logout">${icon('log-out')}退出登录</button></div></details>`
         : button('open-login', '登录', 'log-in', '', 'v6-btn primary')
-    header.innerHTML = `<div class="header-inner"><a class="brand" href="#/home" aria-label="aitokensflux 首页"><span class="brand-mark" aria-hidden="true">${BRAND_MARK}</span><span class="brand-word">aitokens<em>flux</em></span></a><nav class="primary-nav" aria-label="主导航">${link('models', '模型', 'nav-link ' + (['models', 'discover', 'providers'].includes(route.split('/')[0]) ? 'active' : ''))}${feature('rankings') ? link('rankings', '排行榜', 'nav-link ' + (route === 'rankings' ? 'active' : '')) : ''}${link('pricing', '价格', 'nav-link ' + (route === 'pricing' ? 'active' : ''))}${link('docs', '文档', 'nav-link ' + (route === 'docs' ? 'active' : ''))}</nav><div class="header-actions"><button class="header-search" data-action="search" aria-label="搜索模型与页面">${icon('search')}<span>搜索</span><span class="keycap">⌘ K</span></button>${account}${button('mobile-menu', '', 'menu', 'aria-label="打开菜单"', 'v6-btn v6-icon-btn v6-mobile-menu')}</div></div>`
+    header.innerHTML = `<div class="header-inner"><a class="brand" href="#/home" aria-label="aitokensflux 首页"><span class="brand-mark" aria-hidden="true">${BRAND_MARK}</span><span class="brand-word">aitokens<em>flux</em></span></a><nav class="primary-nav" aria-label="主导航">${link('models', '模型', 'nav-link ' + (['models', 'discover', 'providers'].includes(route.split('/')[0]) ? 'active' : ''))}${feature('rankings') ? link('rankings', '排行榜', 'nav-link ' + (route === 'rankings' ? 'active' : '')) : ''}${link('pricing', '价格', 'nav-link ' + (route === 'pricing' ? 'active' : ''))}${link('docs', '文档', 'nav-link ' + (route === 'docs' ? 'active' : ''))}</nav><div class="header-actions"><button class="header-search" data-action="search" aria-label="搜索模型与页面">${icon('search')}<span>搜索</span><span class="keycap">⌘ K</span></button>${themeToggle()}${account}${button('mobile-menu', '', 'menu', 'aria-label="打开菜单"', 'v6-btn v6-icon-btn v6-mobile-menu')}</div></div>`
+  }
+  function themeToggle() {
+    const label = themeToggleLabel()
+    return `<button type="button" class="v6-btn ghost v6-icon-btn v6-theme-toggle" data-action="theme-toggle" aria-label="${label}" title="${label}">${icon('sun')}${icon('moon')}</button>`
   }
   function footer() {
     return `<footer class="v6-footer"><div><a href="#/home" class="brand"><span class="brand-mark" aria-hidden="true">${BRAND_MARK}</span><span class="brand-word">aitokens<em>flux</em></span></a><p class="v6-small v6-muted">一个 API，连接多种模型。</p></div><div><h3>产品</h3>${link('models', '模型目录', '')}${link('discover', '发现模型', '')}${feat_nav('rankings')}${link('providers', '提供商', '')}${link('pricing', '价格', '')}${link('status', '服务状态', '')}</div><div><h3>开发者</h3>${link('docs', '文档', '')}${link('console/keys', 'API Keys', '')}</div><div><h3>账户</h3>${link('console', '用量概览', '')}${link('console/credits', '余额与账单', '')}${link('console/settings', '设置', '')}</div></footer>`
@@ -873,16 +955,32 @@
       model.imagePrice || model.audioPrice
         ? modelPrice(model)
         : `${money(model.inputRate)} / ${money(model.outputRate)}`
-    return `<article class="sr-model-card" data-route="#/models/${encodeURIComponent(model.id)}" tabindex="0" role="link"><div class="sr-model-head"><span class="sr-model-logo">${logo(model.provider)}</span><p><strong>${esc(model.name)}</strong><small>${esc(model.provider)}</small></p></div><div class="sr-model-data"><span><small>输入 / 输出价格</small><b>${price}</b></span><span><small>上下文</small><b>${esc(model.context)}</b></span></div></article>`
+    return `<article class="sr-model-card" data-route="#/models/${encodeURIComponent(model.id)}" tabindex="0" role="link"><div class="sr-model-head"><span class="sr-model-logo">${logo(model.provider)}</span><p><strong>${esc(model.name)}</strong><small>${esc(model.provider)}</small></p></div><div class="sr-model-data"><span><small>输入 / 输出价格</small><b>${price}</b></span>${hasContext(model) ? `<span><small>上下文</small><b>${esc(model.context)}</b></span>` : ''}</div></article>`
   }
   function renderHome() {
     app.append(document.getElementById('page-home').content.cloneNode(true))
     const home = app.querySelector('.premium-home')
-    // 首屏统计：模型数取自真实目录，目录未就绪或为空时隐藏该项
-    const modelMetric = home.querySelector('#sr-metric-models')
-    if (modelMetric)
-      modelMetric.querySelector('strong').textContent =
-        catalogReady && models.length ? String(models.length) : '—'
+    // 首屏统计：全部取自真实目录；目录未就绪时模型数显示占位，其余项保持隐藏
+    const setMetric = (id, value) => {
+      const node = home.querySelector('#' + id)
+      if (!node) return
+      node.querySelector('strong').textContent = value || '—'
+      if (id !== 'sr-metric-models') node.hidden = !value
+    }
+    const ready = catalogReady && models.length
+    setMetric('sr-metric-models', ready ? String(models.length) : '')
+    if (ready) {
+      setMetric('sr-metric-providers', String(new Set(models.map((model) => model.provider)).size))
+      const longest = models.reduce(
+        (best, model) => ((model.contextTokens || 0) > (best?.contextTokens || 0) ? model : best),
+        null,
+      )
+      setMetric('sr-metric-context', longest && hasContext(longest) ? longest.context : '')
+      const rates = models.map((model) => model.inputRate).filter((rate) => rate > 0)
+      setMetric('sr-metric-price', rates.length ? money(Math.min(...rates)) : '')
+    }
+    const metricGroup = home.querySelector('.sr-metric-group')
+    if (metricGroup) metricGroup.dataset.count = metricGroup.querySelectorAll('.sr-metric:not([hidden])').length
     // 精选模型：优先 config.featuredModels 指定的真实模型，否则取目录前三个；空目录整块隐藏
     const featuredSection = home.querySelector('.sr-models')
     const featuredGrid = home.querySelector('#sr-model-grid')
@@ -1259,7 +1357,14 @@
     const latency = fmtMs(entry.avg_latency_ms)
     const tps = fmtTps(entry.avg_tps)
     if (!dots && rate === '—' && latency === '—' && tps === '—') return ''
-    return `<span class="v6-perf-cell" data-tip="近 24 小时成功率">${dots}<b class="${successLevel(entry.success_rate)}">${rate}</b></span><span class="v6-perf-cell" data-tip="近 24 小时平均延迟">${icon('clock')}${latency}</span><span class="v6-perf-cell" data-tip="近 24 小时平均吞吐">${icon('zap')}${tps}</span>`
+    // 只渲染有值的指标，避免整行"— — —"像没加载完
+    const cells = []
+    // 只有分桶点、没有成功率时只剩一根孤立色条，不单独展示
+    if (rate !== '—')
+      cells.push(`<span class="v6-perf-cell" data-tip="近 24 小时成功率">${dots}<b class="${successLevel(entry.success_rate)}">${rate}</b></span>`)
+    if (latency !== '—') cells.push(`<span class="v6-perf-cell" data-tip="近 24 小时平均延迟">${icon('clock')}${latency}</span>`)
+    if (tps !== '—') cells.push(`<span class="v6-perf-cell" data-tip="近 24 小时平均吞吐">${icon('zap')}${tps}</span>`)
+    return cells.join('')
   }
   function updatePerfBadges() {
     app.querySelectorAll('[data-perf-for]').forEach((node) => {
@@ -1401,7 +1506,7 @@
       ['faq', '常见问题', 'circle-help'],
       ['explore', '相关模型', 'compass'],
     ]
-    app.innerHTML = `<div class="v6-shell"><header class="v6-detail-head"><div class="v6-title"><div><div class="v6-row">${logo(model.provider)}<h1>${esc(model.provider + ': ' + model.name)}</h1></div><div class="v6-row v6-slug"><span>${esc(model.slug)}</span>${iconButton('copy', '复制模型 ID', 'copy', `data-copy="${esc(model.slug)}"`)}${pin(model)}</div></div><div class="v6-row v6-wrap">${link('models/' + encodeURIComponent(model.id) + '?section=api', '调用示例', 'v6-btn', 'code')}${link('console/keys', '获取 API Key', 'v6-btn primary', 'key-round')}</div></div><p class="v6-detail-description">${esc(model.description)}</p><div class="v6-stats">${stat('输入 / 输出模态', `<span class="v6-row">${model.inputs.map((value) => `<span title="${modalityNames[value]}">${icon(modalityIcons[value])}</span>`).join('')}${icon('arrow-right')}${icon(modalityIcons[model.outputs[0]])}</span>`)}${stat('输入 / 输出价格', model.imagePrice || model.audioPrice ? modelPrice(model) : money(model.inputRate) + ' / ' + money(model.outputRate), model.imagePrice || model.audioPrice ? '' : '每百万 tokens')}${stat('上下文长度', model.context)}${model.date ? stat('发布日期', model.date) : ''}</div></header><div class="v6-section-layout">${sectionNav(sections)}<div>${section('providers', '提供商', `此模型由 ${model.hosts.length} 个提供商提供服务。${telemetry ? '可按价格、延迟、吞吐和可用性查看路由。' : '价格来自当前计费配置。'}`, `<div class="v6-toolbar">${telemetry ? `<label class="v6-row v6-small v6-ml-auto">延迟分位数<select class="v6-select" id="provider-percentile"><option value="50">P50</option><option value="90">P90</option><option value="99">P99</option></select></label>` : ''}</div><div id="provider-table" data-sort="latency">${providerTable(model)}</div>`, telemetry ? '<span class="v6-badge">演示指标</span>' : '')}${section('pricing', '价格', `模型费率与单次调用成本。${model.live ? '费率来自当前计费配置。' : '价格使用演示目录中的固定数据。'}`, `<div class="v6-stat-band"><div><small>${model.imagePrice ? '每张图像' : model.audioPrice ? '每分钟音频' : '输入 / 百万 tokens'}</small><strong>${money(model.imagePrice || model.audioPrice || model.inputRate)}</strong></div>${!model.imagePrice && !model.audioPrice ? `<div><small>输出 / 百万 tokens</small><strong>${money(model.outputRate)}</strong></div>` : ''}</div>${!model.imagePrice && !model.audioPrice ? `<div class="v6-estimator">输入 <input class="v6-input" type="number" min="0" max="10000000" id="estimate-input" value="2000" aria-label="输入 tokens"> tokens · 输出 <input class="v6-input" type="number" min="0" max="1000000" id="estimate-output" value="800" aria-label="输出 tokens" ${model.outputs[0] === 'embeddings' ? 'disabled' : ''}> tokens<span class="v6-estimator-result"><small>预计单次成本</small><strong id="estimate-cost" class="v6-num">${money((model.inputRate * 2000 + model.outputRate * 800) / 1e6)}</strong></span></div>` : ''}`)}${telemetry ? section('performance', '性能', '吞吐量越高，生成越快；首 token 延迟越低，等待越短。', `<div class="v6-stat-band"><div><small>吞吐量</small><strong>${model.throughput}</strong></div><div><small>首 token 延迟</small><strong>${model.latency}</strong></div></div><div class="v6-row v6-between"><h3>吞吐量趋势</h3><select class="v6-select" data-chart-period="detail-performance" aria-label="性能统计周期"><option value="7">最近 7 天</option><option value="30">最近 30 天</option></select></div>${chart('detail-performance', 'performance')}`) : ''}${model.live ? section('performance', '性能', '实测指标，按分组聚合。', `<div id="model-perf">${skeletonRows(4)}</div>`) : ''}${telemetry ? section('uptime', '可用性', '最近 30 天的服务状态，所有指标为演示样本。', `<div class="v6-row v6-between"><h3>${model.uptime}</h3><span class="v6-badge green">服务正常</span></div><div class="v6-uptime" role="img" aria-label="最近30天每日可用性">${Array.from({ length: 30 }, (_, index) => `<i data-tip="第 ${index + 1} 天：${index === 12 ? '99.5%' : '100%'}" class="${index === 12 ? 'warn' : ''}"></i>`).join('')}</div><div class="v6-row v6-between v6-small v6-muted"><span>30 天前</span><span>今天</span></div>`) : ''}${model.live ? section('uptime', '可用性', '分时段实测成功率。', `<div id="model-uptime">${skeletonRows(2)}</div>`) : ''}${section('api', 'API 调用', '使用 OpenAI 兼容 SDK。以下 Base URL 为示例地址，接入时替换为你的实际服务地址。', codeBlock(model))}${section('faq', '常见问题', '', `<details class="v6-faq"><summary>这个模型支持哪些输入？${icon('chevron-right')}</summary><p>支持${model.inputs.map((value) => modalityNames[value]).join('、')}输入，输出类型为${modalityNames[model.outputs[0]]}。</p></details><details class="v6-faq"><summary>如何选择提供商？${icon('chevron-right')}</summary><p>可在提供商列表中查看性能指标。实际请求的路由取决于服务端配置、可用性和账户策略。</p></details><details class="v6-faq"><summary>免费模型有什么限制？${icon('chevron-right')}</summary><p>免费变体通常有请求频率和每日用量限制，适合试验和评估。具体限制以服务提供商为准。</p></details>`)}${section(
+    app.innerHTML = `<div class="v6-shell"><header class="v6-detail-head"><div class="v6-title"><div><div class="v6-row">${logo(model.provider)}<h1>${esc(model.provider + ': ' + model.name)}</h1></div><div class="v6-row v6-slug"><span>${esc(model.slug)}</span>${iconButton('copy', '复制模型 ID', 'copy', `data-copy="${esc(model.slug)}"`)}${pin(model)}</div></div><div class="v6-row v6-wrap">${link('models/' + encodeURIComponent(model.id) + '?section=api', '调用示例', 'v6-btn', 'code')}${link('console/keys', '获取 API Key', 'v6-btn primary', 'key-round')}</div></div>${model.description ? `<p class="v6-detail-description">${esc(model.description)}</p>` : ''}<div class="v6-stats">${stat('输入 / 输出模态', `<span class="v6-row">${model.inputs.map((value) => `<span title="${modalityNames[value]}">${icon(modalityIcons[value])}</span>`).join('')}${icon('arrow-right')}${icon(modalityIcons[model.outputs[0]])}</span>`)}${stat('输入 / 输出价格', model.imagePrice || model.audioPrice ? modelPrice(model) : money(model.inputRate) + ' / ' + money(model.outputRate), model.imagePrice || model.audioPrice ? '' : '每百万 tokens')}${stat('上下文长度', model.context)}${model.date ? stat('发布日期', model.date) : ''}</div></header><div class="v6-section-layout">${sectionNav(sections)}<div>${section('providers', '提供商', `此模型由 ${model.hosts.length} 个提供商提供服务。${telemetry ? '可按价格、延迟、吞吐和可用性查看路由。' : '价格来自当前计费配置。'}`, `<div class="v6-toolbar">${telemetry ? `<label class="v6-row v6-small v6-ml-auto">延迟分位数<select class="v6-select" id="provider-percentile"><option value="50">P50</option><option value="90">P90</option><option value="99">P99</option></select></label>` : ''}</div><div id="provider-table" data-sort="latency">${providerTable(model)}</div>`, telemetry ? '<span class="v6-badge">演示指标</span>' : '')}${section('pricing', '价格', `模型费率与单次调用成本。${model.live ? '费率来自当前计费配置。' : '价格使用演示目录中的固定数据。'}`, `<div class="v6-stat-band"><div><small>${model.imagePrice ? '每张图像' : model.audioPrice ? '每分钟音频' : '输入 / 百万 tokens'}</small><strong>${money(model.imagePrice || model.audioPrice || model.inputRate)}</strong></div>${!model.imagePrice && !model.audioPrice ? `<div><small>输出 / 百万 tokens</small><strong>${money(model.outputRate)}</strong></div>` : ''}</div>${!model.imagePrice && !model.audioPrice ? `<div class="v6-estimator">输入 <input class="v6-input" type="number" min="0" max="10000000" id="estimate-input" value="2000" aria-label="输入 tokens"> tokens · 输出 <input class="v6-input" type="number" min="0" max="1000000" id="estimate-output" value="800" aria-label="输出 tokens" ${model.outputs[0] === 'embeddings' ? 'disabled' : ''}> tokens<span class="v6-estimator-result"><small>预计单次成本</small><strong id="estimate-cost" class="v6-num">${money((model.inputRate * 2000 + model.outputRate * 800) / 1e6)}</strong></span></div>` : ''}`)}${telemetry ? section('performance', '性能', '吞吐量越高，生成越快；首 token 延迟越低，等待越短。', `<div class="v6-stat-band"><div><small>吞吐量</small><strong>${model.throughput}</strong></div><div><small>首 token 延迟</small><strong>${model.latency}</strong></div></div><div class="v6-row v6-between"><h3>吞吐量趋势</h3><select class="v6-select" data-chart-period="detail-performance" aria-label="性能统计周期"><option value="7">最近 7 天</option><option value="30">最近 30 天</option></select></div>${chart('detail-performance', 'performance')}`) : ''}${model.live ? section('performance', '性能', '实测指标，按分组聚合。', `<div id="model-perf">${skeletonRows(4)}</div>`) : ''}${telemetry ? section('uptime', '可用性', '最近 30 天的服务状态，所有指标为演示样本。', `<div class="v6-row v6-between"><h3>${model.uptime}</h3><span class="v6-badge green">服务正常</span></div><div class="v6-uptime" role="img" aria-label="最近30天每日可用性">${Array.from({ length: 30 }, (_, index) => `<i data-tip="第 ${index + 1} 天：${index === 12 ? '99.5%' : '100%'}" class="${index === 12 ? 'warn' : ''}"></i>`).join('')}</div><div class="v6-row v6-between v6-small v6-muted"><span>30 天前</span><span>今天</span></div>`) : ''}${model.live ? section('uptime', '可用性', '分时段实测成功率。', `<div id="model-uptime">${skeletonRows(2)}</div>`) : ''}${section('api', 'API 调用', '使用 OpenAI 兼容 SDK。以下 Base URL 为示例地址，接入时替换为你的实际服务地址。', codeBlock(model))}${section('faq', '常见问题', '', `<details class="v6-faq"><summary>这个模型支持哪些输入？${icon('chevron-right')}</summary><p>支持${model.inputs.map((value) => modalityNames[value]).join('、')}输入，输出类型为${modalityNames[model.outputs[0]]}。</p></details><details class="v6-faq"><summary>如何选择提供商？${icon('chevron-right')}</summary><p>可在提供商列表中查看性能指标。实际请求的路由取决于服务端配置、可用性和账户策略。</p></details><details class="v6-faq"><summary>免费模型有什么限制？${icon('chevron-right')}</summary><p>免费变体通常有请求频率和每日用量限制，适合试验和评估。具体限制以服务提供商为准。</p></details>`)}${section(
       'explore',
       '相关模型',
       '',
@@ -2629,7 +2734,22 @@
         symbol: 'layers',
         kind: model.provider,
       }))
-    const items = [...pageMatches, ...modelMatches]
+    const dark = effectiveTheme() === 'dark'
+    const actions = [
+      {
+        action: 'theme-toggle',
+        name: dark ? '切换到浅色模式' : '切换到深色模式',
+        symbol: dark ? 'sun' : 'moon',
+        keywords: 'theme dark light 主题 深色 浅色 夜间 日间 白天 黑夜 模式 切换',
+      },
+      ...((state.settings.theme || 'system') !== 'system'
+        ? [{ action: 'theme-system', name: '主题跟随系统', symbol: 'monitor', keywords: 'theme system 主题 跟随系统 自动' }]
+        : []),
+    ]
+    const actionMatches = actions
+      .filter((item) => (item.name + item.keywords).toLowerCase().includes(query))
+      .map((item) => ({ ...item, kind: '操作' }))
+    const items = [...pageMatches, ...modelMatches, ...actionMatches]
     let index = 0
     const groupHtml = (label, group) =>
       group.length
@@ -2640,8 +2760,16 @@
             )
             .join('')}`
         : ''
+    const actionHtml = actionMatches.length
+      ? `<div class="v6-palette-group">操作</div>${actionMatches
+          .map(
+            (item) =>
+              `<button type="button" class="v6-command-item ${index++ === 0 ? 'active' : ''}" data-action="${item.action}" role="option">${icon(item.symbol)}${esc(item.name)}<small>${esc(item.kind)}</small></button>`,
+          )
+          .join('')}`
+      : ''
     document.getElementById('global-results').innerHTML = items.length
-      ? groupHtml('页面', pageMatches) + groupHtml('模型', modelMatches)
+      ? groupHtml('页面', pageMatches) + groupHtml('模型', modelMatches) + actionHtml
       : '<p class="v6-muted v6-palette-empty">没有匹配结果。</p>'
   }
 
@@ -2950,16 +3078,14 @@
       target.setAttribute('aria-pressed', catalogFilter.pinned)
       filterModels()
     } else if (action === 'theme-set') {
-      state.settings.theme = target.dataset.value || 'system'
-      save()
-      applyTheme()
-      target.parentElement.querySelectorAll('[data-action="theme-set"]').forEach((node) => {
-        const on = node === target
-        node.classList.toggle('active', on)
-        node.setAttribute('aria-checked', String(on))
-        node.setAttribute('aria-pressed', String(on))
-      })
+      setTheme(target.dataset.value || 'system', target)
       toast('主题已更新')
+    } else if (action === 'theme-toggle' || action === 'theme-system') {
+      // 从命令面板触发时先关面板，揭幕圆心放在顶栏按钮上，与直接点按钮的观感一致
+      const fromPalette = dialog.contains(target)
+      if (fromPalette) closeDialog()
+      const origin = fromPalette ? document.querySelector('.v6-theme-toggle') : target
+      setTheme(action === 'theme-system' ? 'system' : effectiveTheme() === 'dark' ? 'light' : 'dark', origin)
     } else if (action === 'filters-reset') navigate('models')
     else if (action === 'catalog-retry')
       refreshCatalog().then(() => {

@@ -636,6 +636,15 @@
       if (text.includes('deepseek')) return 'DeepSeek'
       if (text.includes('qwen')) return 'Qwen'
       if (text.includes('llama') || text.includes('meta')) return 'Meta'
+      if (text.includes('glm') || text.includes('zhipu')) return 'Zhipu AI'
+      if (text.includes('kimi') || text.includes('moonshot')) return 'Moonshot AI'
+      if (text.includes('minimax')) return 'MiniMax'
+      if (text.includes('mimo') || text.includes('xiaomi')) return 'Xiaomi'
+      if (text.includes('doubao') || text.includes('bytedance')) return 'ByteDance'
+      if (text.includes('ernie') || text.includes('baidu')) return 'Baidu'
+      if (text.includes('hunyuan') || text.includes('tencent')) return 'Tencent'
+      if (/mistral|mixtral|codestral/.test(text)) return 'Mistral'
+      if (text.includes('grok') || text === 'xai') return 'xAI'
       if (owner) return String(owner)
       const head = String(id).split('/')[0]
       return head && head !== id ? head : 'Platform'
@@ -672,7 +681,8 @@
         name: id,
         provider,
         slug: id,
-        description: info.description || id + ' · 来自 Platform 目录',
+        // 没有描述就留空，界面不再用"<id> · 来自 Platform 目录"这类重复标题的占位
+        description: info.description || '',
         inputRate,
         outputRate,
         imagePrice: outputs[0] === 'image' && perCall ? Number(info.model_price || 0) : undefined,
