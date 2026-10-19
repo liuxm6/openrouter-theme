@@ -5,8 +5,8 @@
 #   或：
 #   docker compose -f deploy/docker-compose.yml up -d --build
 #
-# 访问：http://localhost:8080        （Skin，经 nginx 同源反代）
-# Platform API：http://localhost:8080/api/*  与  /v1/*
+# 访问：http://localhost:8088        （Skin，经 nginx 同源反代）
+# Platform API：http://localhost:8088/api/*  与  /v1/*
 #
 # new-api 默认使用镜像 calciumion/new-api:latest；
 # 使用本地源码构建时：
@@ -57,7 +57,7 @@ services:
       - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-false}
       - SESSION_COOKIE_TRUSTED_URL=${SESSION_COOKIE_TRUSTED_URL:-}
       - TRUSTED_PROXIES=${TRUSTED_PROXIES:-172.16.0.0/12}
-      # 三方登录（在 Platform 后台或环境变量中开启；回调地址 = http://localhost:8080/oauth/<provider>）
+      # 三方登录（在 Platform 后台或环境变量中开启；回调地址 = http://localhost:8088/oauth/<provider>）
       - GITHUB_OAUTH=${GITHUB_OAUTH:-}
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
       - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-}

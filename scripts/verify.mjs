@@ -1,6 +1,6 @@
-// 联调冒烟：node scripts/verify.mjs [base]，默认 http://localhost:8080
+// 联调冒烟：node scripts/verify.mjs [base]，默认 http://localhost:8088
 // 依次验证 status → 注册 → 登录 → self → 创建密钥 → 读明文 → 目录 → 日志 → 兑换码 → 删除密钥 → 登出
-const base = (process.argv[2] || 'http://localhost:8080').replace(/\/+$/, '')
+const base = (process.argv[2] || 'http://localhost:8088').replace(/\/+$/, '')
 let client
 const { createSkinClient } = await import('../skin-api.js')
 const storage = new Map()
