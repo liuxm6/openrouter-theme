@@ -849,7 +849,7 @@
     const header = document.querySelector('.app-header')
     header.classList.add('v6-header')
     const account = !booted
-      ? '<span class="v6-skeleton" style="width:96px;height:36px;border-radius:6px" aria-hidden="true"></span>'
+      ? '<span class="v6-skeleton" style="width:96px;height:32px;border-radius:6px" aria-hidden="true"></span>'
       : platform.authed
         ? `<details class="v6-dropdown"><summary class="v6-account-btn" aria-label="账户"><span class="v6-avatar">${esc(accountName().slice(0, 1))}</span><span class="v6-account-label">${esc(accountName())}</span>${icon('chevron-down')}</summary><div class="v6-menu right">${[
           ['console', '用量概览', 'layout-grid'],
@@ -1378,7 +1378,7 @@
     return `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>提供商</th>${columns
       .map(
         ([value, label]) =>
-          `<th${['latency', 'throughput', 'uptime'].includes(value) ? ' class="v6-col-metric"' : ''}><button data-action="provider-sort" data-value="${value}" aria-label="按${label}排序">${label} ${icon('arrow-down-up')}</button></th>`,
+          `<th class="${['latency', 'throughput', 'uptime'].includes(value) ? 'v6-col-metric' : ''}${value === 'uptime' ? '' : ' num'}"><button data-action="provider-sort" data-value="${value}" aria-label="按${label}排序">${label} ${icon('arrow-down-up')}</button></th>`,
       )
       .join(
         '',
@@ -1575,7 +1575,7 @@
       const data = await SkinAPI.rankings(period)
       const list = data.models || data.items || data.data || []
       box.innerHTML = list.length
-        ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>#</th><th>模型</th><th>Tokens</th><th>请求数</th></tr></thead><tbody>${list.slice(0, 50).map((item, i) => `<tr><td>${i + 1}.</td><td>${esc(item.model_name || item.name || item.model || '—')}</td><td class="num">${Number(item.quota || item.tokens || 0).toLocaleString()}</td><td class="num">${Number(item.count || item.requests || 0).toLocaleString()}</td></tr>`).join('')}</tbody></table></div>`
+        ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th class="v6-rank-col">#</th><th>模型</th><th class="num">Tokens</th><th class="num">请求数</th></tr></thead><tbody>${list.slice(0, 50).map((item, i) => `<tr><td class="v6-rank-col">${i + 1}</td><td>${esc(item.model_name || item.name || item.model || '—')}</td><td class="num">${Number(item.quota || item.tokens || 0).toLocaleString()}</td><td class="num">${Number(item.count || item.requests || 0).toLocaleString()}</td></tr>`).join('')}</tbody></table></div>`
         : empty('暂无排行数据', '当前还没有排行统计。')
     } catch (error) {
       box.innerHTML = errorBox(
@@ -2247,7 +2247,7 @@
   }
   function fmtTick(v, unit) {
     const n =
-      v >= 10 ? Math.round(v).toLocaleString() : v >= 1 ? String(+v.toFixed(1)) : String(+v.toFixed(2))
+      v >= 100 ? Math.round(v).toLocaleString() : String(+v.toPrecision(3))
     return unit === '$' ? '$' + n : unit === 'B' ? n + 'B' : n
   }
   function setChartState(canvas, state) {
@@ -2757,14 +2757,23 @@
         if (canvas.dataset.chart === 'usage') {
           let y = top + plotHeight
           const shares = series.map((usage) => usage / total)
+          const barWidth = Math.max(2, Math.min(unit - 4, Math.max(unit * 0.56, 6), 40))
+          const barX = left + index * unit + (unit - barWidth) / 2
+          const topSegment = shares.reduce((last, share, i) => (share > 0 ? i : last), -1)
           shares.forEach((share, series) => {
             const barHeight = plotHeight * normalized * share
             ctx.fillStyle = seriesColors[series]
-            ctx.fillRect(left + index * unit + 2, y - barHeight, Math.max(2, unit - 4), barHeight)
+            if (series === topSegment && ctx.roundRect && barHeight > 2) {
+              ctx.beginPath()
+              ctx.roundRect(barX, y - barHeight, barWidth, barHeight, [2, 2, 0, 0])
+              ctx.fill()
+            } else {
+              ctx.fillRect(barX, y - barHeight, barWidth, barHeight)
+            }
             y -= barHeight
           })
         }
-        if (index % Math.max(1, Math.floor(points / 6)) === 0) {
+        if (index % Math.max(1, Math.floor(points / 6), Math.ceil((points * 44) / plotWidth)) === 0) {
           ctx.fillStyle = colors.getPropertyValue('--muted').trim()
           ctx.textAlign = 'center'
           ctx.fillText(data[index].label, x, height - 8)
@@ -2796,12 +2805,11 @@
         const current = entries
           .filter((entry) => entry.isIntersecting)
           .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0]
-        if (current)
-          app
-            .querySelectorAll('[data-section]')
-            .forEach((link) =>
-              link.classList.toggle('active', link.dataset.section === current.target.id),
-            )
+        const links = app.querySelectorAll('[data-section]')
+        // 首个目录项可能指向页面标题而非 .v6-section，页面顶部时观察器只能看到第二节
+        const activeId = window.scrollY < 24 ? links[0]?.dataset.section : current?.target.id
+        if (activeId)
+          links.forEach((link) => link.classList.toggle('active', link.dataset.section === activeId))
       },
       { rootMargin: '-80px 0px -60% 0px' },
     )

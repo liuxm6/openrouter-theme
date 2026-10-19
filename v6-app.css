@@ -48,6 +48,12 @@
   --content-max: 1320px;
   /* 焦点环（G-25）：单一规格 */
   --focus-ring: 0 0 0 2px var(--surface-1), 0 0 0 4px var(--accent-text);
+  /* 按主题取值的组件 token（暗色值见下方两个暗色块） */
+  --danger-button-active: #7a1b12;
+  --overlay-bg: var(--surface-1);
+  --backdrop: rgba(16, 24, 40, 0.32);
+  --btn-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --selection-bg: rgba(15, 180, 119, 0.22); --selection-fg: #03301f;
   color-scheme: light;
 }
 
@@ -55,48 +61,64 @@
    值取自审计 §6 暗色表，全部实测对比度达标。 */
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --canvas: #0e1116; --canvas-soft: #151a21;
-  --surface-1: #151a21; --surface-2: #1b2129; --surface-3: #232a33;
-  --surface-hover: #212933; --surface-active: #28313d;
-  --elevated: #2b333d;
-  --text: #e6e9ee; --text-2: #a3acb9; --muted: #8b95a3;
-  --border: #2b333d; --border-strong: #3a4450;
-  --accent: #34d399; --accent-hover: #6ee7b7;
-  --accent-soft: #6ee7b7; --accent-text: #6ee7b7;
-  --accent-faint: rgba(52, 211, 153, 0.12); --accent-border: #1f6f54;
-  --accent-button: #34d399; --accent-button-hover: #5eead4; --accent-button-active: #2dd4bf;
-  --success: #34d399; --danger: #f97066; --danger-button: #f97066; --danger-button-hover: #fda29b;
-  --danger-faint: rgba(249, 112, 102, 0.12);
-  --warning: #fdb022; --warning-faint: rgba(253, 176, 34, 0.12);
-  --info: #53b1fd; --info-faint: rgba(83, 177, 253, 0.12);
-  --shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
-  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.4);
-  --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.45);
-  --shadow-3: 0 20px 60px rgba(0, 0, 0, 0.55);
-  --focus-ring: 0 0 0 2px var(--surface-1), 0 0 0 4px var(--accent);
+  /* 底色：中性偏冷的深灰而非蓝黑；层级 canvas < surface-1 < surface-2 < elevated 拉开到肉眼可分 */
+  --canvas: #0f1114; --canvas-soft: #13161a;
+  --surface-1: #16191e; --surface-2: #1b1f25; --surface-3: #23282f;
+  --surface-hover: #1f242a; --surface-active: #272d35;
+  --elevated: #1d2127;
+  --text: #ebedf0; --text-2: #a7adb7; --muted: #8a919c;
+  --border: #262b32; --border-strong: #353b44;
+  /* accent 降亮度与饱和度：主按钮 #1fae7b + 深色字 6.3:1，不再是荧光薄荷绿 */
+  --accent: #2cc48c; --accent-hover: #4fd1a0;
+  --accent-soft: #5fd3a5; --accent-text: #5fd3a5;
+  --accent-faint: rgba(44, 196, 140, 0.1); --accent-border: #1d5a44;
+  --accent-button: #1fae7b; --accent-button-hover: #27bd87; --accent-button-active: #1a9c6e;
+  --success: #2cc48c; --danger: #f0716a; --danger-button: #e5605a; --danger-button-hover: #ec766f;
+  --danger-button-active: #d4524c;
+  --danger-faint: rgba(240, 113, 106, 0.1);
+  --warning: #f5b544; --warning-faint: rgba(245, 181, 68, 0.1);
+  --info: #60a5fa; --info-faint: rgba(96, 165, 250, 0.1);
+  /* 暗底上投影几乎不可见：每档阴影都带一条 1px 顶部亮边，靠"受光边"表达层级 */
+  --shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 16px 40px rgba(0, 0, 0, 0.55);
+  --shadow-1: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-2: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 12px 32px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --shadow-3: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 24px 64px rgba(0, 0, 0, 0.6), 0 4px 16px rgba(0, 0, 0, 0.35);
+  --focus-ring: 0 0 0 2px var(--surface-1), 0 0 0 4px var(--accent-text);
+  --overlay-bg: var(--elevated);
+  --backdrop: rgba(0, 0, 0, 0.6);
+  --btn-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  --selection-bg: rgba(44, 196, 140, 0.32); --selection-fg: #ffffff;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
-    --canvas: #0e1116; --canvas-soft: #151a21;
-    --surface-1: #151a21; --surface-2: #1b2129; --surface-3: #232a33;
-    --surface-hover: #212933; --surface-active: #28313d;
-    --elevated: #2b333d;
-    --text: #e6e9ee; --text-2: #a3acb9; --muted: #8b95a3;
-    --border: #2b333d; --border-strong: #3a4450;
-    --accent: #34d399; --accent-hover: #6ee7b7;
-    --accent-soft: #6ee7b7; --accent-text: #6ee7b7;
-    --accent-faint: rgba(52, 211, 153, 0.12); --accent-border: #1f6f54;
-    --accent-button: #34d399; --accent-button-hover: #5eead4; --accent-button-active: #2dd4bf;
-    --success: #34d399; --danger: #f97066; --danger-button: #f97066; --danger-button-hover: #fda29b;
-    --danger-faint: rgba(249, 112, 102, 0.12);
-    --warning: #fdb022; --warning-faint: rgba(253, 176, 34, 0.12);
-    --info: #53b1fd; --info-faint: rgba(83, 177, 253, 0.12);
-    --shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
-    --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.4);
-    --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.45);
-    --shadow-3: 0 20px 60px rgba(0, 0, 0, 0.55);
-    --focus-ring: 0 0 0 2px var(--surface-1), 0 0 0 4px var(--accent);
+    /* 底色：中性偏冷的深灰而非蓝黑；层级 canvas < surface-1 < surface-2 < elevated 拉开到肉眼可分 */
+    --canvas: #0f1114; --canvas-soft: #13161a;
+    --surface-1: #16191e; --surface-2: #1b1f25; --surface-3: #23282f;
+    --surface-hover: #1f242a; --surface-active: #272d35;
+    --elevated: #1d2127;
+    --text: #ebedf0; --text-2: #a7adb7; --muted: #8a919c;
+    --border: #262b32; --border-strong: #353b44;
+    /* accent 降亮度与饱和度：主按钮 #1fae7b + 深色字 6.3:1，不再是荧光薄荷绿 */
+    --accent: #2cc48c; --accent-hover: #4fd1a0;
+    --accent-soft: #5fd3a5; --accent-text: #5fd3a5;
+    --accent-faint: rgba(44, 196, 140, 0.1); --accent-border: #1d5a44;
+    --accent-button: #1fae7b; --accent-button-hover: #27bd87; --accent-button-active: #1a9c6e;
+    --success: #2cc48c; --danger: #f0716a; --danger-button: #e5605a; --danger-button-hover: #ec766f;
+    --danger-button-active: #d4524c;
+    --danger-faint: rgba(240, 113, 106, 0.1);
+    --warning: #f5b544; --warning-faint: rgba(245, 181, 68, 0.1);
+    --info: #60a5fa; --info-faint: rgba(96, 165, 250, 0.1);
+    /* 暗底上投影几乎不可见：每档阴影都带一条 1px 顶部亮边，靠"受光边"表达层级 */
+    --shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 16px 40px rgba(0, 0, 0, 0.55);
+    --shadow-1: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 1px 3px rgba(0, 0, 0, 0.4);
+    --shadow-2: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 12px 32px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
+    --shadow-3: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 24px 64px rgba(0, 0, 0, 0.6), 0 4px 16px rgba(0, 0, 0, 0.35);
+    --focus-ring: 0 0 0 2px var(--surface-1), 0 0 0 4px var(--accent-text);
+    --overlay-bg: var(--elevated);
+    --backdrop: rgba(0, 0, 0, 0.6);
+    --btn-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    --selection-bg: rgba(44, 196, 140, 0.32); --selection-fg: #ffffff;
   }
 }
 /* 暗色下主按钮文字用深底字（亮绿底 + 深字 9.33:1） */
@@ -1946,10 +1968,10 @@ h3.unknown {
    ============================================================ */
 
 /* ---------- 焦点环统一（G-25） ---------- */
+/* 不在这里改 border-radius：否则卡片等元素聚焦时圆角会被压成 4px */
 :focus-visible {
   outline: 2px solid var(--accent-text);
   outline-offset: 2px;
-  border-radius: var(--radius-xs);
 }
 .v6-header .header-search:focus-visible,
 .v6-header .nav-link:focus-visible {
@@ -3178,4 +3200,1491 @@ time.rel {
 .v6-delta {
   color: var(--accent-soft);
   font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   V6 TYPE & RHYTHM —— 排版与节奏（精修第 1 轮）
+   1. 标题层级拉开：页面标题 28 / 区块 20 / 卡片 15，配负字距与紧行高；
+   2. 字重两档：标签 500、数值与标题 600，正文 400；
+   3. 按页面性质给三档密度：阅读型（文档）> 展示型（价格/发现/状态/详情）
+      > 工具型（模型目录/工作台），消除各页同一密度的平庸感。
+   通用选择器只设行高/字距，不设字号，避免压掉组件自身的字号。
+   ============================================================ */
+:root {
+  --fs-11: 11px; --fs-15: 15px; --fs-20: 20px; --fs-28: 28px; --fs-36: 36px;
+  --lh-tight: 1.2; --lh-snug: 1.4; --lh-body: 1.6; --lh-read: 1.75;
+  --track-display: -0.03em; --track-title: -0.02em; --track-heading: -0.01em;
+}
+.v6-app h1,
+.v6-app h2,
+.v6-app h3 {
+  font-weight: 600;
+  text-wrap: balance;
+}
+.v6-app h1 { line-height: var(--lh-tight); letter-spacing: var(--track-title); }
+.v6-app h2 { line-height: var(--lh-snug); letter-spacing: var(--track-heading); }
+.v6-app h3 { line-height: var(--lh-snug); }
+.v6-app p { text-wrap: pretty; }
+
+/* ---------- 页面标题区：默认按展示型 ---------- */
+.v6-shell {
+  padding: 40px 0 80px;
+}
+.v6-title {
+  margin-bottom: var(--space-8);
+}
+.v6-title h1 {
+  font-size: var(--fs-28);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--track-title);
+}
+.v6-title p {
+  max-width: 640px;
+  margin-top: var(--space-2);
+  font-size: var(--fs-15);
+  line-height: var(--lh-body);
+  color: var(--text-2);
+}
+.v6-eyebrow {
+  margin-bottom: var(--space-2);
+  font-size: var(--fs-12);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+
+/* ---------- 工具型：模型目录 / 工作台，标题收一档，留白收紧 ---------- */
+.v6-model-main .v6-title,
+.v6-console-main .v6-title {
+  margin-bottom: var(--space-5);
+}
+.v6-model-main .v6-title h1,
+.v6-console-main .v6-title h1 {
+  font-size: var(--fs-24);
+}
+.v6-model-main .v6-title p,
+.v6-console-main .v6-title p {
+  margin-top: var(--space-1);
+  font-size: var(--fs-14);
+}
+.v6-console-main .v6-title {
+  margin-bottom: var(--space-6);
+}
+
+/* ---------- 阅读型：文档，大标题 + 宽行距 ---------- */
+.v6-docs-layout article h1 {
+  margin: var(--space-2) 0 var(--space-4);
+  font-size: var(--fs-36);
+  line-height: 1.15;
+  letter-spacing: var(--track-display);
+}
+.v6-docs-layout article > h1 + p {
+  font-size: var(--fs-16);
+  line-height: var(--lh-read);
+  color: var(--text-2);
+}
+.v6-docs-layout article p {
+  line-height: var(--lh-read);
+}
+.v6-docs-layout article .v6-section {
+  margin-top: var(--space-12);
+}
+.v6-docs-layout article h2 {
+  margin-top: 0;
+}
+
+/* ---------- 区块标题 ---------- */
+.v6-section {
+  margin-bottom: var(--space-12);
+}
+.v6-section > h2 {
+  margin-bottom: var(--space-1);
+  font-size: var(--fs-20);
+  letter-spacing: -0.015em;
+}
+.v6-section > p {
+  max-width: 72ch;
+  margin: var(--space-1) 0 var(--space-6);
+  line-height: var(--lh-body);
+  color: var(--muted);
+}
+.v6-block-head h2 {
+  margin: 0;
+  font-size: var(--fs-16);
+}
+.v6-home-band h2,
+.v6-shell .v6-home-band h2 {
+  font-size: var(--fs-18);
+  letter-spacing: var(--track-heading);
+}
+.v6-home-band .v6-title {
+  margin-bottom: var(--space-4);
+}
+.v6-discover-lead h2 {
+  font-size: var(--fs-28);
+  line-height: 1.25;
+  letter-spacing: var(--track-title);
+}
+.v6-panel-head h3 {
+  font-size: var(--fs-15);
+}
+.v6-panel-head p {
+  font-size: var(--fs-13);
+  line-height: 1.5;
+}
+
+/* ---------- 数值：大数字统一 28/600、负字距、紧行高 ---------- */
+.v6-stat-band strong,
+.v6-metric strong,
+.v6-estimator-result strong {
+  font-size: var(--fs-28);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+}
+.v6-stat-band strong { margin-top: 6px; }
+.v6-metric strong { margin-top: var(--space-2); }
+.v6-stat strong {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: var(--track-heading);
+}
+.v6-balance {
+  line-height: 1.05;
+}
+/* 数值的标签：小号 + 500，与数字形成"轻标签 / 重数值"的对比 */
+.v6-stat small,
+.v6-stat-band small,
+.v6-metric > .v6-small,
+.v6-estimator-result small {
+  font-size: var(--fs-12);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--muted);
+}
+
+/* ---------- 详情页头部 ---------- */
+.v6-detail-head .v6-title {
+  margin-bottom: var(--space-4);
+}
+.v6-slug {
+  margin-top: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+}
+.v6-detail-description {
+  max-width: 72ch;
+  margin: var(--space-5) 0 var(--space-6);
+  font-size: var(--fs-15);
+  line-height: 1.7;
+}
+
+/* ---------- 模型列表卡：名称 15/600，描述去掉预留空行 ---------- */
+.v6-model-title {
+  font-size: var(--fs-15);
+  letter-spacing: var(--track-heading);
+}
+.v6-model-description {
+  min-height: 0;
+  margin: 6px 0 var(--space-3);
+  line-height: 1.55;
+}
+
+/* ---------- 表头 / 侧栏分组标签：退成"轻标签" ---------- */
+.v6-table th {
+  font-size: var(--fs-12);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+.v6-side-label {
+  font-size: var(--fs-12);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+@media (max-width: 680px) {
+  .v6-shell {
+    padding: var(--space-6) 0 var(--space-12);
+  }
+  .v6-title {
+    margin-bottom: var(--space-6);
+  }
+  .v6-title h1 {
+    font-size: var(--fs-24);
+  }
+  .v6-title p {
+    font-size: var(--fs-14);
+  }
+  .v6-model-main .v6-title h1,
+  .v6-console-main .v6-title h1 {
+    font-size: 22px;
+  }
+  .v6-docs-layout article h1,
+  .v6-discover-lead h2 {
+    font-size: var(--fs-28);
+  }
+  .v6-stat-band strong,
+  .v6-metric strong,
+  .v6-estimator-result strong {
+    font-size: var(--fs-24);
+  }
+  .v6-section > h2 {
+    font-size: var(--fs-18);
+  }
+}
+
+/* ============================================================
+   V6 SURFACES & STATES —— 卡片与列表（精修第 2 轮）
+   1. 阴影分级：静态卡片只有 hairline 边框 + xs 托底；浮层才用 2 / 3 档；
+      hover 不再加阴影，只提亮边框。
+   2. 三态分离：hover = 中性浅底；选中 = 更深一档中性底 + 500 字重 + accent 图标；
+      按下 = 再深一档。绿色只留给主操作、链接与数据，不再用于导航选中。
+   3. 表格统一装进卡片容器，行高收紧，行 hover 用极浅中性色。
+   色阶全部由 --text 与表面色混合得出，深浅主题自动跟随。
+   ============================================================ */
+:root {
+  --shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --row-hover: color-mix(in srgb, var(--text) 3%, var(--surface-1));
+  --row-active: color-mix(in srgb, var(--text) 6%, var(--surface-1));
+  --nav-hover: color-mix(in srgb, var(--text) 5%, transparent);
+  --nav-selected: color-mix(in srgb, var(--text) 8%, transparent);
+  --nav-pressed: color-mix(in srgb, var(--text) 11%, transparent);
+  --segment-active: var(--surface-1);
+}
+:root[data-theme='dark'] {
+  --shadow-xs: inset 0 1px 0 rgba(255, 255, 255, 0.035), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --segment-active: var(--surface-3);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --shadow-xs: inset 0 1px 0 rgba(255, 255, 255, 0.035), 0 1px 2px rgba(0, 0, 0, 0.3);
+    --segment-active: var(--surface-3);
+  }
+}
+
+/* ---------- 静态卡片：边框 + xs 托底，圆角统一 8 ---------- */
+.v6-model,
+.v6-item,
+.v6-ws-card,
+.v6-stat,
+.v6-metric,
+.v6-panel,
+.v6-code,
+.v6-empty,
+.v6-error-box {
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
+}
+.v6-chart-tooltip {
+  box-shadow: var(--shadow-2);
+}
+
+/* ---------- 可点击卡片：hover 提亮边框，按下压一档底色 ---------- */
+.v6-model:hover,
+.v6-item:hover,
+a.v6-item:hover,
+.v6-ws-card:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-xs);
+}
+a.v6-item:active,
+.v6-ws-card:active {
+  background: var(--row-hover);
+}
+.v6-ws-card:hover .v6-icon:last-child {
+  color: var(--text-2);
+  transform: translateX(2px);
+}
+.v6-item .v6-link {
+  transition: color var(--dur) var(--ease);
+}
+a.v6-item:hover .v6-link {
+  text-decoration: underline;
+}
+
+/* ---------- 模型列表 ---------- */
+.v6-models {
+  gap: var(--space-2);
+}
+.v6-model {
+  padding: var(--space-4) var(--space-5);
+}
+/* 元信息分隔点：分隔点挂在每项左侧的负外边距里，折行后行首那一个被 clip-path 裁掉，
+   避免第二行以孤立的"·"开头；裁切内缩 10px 而非 16px，给链接焦点环留出位置 */
+.v6-meta {
+  --meta-sep: 16px;
+  column-gap: 0;
+  margin-left: calc(-1 * var(--meta-sep));
+  clip-path: inset(-4px -4px -4px 10px);
+}
+.v6-meta > * {
+  margin-left: var(--meta-sep);
+}
+.v6-meta > *::before {
+  content: '\00b7';
+  display: inline-block;
+  width: var(--meta-sep);
+  margin: 0 0 0 calc(-1 * var(--meta-sep));
+  text-align: center;
+  color: var(--muted);
+}
+.v6-meta > .v6-meta-modality::before {
+  margin-right: -4px;
+}
+.v6-meta a {
+  color: var(--text-2);
+  text-decoration-color: var(--border-strong);
+}
+.v6-meta a:hover {
+  color: var(--text);
+  text-decoration-color: currentColor;
+}
+
+/* ---------- 表格：卡片容器 + 收紧行高 ---------- */
+.v6-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-xs);
+}
+.v6-panel .v6-table-wrap {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.v6-table th {
+  padding: 10px 16px;
+  background: var(--surface-2);
+}
+.v6-table td {
+  padding: 14px 16px;
+}
+.v6-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.v6-table tr:hover td {
+  background: transparent;
+}
+.v6-table tbody tr:hover td {
+  background: var(--row-hover);
+}
+.v6-table th button:hover {
+  color: var(--text);
+}
+
+/* ---------- 侧栏 / 详情锚点 / 文档目录：三态 ---------- */
+.v6-side-link,
+.v6-section-nav a {
+  color: var(--text-2);
+}
+.v6-side-link:hover,
+.v6-section-nav a:hover {
+  background: var(--nav-hover);
+  color: var(--text);
+}
+.v6-side-link:active,
+.v6-section-nav a:active {
+  background: var(--nav-pressed);
+}
+.v6-side-link.active,
+.v6-section-nav a.active {
+  background: var(--nav-selected);
+  color: var(--text);
+  font-weight: 500;
+}
+.v6-side-link.active .v6-icon,
+.v6-section-nav a.active .v6-icon {
+  color: var(--accent-text);
+}
+.v6-section-nav a {
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+}
+.v6-section-nav a .v6-icon {
+  width: 15px;
+  height: 15px;
+  color: var(--muted);
+}
+
+/* ---------- 下拉菜单 / 命令面板 / 移动导航 ---------- */
+.v6-menu a:hover,
+.v6-menu button:hover {
+  background: var(--nav-hover);
+}
+.v6-menu a:active,
+.v6-menu button:active {
+  background: var(--nav-pressed);
+}
+.v6-menu a.danger:hover,
+.v6-menu button.danger:hover {
+  background: var(--danger-faint);
+}
+.v6-command-item {
+  border-radius: var(--radius-sm);
+}
+.v6-command-item:hover {
+  background: var(--nav-hover);
+  color: var(--text);
+}
+.v6-command-item.active {
+  background: var(--nav-selected);
+  color: var(--text);
+}
+.v6-command-item:active {
+  background: var(--nav-pressed);
+}
+.v6-nav-sheet a:hover {
+  background: var(--nav-hover);
+}
+.v6-nav-sheet a.active {
+  background: var(--nav-selected);
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* 区块自带上边线时，紧随其后的统计带不再画第二条线 */
+.v6-home-band > .v6-stat-band:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* ---------- 排名行 ---------- */
+.v6-ranked-row {
+  padding: 12px 8px;
+  border-radius: var(--radius-sm);
+}
+.v6-ranked-row:hover {
+  background: var(--nav-hover);
+}
+.v6-ranked-row:active {
+  background: var(--nav-pressed);
+}
+
+/* ---------- 标签页：选中文字用正文色，下划线保留品牌色 ---------- */
+.v6-tabs .active,
+.v6-tabs button.active {
+  color: var(--text);
+  font-weight: 500;
+}
+.v6-tabs [role='tab'][aria-selected='true'] .v6-count {
+  background: var(--surface-active);
+  color: var(--text);
+}
+
+/* ---------- 分段控件：选中块浮起，不再染绿 ---------- */
+.v6-segment {
+  padding: 2px;
+  gap: 2px;
+}
+.v6-segment button:hover {
+  color: var(--text);
+}
+.v6-segment button.active,
+.v6-segment button[aria-pressed='true'],
+.v6-segment button[aria-checked='true'] {
+  background: var(--segment-active);
+  color: var(--text);
+  box-shadow: var(--shadow-xs), 0 0 0 1px var(--border);
+}
+
+/* ---------- 筛选项 ---------- */
+.v6-check:hover {
+  color: var(--text);
+}
+.v6-filter summary {
+  border-radius: var(--radius-sm);
+}
+.v6-filter summary:hover {
+  color: var(--text);
+}
+
+@media (max-width: 640px) {
+  .v6-pricing .v6-table tbody tr {
+    padding: 12px 16px;
+  }
+  .v6-pricing .v6-table tbody tr:last-child {
+    border-bottom: 0;
+  }
+  .v6-pricing .v6-table tbody tr:hover td {
+    background: transparent;
+  }
+}
+
+/* ============================================================
+   V6 MOTION & FOCUS —— 微交互（精修第 3 轮）
+   1. 焦点环单一规格：2px accent 描边、外扩 2px，不改元素圆角；
+      滚动容器内的项改为内收，避免被裁切。输入框统一为边框 + 3px 柔光。
+   2. 时长全部 ≤150ms：悬停 150ms，按下 100ms（按下要比松开更快才"跟手"）。
+   3. 页面切换：内容区 150ms 淡入 + 4px 上浮；工作台/目录只动主区，侧栏保持不动，
+      读起来像"同一个应用里换内容"而不是整页重载。
+   4. 骨架屏：全页同步的一道扫光（background-attachment: fixed），
+      列表行逐行变淡，图表加载显示柱状轮廓。
+   ============================================================ */
+:root {
+  --skeleton-base: color-mix(in srgb, var(--text) 7%, var(--surface-1));
+  --skeleton-hi: color-mix(in srgb, var(--text) 2%, var(--surface-1));
+  --input-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* ---------- 焦点环 ---------- */
+.v6-tabs button:focus-visible,
+.v6-tabs a:focus-visible,
+.v6-segment button:focus-visible,
+.v6-menu a:focus-visible,
+.v6-menu button:focus-visible,
+.v6-command-item:focus-visible,
+.v6-nav-sheet a:focus-visible,
+.v6-section-nav a:focus-visible,
+.v6-side-link:focus-visible,
+.v6-table th button:focus-visible {
+  outline-offset: -2px;
+}
+.v6-tabs button:focus-visible,
+.v6-tabs a:focus-visible {
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+.v6-link:focus-visible,
+.v6-meta a:focus-visible,
+.v6-app p a:focus-visible {
+  border-radius: var(--radius-xs);
+}
+.v6-input:focus,
+.v6-select:focus,
+.v6-textarea:focus {
+  border-color: var(--accent-text);
+  box-shadow: var(--input-ring);
+}
+.v6-textarea:focus-visible {
+  outline: none;
+}
+
+/* ---------- 时长：按下比悬停更快 ---------- */
+.v6-app :active,
+.v6-header :active,
+.v6-dialog :active {
+  transition-duration: var(--dur-fast);
+}
+.v6-ws-card {
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
+}
+.v6-ws-card .v6-icon:last-child,
+.v6-link .v6-icon,
+.v6-account-btn .v6-icon {
+  transition: transform var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.v6-switch span::after {
+  transition: transform var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+
+/* ---------- 链接：下划线淡入，箭头轻推 ---------- */
+.v6-link {
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: color var(--dur) var(--ease), text-decoration-color var(--dur) var(--ease);
+}
+.v6-link:hover {
+  text-decoration-color: currentColor;
+}
+.v6-link:hover .v6-icon:last-child,
+a.v6-item:hover .v6-link .v6-icon:last-child {
+  transform: translateX(2px);
+}
+
+/* ---------- 页面切换 ---------- */
+@keyframes v6-page-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes v6-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+/* 目录页筛选栏在移动端是 fixed 抽屉，祖先带 transform 会让它错位，所以目录/工作台的外壳只淡入 */
+.v6-app > .v6-shell,
+.v6-console-main,
+.v6-model-main {
+  animation: v6-page-in var(--dur) var(--ease);
+}
+.v6-app + .v6-footer {
+  animation: v6-fade-in var(--dur) var(--ease);
+}
+
+/* ---------- 浮层出入场 ---------- */
+@keyframes v6-pop-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+.v6-dropdown[open] > .v6-menu {
+  transform-origin: top left;
+  animation: v6-pop-in var(--dur) var(--ease);
+}
+.v6-dropdown[open] > .v6-menu.right {
+  transform-origin: top right;
+}
+.v6-dropdown[open] > .v6-account-btn > .v6-icon:last-child {
+  transform: rotate(180deg);
+}
+.v6-dialog[open]::backdrop,
+.v6-nav-sheet[open]::backdrop {
+  animation: v6-fade-in var(--dur) var(--ease);
+}
+@keyframes v6-tip-in {
+  from { opacity: 0; transform: translate(-50%, 2px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+[data-tip]:hover::after,
+[data-tip]:focus-visible::after {
+  animation: v6-tip-in var(--dur-fast) var(--ease);
+}
+.v6-faq[open] > :not(summary),
+.v6-filter[open] > .v6-filter-body {
+  animation: v6-page-in var(--dur) var(--ease);
+}
+
+/* ---------- 骨架屏 ---------- */
+.v6-skeleton {
+  background: linear-gradient(100deg, var(--skeleton-base) 40%, var(--skeleton-hi) 50%, var(--skeleton-base) 60%) fixed;
+  background-size: 200% 100%;
+  animation: v6-sweep 1.6s ease-in-out infinite;
+}
+@keyframes v6-sweep {
+  from { background-position: 150% 0; }
+  to { background-position: -50% 0; }
+}
+.v6-skeleton-row {
+  height: 44px;
+  border-radius: var(--radius-sm);
+}
+.v6-skeleton-list > .v6-skeleton-row:nth-child(2) { opacity: 0.85; }
+.v6-skeleton-list > .v6-skeleton-row:nth-child(3) { opacity: 0.7; }
+.v6-skeleton-list > .v6-skeleton-row:nth-child(4) { opacity: 0.55; }
+.v6-skeleton-list > .v6-skeleton-row:nth-child(n + 5) { opacity: 0.4; }
+/* 图表加载：横向网格线 + 7 根高低不一的扫光柱，比两条文字占位更像"即将出现的图表" */
+.v6-chart-state:has(> .v6-skeleton) {
+  background-image: repeating-linear-gradient(to bottom, transparent 0 calc(25% - 1px), var(--border) calc(25% - 1px) 25%);
+  background-color: var(--surface-1);
+}
+.v6-chart-state:has(> .v6-skeleton) > .v6-skeleton {
+  display: none !important;
+}
+.v6-chart-state:has(> .v6-skeleton)::after {
+  content: '';
+  position: absolute;
+  inset: 12px 4% 0;
+  background: linear-gradient(100deg, var(--skeleton-base) 40%, var(--skeleton-hi) 50%, var(--skeleton-base) 60%) fixed;
+  background-size: 200% 100%;
+  animation: v6-sweep 1.6s ease-in-out infinite;
+  --bar: linear-gradient(#000 0 0);
+  -webkit-mask: var(--bar) 0% 100% / 9% 35% no-repeat, var(--bar) 16.66% 100% / 9% 55% no-repeat,
+    var(--bar) 33.33% 100% / 9% 42% no-repeat, var(--bar) 50% 100% / 9% 70% no-repeat,
+    var(--bar) 66.66% 100% / 9% 48% no-repeat, var(--bar) 83.33% 100% / 9% 82% no-repeat,
+    var(--bar) 100% 100% / 9% 60% no-repeat;
+  mask: var(--bar) 0% 100% / 9% 35% no-repeat, var(--bar) 16.66% 100% / 9% 55% no-repeat,
+    var(--bar) 33.33% 100% / 9% 42% no-repeat, var(--bar) 50% 100% / 9% 70% no-repeat,
+    var(--bar) 66.66% 100% / 9% 48% no-repeat, var(--bar) 83.33% 100% / 9% 82% no-repeat,
+    var(--bar) 100% 100% / 9% 60% no-repeat;
+}
+
+/* ============================================================
+   V6 DARK POLISH —— 深色模式（精修第 4 轮）
+   色值都在顶部两个暗色 token 块里；这里只放引用"按主题取值 token"的组件规则，
+   浅色下这些 token 取原值，视觉不变。
+   ============================================================ */
+::selection {
+  background: var(--selection-bg);
+  color: var(--selection-fg);
+}
+/* 遮罩：原来用 --text 混色，暗色下 --text 是浅色，遮罩会把页面"洗白" */
+.v6-dialog::backdrop,
+.v6-nav-sheet::backdrop {
+  background: var(--backdrop);
+}
+/* 浮层比卡片高一层：暗色下用 --elevated，配合阴影顶部亮边 */
+.v6-menu,
+.v6-dialog,
+.v6-toast,
+.v6-nav-sheet,
+.v6-chart-tooltip {
+  background: var(--overlay-bg);
+}
+.v6-btn.primary,
+.v6-btn.danger:not(.ghost) {
+  box-shadow: var(--btn-highlight);
+}
+.v6-btn.primary:disabled,
+.v6-btn.danger:disabled {
+  box-shadow: none;
+}
+.v6-btn.danger:active {
+  background: var(--danger-button-active);
+  border-color: var(--danger-button-active);
+}
+/* 开关滑块固定白色：暗色下 --surface-1 是深色，滑块会"陷"进轨道 */
+.v6-switch span::after {
+  background: #ffffff;
+}
+
+/* ============================================================
+   V6 HOME —— 首页精修（精修第 5a 轮）
+   首页样式在 v6.html 内联的多层规则里；本文件后加载，同优先级即可覆盖。
+   不在这里改移动端已单独定义的字号/高度，相关覆盖都限定在 ≥768px。
+   1. hero：眉标改药丸、标题 600 字重 + 渐变强调、CTA 并入产品主按钮体系（去绿色光晕）；
+   2. 拓扑图：起点去外发光，节点统一 8px 圆角 + xs 托底；
+   3. 背景光斑改由 token 混色，暗色下不再出现白色雾面；
+   4. 功能卡/步骤/区块标题：字重降到 600，插图区与正文区加分隔线。
+   ============================================================ */
+
+/* ---------- hero 文案 ---------- */
+.premium-home .premium-overline {
+  gap: 8px;
+  padding: 4px 12px 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-xs);
+  color: var(--text-2);
+  font-size: var(--fs-12);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.premium-home .premium-overline::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-faint);
+}
+.premium-home .premium-overline::after {
+  display: none;
+}
+.premium-home .premium-title {
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+.premium-home .premium-title span {
+  background: linear-gradient(100deg, var(--accent-text) 15%, var(--accent) 95%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+.premium-home .premium-subtitle {
+  color: var(--text-2);
+  text-wrap: pretty;
+}
+
+/* ---------- hero CTA：与产品内按钮同一体系 ---------- */
+.premium-home .premium-actions .button {
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease),
+    color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.premium-home .premium-actions .button.primary {
+  border-color: var(--accent-button);
+  background: var(--accent-button);
+  color: var(--surface-1);
+  box-shadow: var(--btn-highlight), 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+.premium-home .premium-actions .button.primary:hover {
+  border-color: var(--accent-button-hover);
+  background: var(--accent-button-hover);
+}
+.premium-home .premium-actions .button.primary:active {
+  border-color: var(--accent-button-active);
+  background: var(--accent-button-active);
+}
+.premium-home .premium-actions .button:not(.primary) {
+  border-color: var(--border-strong);
+  background: var(--surface-1);
+  color: var(--text);
+  box-shadow: var(--shadow-xs);
+}
+.premium-home .premium-actions .button:not(.primary):hover {
+  background: var(--surface-hover);
+}
+.premium-home .premium-actions .button:not(.primary):active {
+  background: var(--surface-active);
+}
+
+/* ---------- 背景光斑：token 混色，深浅主题通用（浅色下与原值一致） ---------- */
+.premium-home .premium-hero::before {
+  background-image:
+    radial-gradient(circle at 50% 28%, color-mix(in srgb, var(--canvas) 94%, transparent) 0 19%, transparent 54%),
+    radial-gradient(circle at -3% 42%, color-mix(in srgb, var(--info) 10%, transparent) 0, transparent 47%),
+    radial-gradient(circle at 103% 40%, color-mix(in srgb, var(--warning) 9%, transparent) 0, transparent 49%),
+    radial-gradient(circle at 16% 76%, color-mix(in srgb, var(--accent) 11%, transparent) 0, transparent 30%);
+}
+
+/* ---------- 拓扑图节点 ---------- */
+.premium-home .route-origin {
+  border-color: var(--accent-border);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-1);
+}
+.premium-home .route-origin b {
+  border-radius: var(--radius-sm);
+  background: var(--accent-button);
+  color: var(--surface-1);
+}
+.premium-home .route-provider {
+  border-color: var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-xs);
+}
+.premium-home .provider-g {
+  border-color: var(--accent-border);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface-1));
+  color: var(--accent-text);
+}
+
+/* ---------- 指标条 ---------- */
+.premium-home .sr-metric strong {
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.premium-home .sr-metric span {
+  font-weight: 500;
+}
+.premium-home .sr-feature-tag {
+  background: var(--surface-1);
+  box-shadow: var(--shadow-xs);
+}
+
+/* ---------- 功能卡 ---------- */
+.premium-home .sr-feature-card {
+  border-color: var(--border);
+  box-shadow: var(--shadow-xs);
+  transition: border-color var(--dur) var(--ease);
+}
+.premium-home .sr-feature-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-xs);
+  transform: none;
+}
+.premium-home .sr-feature-visual {
+  background-color: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+.premium-home .sr-feature-body h3 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.premium-home .sr-feature-body p {
+  color: var(--text-2);
+}
+.premium-home .sr-card-link {
+  color: var(--text);
+  font-size: var(--fs-13);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--dur) var(--ease);
+}
+.premium-home .sr-card-link:hover {
+  text-decoration-color: currentColor;
+}
+
+/* ---------- 精选模型 / 步骤 ---------- */
+.premium-home .sr-section-head h2 {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.premium-home .sr-model-card {
+  box-shadow: var(--shadow-xs);
+  transition: border-color var(--dur) var(--ease);
+}
+.premium-home .sr-model-card:hover {
+  box-shadow: var(--shadow-xs);
+}
+.premium-home .sr-step h3 {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.premium-home .sr-step-number {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface-1);
+  color: var(--text-2);
+  font-size: var(--fs-12);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.premium-home .sr-step-visual {
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
+}
+
+@media (min-width: 768px) {
+  .premium-home .premium-title {
+    line-height: 1.08;
+  }
+  .premium-home .premium-subtitle {
+    font-size: var(--fs-16);
+    line-height: 1.6;
+  }
+  .premium-home .premium-actions {
+    margin-top: 24px;
+  }
+  .premium-home .premium-actions .button {
+    min-height: var(--control-lg);
+    padding-inline: 20px;
+  }
+  .premium-home .sr-metrics {
+    padding: 24px 0 32px;
+  }
+  .premium-home .sr-section-head h2 {
+    font-size: var(--fs-24);
+  }
+}
+
+/* ============================================================
+   V6 DETAIL & PRICING —— 模型详情 / 价格页（精修第 5b 轮）
+   1. 详情头部统计改为一条拼接的统计带：共用一圈外框，格间 1px 分隔；
+      数量不足一行时自动铺满，不再在右侧留空轨。
+   2. 提供商名从亮绿字（白底 2.7:1）改为正文色；数值列表头与数字同为右对齐。
+   3. 成本估算器装进一个计算器式的容器，结果靠右。
+   4. 代码块：头部灰底、等宽字体、更宽行距。
+   5. FAQ：首项补上边线，展开内容用正文次色、限制行宽。
+   6. 无品牌图标的提供商：首字母放进小方块，和有图标的提供商对齐。
+   ============================================================ */
+
+/* ---------- 详情头部 ---------- */
+.v6-detail-head {
+  padding-bottom: var(--space-8);
+}
+.v6-detail-head h1 {
+  margin-left: 2px;
+}
+.v6-detail-head .v6-title .v6-row:first-child .v6-logo {
+  width: 28px;
+  height: 28px;
+}
+.v6-slug .v6-icon-btn {
+  width: var(--control-sm);
+  height: var(--control-sm);
+  min-height: var(--control-sm);
+  color: var(--muted);
+}
+.v6-slug .v6-icon-btn:hover {
+  color: var(--text);
+}
+/* 拼接统计带：分隔线画在每格的左/上方向投影里，外沿被容器 overflow 裁掉，
+   这样 4 列、2 列或不满一行时都不会出现双线或悬空的格线 */
+.v6-stats {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-xs);
+}
+.v6-stats > .v6-stat {
+  padding: 14px 18px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: -1px 0 0 var(--border), 0 -1px 0 var(--border);
+}
+.v6-stat small {
+  margin-bottom: 6px;
+}
+.v6-stat .v6-row .v6-icon {
+  color: var(--text-2);
+}
+.v6-stat .v6-muted {
+  margin-top: 2px;
+  font-size: var(--fs-12);
+}
+
+/* ---------- 提供商表 ---------- */
+.v6-provider-name {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--dur) var(--ease);
+}
+.v6-provider-name:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+}
+.v6-table th button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: inherit;
+}
+.v6-table th button .v6-icon {
+  width: 12px;
+  height: 12px;
+  opacity: 0.7;
+}
+.v6-table th.num button {
+  flex-direction: row;
+}
+
+/* ---------- 价格区 + 估算器 ---------- */
+.v6-section .v6-stat-band {
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  border: 0;
+}
+.v6-estimator {
+  gap: 8px;
+  margin-top: 0;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-xs);
+  font-size: var(--fs-13);
+}
+.v6-estimator .v6-input {
+  width: 96px;
+  height: var(--control-sm);
+  padding: 4px 8px;
+  font-variant-numeric: tabular-nums;
+}
+.v6-estimator-result {
+  margin-left: auto;
+}
+
+/* ---------- 代码块 ---------- */
+.v6-code {
+  border-radius: var(--radius-md);
+}
+.v6-code-head {
+  align-items: center;
+  padding: 6px 8px 6px 10px;
+  background: var(--surface-2);
+}
+.v6-code pre {
+  padding: 16px 18px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-13);
+  line-height: 1.7;
+  color: var(--text);
+}
+
+/* ---------- FAQ ---------- */
+.v6-faq {
+  padding: 0;
+}
+.v6-faq:first-of-type {
+  border-top: 1px solid var(--border);
+}
+.v6-faq summary {
+  min-height: 52px;
+  padding: 14px 4px;
+}
+.v6-faq summary:hover {
+  color: var(--text);
+}
+.v6-faq summary:hover .v6-icon {
+  color: var(--text-2);
+}
+.v6-faq > p {
+  max-width: 72ch;
+  margin: -4px 4px 18px;
+  font-size: var(--fs-14);
+  line-height: var(--lh-read);
+  color: var(--text-2);
+}
+
+/* ---------- 价格表 ---------- */
+.v6-pricing .v6-table td:first-child a {
+  font-weight: 500;
+}
+.v6-pricing .v6-table td:first-child .v6-row {
+  gap: 10px;
+}
+.v6-pricing .v6-table td:first-child .v6-muted {
+  margin-top: 1px;
+  font-size: var(--fs-12);
+  font-weight: 400;
+}
+.v6-pricing .v6-table td.num {
+  color: var(--text);
+  font-weight: 500;
+}
+.v6-pricing .v6-table td:last-child .v6-link {
+  font-size: var(--fs-13);
+}
+
+/* ---------- 无品牌图标的首字母徽标 ---------- */
+.v6-logo:not(:has(svg)) {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: var(--fs-12);
+  font-weight: 600;
+  line-height: 1;
+}
+.premium-home .sr-model-logo .v6-logo:not(:has(svg)) {
+  border: 0;
+  background: none;
+  font-size: inherit;
+}
+
+@media (max-width: 680px) {
+  .v6-detail-head {
+    padding-bottom: var(--space-6);
+  }
+  .v6-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .v6-stats > .v6-stat {
+    padding: 12px 14px;
+  }
+  .v6-stats > .v6-stat:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+  .v6-estimator {
+    gap: 6px;
+    padding: 12px 14px;
+  }
+  .v6-estimator .v6-input {
+    width: 72px;
+    padding: 4px 8px;
+  }
+  .v6-estimator-result {
+    justify-content: space-between;
+    align-items: baseline;
+    flex-basis: 100%;
+    margin: 6px 0 0;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+}
+
+/* ============================================================
+   V6 MODEL LIST —— 模型列表页（精修第 6 轮）
+   1. 列表视图：24 张独立卡片改为一个容器内的分隔行，悬停只换底色；
+      视觉噪音从"24 个框"降为"1 个框 + 23 条线"。
+   2. 元信息：价格用次级正文色 + 等宽数字，作为行内最需扫读的信息。
+   3. 侧栏：分隔线贯穿整屏高度；重置筛选与分组标题左对齐，移动端抽屉里
+      与底部操作栏重复的那个隐藏。
+   4. 工具栏：分段控件补齐到 36px，与输入框、下拉同高。
+   5. 小屏 Tab 右缘渐隐，提示可横向滑动。
+   ============================================================ */
+
+/* ---------- 列表视图 ---------- */
+.v6-models {
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-xs);
+}
+.v6-models > .v6-model {
+  padding: 16px 20px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transition: background-color var(--dur) var(--ease);
+}
+.v6-models > .v6-model + .v6-model {
+  border-top: 1px solid var(--border);
+}
+.v6-models > .v6-model:hover,
+.v6-models > .v6-model:focus-within {
+  border-color: var(--border);
+  background: var(--row-hover);
+  box-shadow: none;
+}
+.v6-model-heading {
+  gap: 8px;
+}
+.v6-model-heading .v6-logo {
+  width: 20px;
+  height: 20px;
+}
+.v6-model-title {
+  font-size: var(--fs-15);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+.v6-model-title:hover {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+}
+.v6-models .v6-model-description {
+  margin: 6px 0 8px;
+  font-size: var(--fs-13);
+  -webkit-line-clamp: 1;
+}
+.v6-model .v6-meta {
+  font-variant-numeric: tabular-nums;
+}
+.v6-model .v6-meta > span:nth-of-type(2) {
+  color: var(--text-2);
+}
+.v6-model .v6-meta > a {
+  text-decoration-color: transparent;
+  transition: text-decoration-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.v6-model .v6-meta > a:hover {
+  color: var(--text-2);
+  text-decoration-color: var(--border-strong);
+}
+/* ---------- 表格视图 ---------- */
+#model-results .v6-table td:first-child a {
+  color: var(--text);
+  font-weight: 500;
+}
+#model-results .v6-table td:first-child a:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+}
+#model-results .v6-table td:first-child .v6-row {
+  gap: 10px;
+}
+#model-results .v6-table td:first-child .v6-logo {
+  width: 20px;
+  height: 20px;
+}
+
+/* ---------- 工具栏 ---------- */
+.v6-toolbar .v6-segment {
+  height: var(--control-h, 36px);
+  align-items: stretch;
+}
+.v6-toolbar .v6-segment button {
+  padding-block: 0;
+}
+
+/* ---------- 侧栏筛选 ---------- */
+@media (min-width: 681px) {
+  .v6-filters {
+    height: calc(100vh - var(--header-h));
+  }
+}
+.v6-filter summary {
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+  color: var(--text);
+}
+.v6-filter summary > .v6-icon:first-child {
+  color: var(--text-2);
+}
+.v6-filter summary > .v6-icon:last-child {
+  color: var(--muted);
+}
+.v6-check small {
+  font-size: var(--fs-12);
+}
+.v6-filters > [data-action='filters-reset'] {
+  justify-content: flex-start;
+  width: 100%;
+  margin-top: var(--space-3);
+  padding-inline: 3px;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  padding-top: var(--space-3);
+  height: auto;
+  color: var(--muted);
+  background: none;
+}
+.v6-filters > [data-action='filters-reset']:hover {
+  color: var(--text);
+  background: none;
+}
+
+@media (max-width: 680px) {
+  .v6-filters > [data-action='filters-reset'] {
+    display: none;
+  }
+  .v6-mobile-filter-head {
+    margin-bottom: var(--space-2);
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--border);
+  }
+  .v6-model-main .v6-tabs {
+    padding-right: 24px;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+  }
+  .v6-models > .v6-model {
+    padding: 14px 16px;
+  }
+  .v6-models .v6-model-description {
+    -webkit-line-clamp: 2;
+  }
+}
+
+/* ============================================================
+   V6 CONSOLE —— 控制台工作台（精修第 7 轮）
+   1. 概览 / 活动的指标卡并成一条统计带，与模型详情页同一套语言。
+   2. 空态图标从绿色圆底改为中性小方块：空态不是"成功"，不该用品牌色；
+      错误态保留红色底以示区别。
+   3. 余额大数字收紧字距、等宽数字；卡片底部操作栏与正文之间留出呼吸。
+   4. 用量柱状图（JS）：柱宽上限 40px 居中、顶部 2px 圆角；刻度保留 3 位
+      有效数字，避免 $0.075 被四舍五入成 $0.08。
+   ============================================================ */
+
+/* ---------- 指标带 ---------- */
+.v6-metric-row {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-xs);
+}
+.v6-metric-row > .v6-metric {
+  padding: 14px 18px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: -1px 0 0 var(--border), 0 -1px 0 var(--border);
+}
+.v6-metric strong {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 空态 ---------- */
+.v6-empty-icon {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  box-shadow: var(--shadow-xs);
+}
+.v6-empty-icon .v6-icon {
+  width: 20px;
+  height: 20px;
+}
+.v6-error-box .v6-empty-icon {
+  border-color: color-mix(in srgb, var(--danger) 24%, transparent);
+  background: var(--danger-faint);
+  color: var(--danger);
+}
+.v6-empty h3 {
+  font-size: var(--fs-15);
+}
+.v6-empty > p {
+  color: var(--muted);
+  font-size: var(--fs-13);
+}
+
+/* ---------- 余额 ---------- */
+.v6-balance {
+  font-size: var(--fs-36);
+  letter-spacing: -0.025em;
+  margin: 6px 0 8px;
+}
+
+@media (max-width: 680px) {
+  .v6-metric-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .v6-metric-row > .v6-metric {
+    padding: 12px 14px;
+  }
+  .v6-metric-row > .v6-metric:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+  .v6-balance {
+    font-size: var(--fs-28);
+  }
+}
+
+/* ============================================================
+   V6 RANKINGS & STATES —— 排行榜 / 状态（精修第 8 轮）
+   1. 排行表：数值列表头与数字同为右对齐（JS 补 num 类）；名次列窄、
+      次级色、去掉 "1." 的句点；数值列定宽，长短数字纵向对齐。
+   2. Tab 与正文之间原本 24 + 30 = 54px 的空档收为 32px。
+   ============================================================ */
+.v6-tabs + .v6-section-layout {
+  padding-top: var(--space-2);
+}
+.v6-table .v6-rank-col {
+  width: 56px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.v6-section-layout .v6-table td:nth-child(2) {
+  color: var(--text);
+  font-weight: 500;
+}
+.v6-section-layout .v6-table:has(.v6-rank-col) th.num,
+.v6-section-layout .v6-table:has(.v6-rank-col) td.num {
+  width: 160px;
+}
+
+@media (max-width: 680px) {
+  .v6-table .v6-rank-col {
+    width: 36px;
+  }
+  /* 面板内的表格在小屏贴到面板左右边缘，首尾单元格补回面板内边距 */
+  .v6-panel-body > .v6-table-wrap {
+    width: auto;
+    max-width: none;
+    margin-inline: -20px;
+  }
+  .v6-panel-body > .v6-table-wrap .v6-table th,
+  .v6-panel-body > .v6-table-wrap .v6-table td {
+    padding-inline: 10px;
+  }
+  .v6-panel-body > .v6-table-wrap .v6-table :is(th, td):first-child {
+    padding-left: 20px;
+  }
+  .v6-panel-body > .v6-table-wrap .v6-table :is(th, td):last-child {
+    padding-right: 20px;
+  }  .v6-section-layout .v6-table:has(.v6-rank-col) th.num,
+  .v6-section-layout .v6-table:has(.v6-rank-col) td.num {
+    width: auto;
+  }
+}
+
+/* ============================================================
+   V6 MOBILE PASS —— 390px 整体走查（精修第 9 轮）
+   1. 控制台单列时，网格的最小高度把空余空间平分给"导航行"和"内容行"，
+      内容少的页面（日志、密钥）标题被往下推 60–90px；改为导航行按内容高度、
+      剩余全部给内容行，各页标题回到同一高度。
+   2. 文档目录横向滚动条里，分组名"指南""资源"被压成一字一行；禁止收缩并
+      用竖线与前一组分开。
+   ============================================================ */
+@media (max-width: 680px) {
+  .v6-console {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .v6-docs-dir .v6-docs-dir-label {
+    flex-shrink: 0;
+    align-self: center;
+    margin-block: 0;
+    padding-block: 0;
+    white-space: nowrap;
+  }
+  .v6-docs-dir .v6-docs-dir-label:not(:first-child) {
+    margin-left: var(--space-2);
+    padding-left: var(--space-3);
+    border-left: 1px solid var(--border);
+  }
 }
