@@ -3,3 +3,4 @@ audit/
 dist/
 .DS_Store
 openrouter-theme/
+outputs/

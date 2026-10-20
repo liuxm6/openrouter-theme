@@ -676,6 +676,7 @@
   let dialogOpener = null
   let chartObserver = null
   let sectionObserver = null
+  let sectionActiveUpdater = null
   let logsTimer = null
   let statusTimer = null
   let sectionLockUntil = 0
@@ -726,6 +727,33 @@
       )
     return '$' + n.toLocaleString('en-US', { maximumSignificantDigits: 4 })
   }
+  // T4.1：token/计数量统一缩写——1.2K、3.4M、1.05B（最多 3 位有效数字，去掉尾零）
+  function fmtTokens(n) {
+    const v = Number(n)
+    if (!Number.isFinite(v)) return '—'
+    const trim = (x) => String(+x.toFixed(2))
+    if (Math.abs(v) >= 1e9) return trim(v / 1e9) + 'B'
+    if (Math.abs(v) >= 1e6) return trim(v / 1e6) + 'M'
+    if (Math.abs(v) >= 1e3) return trim(v / 1e3) + 'K'
+    return String(Math.round(v))
+  }
+  // T4.1 / HM-02：上下文长度——1M、1.05M、200K、128K（1049K 这类写法不再出现）
+  function fmtContext(tokens) {
+    const n = Number(tokens)
+    if (!Number.isFinite(n) || n <= 0) return '—'
+    if (n >= 1e6) return (+ (n / 1e6).toFixed(2)) + 'M'
+    if (n >= 1e3) return Math.round(n / 1e3) + 'K'
+    return String(n)
+  }
+  function contextLabel(model) {
+    return model.contextTokens ? fmtContext(model.contextTokens) : model.context
+  }
+  // T4.1：百分比统一 1 位小数（成功率统计仍走 fmtRate 的两位精度）
+  function pct(v) {
+    const n = Number(v)
+    if (!Number.isFinite(n)) return '—'
+    return n.toFixed(1) + '%'
+  }
   // ── 性能监控格式化：对齐 new-api performance-metrics/format.ts ──
   function fmtMs(ms) {
     const n = Number(ms)
@@ -751,6 +779,17 @@
     if (n >= 90) return 'good'
     if (n >= 70) return 'warning'
     return 'critical'
+  }
+  // T4.4：可用性条图例（正常 / 降级 / 故障 / 无数据）
+  function uptimeLegend() {
+    return `<div class="v6-uptime-legend" aria-hidden="true">${[
+      ['ok', '正常'],
+      ['warning', '降级'],
+      ['critical', '故障'],
+      ['unknown', '无数据'],
+    ]
+      .map(([cls, name]) => `<span><i class="${cls}"></i>${name}</span>`)
+      .join('')}</div>`
   }
   // 成功率点阵：recent_success_series 末尾 ≤24 点，按分档上色（仿 new-api ModelPerfBadge）
   function perfDots(seriesPoints) {
@@ -821,9 +860,9 @@
     // G-37：空态统一为 图标圆底 + 标题 + 说明 + 操作
     return `<div class="v6-empty"><span class="v6-empty-icon">${icon(symbol)}</span><h3>${title}</h3><p>${detail}</p>${action}</div>`
   }
-  function errorBox(title, detail = '', retry = '') {
-    // G-36：错误态统一为 图标 + 友好标题 + 技术详情 + 可选重试
-    return `<div class="v6-error-box v6-error"><span class="v6-empty-icon">${icon('info')}</span><h3>${esc(title)}</h3>${detail ? `<div class="detail">${esc(detail)}</div>` : ''}${retry}</div>`
+  function errorBox(title, detail = '', retry = '', tech = '') {
+    // G-36/T4.3：错误态统一为 图标 + 友好标题 + 可折叠技术详情 + 可选重试
+    return `<div class="v6-error-box v6-error"><span class="v6-empty-icon">${icon('info')}</span><h3>${esc(title)}</h3>${detail ? `<div class="detail">${esc(detail)}</div>` : ''}${tech ? `<details class="v6-error-tech"><summary>技术详情</summary><pre>${esc(tech)}</pre></details>` : ''}${retry}</div>`
   }
   function skeletonRows(n = 5) {
     // G-35：表格/列表加载骨架，占位高度避免数据回来后跳动
@@ -923,10 +962,12 @@
     return `<nav class="v6-section-nav" aria-label="页面分区">${items.map(([id, label, symbol], index) => `<a href="#/${route}?${params.toString()}" data-section="${esc(id)}" class="${index === 0 ? 'active' : ''}">${icon(symbol)}${label}</a>`).join('')}</nav>`
   }
   function section(id, title, description, content, titleExtra = '') {
-    return `<section id="${id}" class="v6-section"><h2>${title}${titleExtra}</h2>${description ? `<p>${description}</p>` : ''}${content}</section>`
+    // T6.5：标题悬停锚点——# 按钮就地滚动，不触碰 hash 路由
+    return `<section id="${id}" class="v6-section"><h2>${title}${titleExtra}<button type="button" class="v6-anchor" data-action="anchor-scroll" data-anchor="${esc(id)}" aria-label="滚动到本节" tabindex="-1">${icon('hash')}</button></h2>${description ? `<p>${description}</p>` : ''}${content}</section>`
   }
-  function chart(id, kind = 'usage') {
-    return `<div class="v6-chart"><canvas data-chart="${kind}" id="${id}" role="img" aria-label="${kind === 'usage' ? '模型用量趋势' : kind === 'price' ? '模型价格历史' : kind === 'perf-live' ? '实测吞吐趋势' : '性能变化趋势'}${kind === 'performance' ? '，演示数据' : ''}"></canvas><div class="v6-chart-tooltip" hidden></div></div>`
+  function chart(id, kind = 'usage', size = '') {
+    // T4.2：概览 180（.v6-chart-sm）、活动/排行 240（默认）、详情 220（--detail）
+    return `<div class="v6-chart${size ? ` v6-chart--${size}` : ''}"><canvas data-chart="${kind}" id="${id}" role="img" aria-label="${kind === 'usage' ? '模型用量趋势' : kind === 'price' ? '模型价格历史' : kind === 'perf-live' ? '实测吞吐趋势' : '性能变化趋势'}${kind === 'performance' ? '，演示数据' : ''}"></canvas><div class="v6-chart-cross" hidden></div><div class="v6-chart-tooltip" hidden></div></div>`
   }
   function pin(model) {
     return iconButton(
@@ -941,25 +982,33 @@
       ? `${money(model.imagePrice)} / 张图像`
       : model.audioPrice
         ? `${money(model.audioPrice)} / 分钟`
-        : `${money(model.inputRate)}/M 输入 tokens`
+        : `${money(model.inputRate)} / 百万 tokens`
   }
   function hasContext(model) {
     return Boolean(model.context) && model.context !== '—'
   }
   function modelCard(model) {
-    // MD-01~03：标题只放模型名；meta 一行承载 作者/上下文/价格/日期/模态；
-    // 图标型徽标（小尺寸下像字母 T）移除，模态改成文字小标
-    const price =
-      model.imagePrice || model.audioPrice
-        ? modelPrice(model)
-        : `输入 ${money(model.inputRate)}/M · 输出 ${money(model.outputRate)}/M`
-    return `<article class="v6-model" data-model-id="${esc(model.id)}"><div class="v6-model-heading">${logo(model.provider)}${link('models/' + encodeURIComponent(model.id), esc(model.name), 'v6-model-title')}${iconButton('copy', '复制模型 ID', 'copy', `data-copy="${esc(model.slug)}"`)}${pin(model)}</div>${model.description ? `<a class="v6-model-description" href="#/models/${encodeURIComponent(model.id)}">${esc(model.description)}</a>` : ''}<div class="v6-meta">${link('models?author=' + encodeURIComponent(model.provider), esc(model.provider), '')}${hasContext(model) ? `<span>上下文 ${esc(model.context)}</span>` : ''}<span>${price}</span>${model.date ? `<span>${model.date}</span>` : ''}<span class="v6-meta-modality">${icon(modalityIcons[model.outputs[0]] || 'layers')}${modalityNames[model.outputs[0]]}</span></div><div class="v6-perf" data-perf-for="${esc(model.id)}" hidden>${perfBadgeHTML(model.id)}</div></article>`
+    // T6.2：三段式行布局——左 28px logo + 名称/slug，中右对齐三列数值，右复制/收藏
+    const detail = '#/models/' + encodeURIComponent(model.id)
+    const priced = !(model.imagePrice || model.audioPrice)
+    const numCells = `<span class="v6-mnum"><b>${hasContext(model) ? esc(contextLabel(model)) : '—'}</b><small>上下文</small></span>${
+      priced
+        ? `<span class="v6-mnum"><b>${money(model.inputRate)}</b><small>输入 $/百万</small></span><span class="v6-mnum"><b>${money(model.outputRate)}</b><small>输出 $/百万</small></span>`
+        : `<span class="v6-mnum"><b>${money(model.imagePrice || model.audioPrice)}</b><small>${model.imagePrice ? '每张图像' : '每分钟音频'}</small></span><span class="v6-mnum"><b>—</b><small>输出 $/百万</small></span>`
+    }`
+    return `<article class="v6-model" data-model-id="${esc(model.id)}" data-perf-for="${esc(model.id)}">${logo(model.provider)}<div class="v6-model-id"><a class="v6-model-title" href="${detail}">${esc(model.name)}</a><small class="v6-model-sub">${esc(model.provider)} · ${esc(model.slug || model.id)}</small>${model.description ? `<a class="v6-model-description" href="${detail}">${esc(model.description)}</a>` : ''}</div><div class="v6-model-nums">${numCells}</div><div class="v6-model-ops"><div class="v6-perf" hidden>${perfBadgeHTML(model.id)}</div>${iconButton('copy', '复制模型 ID', 'copy', `data-copy="${esc(model.slug)}"`)}${pin(model)}</div></article>`
+  }
+  // T6.8：前三名名次徽标，4+ 普通 tnum 数字
+  function rankBadge(index) {
+    return index < 3
+      ? `<span class="v6-medal v6-medal-${index + 1}" aria-label="第 ${index + 1} 名">${index + 1}</span>`
+      : `<span class="v6-num">${index + 1}</span>`
   }
   function rankedRows(list, metric = 'usage') {
     return list
       .map(
         (model, index) =>
-          `<a class="v6-ranked-row" href="#/models/${esc(model.id)}"><span class="v6-muted">${index + 1}.</span><div class="v6-row">${logo(model.provider)}<div><strong>${esc(model.name)}</strong><small>${esc(model.provider)}</small></div></div><div>${metric === 'speed' ? model.throughput : model.usage + 'B tokens'}<small>${metric === 'speed' ? '吞吐量' : 'Tokens'}</small></div></a>`,
+          `<a class="v6-ranked-row" href="#/models/${esc(model.id)}"><span class="v6-ranked-pos">${rankBadge(index)}</span><div class="v6-row">${logo(model.provider)}<div><strong>${esc(model.name)}</strong><small>${esc(model.provider)}</small></div></div><div>${metric === 'speed' ? model.throughput : model.usage + 'B tokens'}<small>${metric === 'speed' ? '吞吐量' : 'Tokens'}</small></div></a>`,
       )
       .join('')
   }
@@ -993,16 +1042,15 @@
     const label = themeToggleLabel()
     return `<button type="button" class="v6-btn ghost v6-icon-btn v6-theme-toggle" data-action="theme-toggle" aria-label="${label}" data-tip="${label}">${icon('sun')}${icon('moon')}</button>`
   }
+  // D8/T5.3：公共页轻页脚——品牌 + 版权 + 3 个核心链接（首页保留 sr-footer 大脚）
   function footer() {
-    return `<footer class="v6-footer"><div><a href="#/home" class="brand"><span class="brand-mark" aria-hidden="true">${BRAND_MARK}</span><span class="brand-word">aitokens<em>flux</em></span></a><p class="v6-small v6-muted">一个 API，连接多种模型。</p></div><div><h3>产品</h3>${link('models', '模型目录', '')}${link('discover', '发现模型', '')}${feat_nav('rankings')}${link('providers', '提供商', '')}${link('pricing', '价格', '')}${link('status', '服务状态', '')}</div><div><h3>开发者</h3>${link('docs', '文档', '')}${link('console/keys', 'API Keys', '')}</div><div><h3>账户</h3>${link('console', '用量概览', '')}${link('console/credits', '余额与账单', '')}${link('console/settings', '设置', '')}</div></footer>`
+    const year = new Date().getFullYear()
+    return `<footer class="v6-footer v6-footer-light"><a href="#/home" class="brand"><span class="brand-mark" aria-hidden="true">${BRAND_MARK}</span><span class="brand-word">aitokens<em>flux</em></span></a><span class="v6-footer-copy">© ${year} aitokensflux</span><nav class="v6-footer-links" aria-label="页脚导航">${link('models', '模型目录', '')}${link('pricing', '价格', '')}${link('docs', '文档', '')}</nav></footer>`
   }
 
   function homeModelCard(model) {
-    const price =
-      model.imagePrice || model.audioPrice
-        ? modelPrice(model)
-        : `${money(model.inputRate)} / ${money(model.outputRate)}`
-    return `<article class="sr-model-card" data-route="#/models/${encodeURIComponent(model.id)}" tabindex="0" role="link"><div class="sr-model-head"><span class="sr-model-logo">${logo(model.provider)}</span><p><strong>${esc(model.name)}</strong><small>${esc(model.provider)}</small></p></div><div class="sr-model-data"><span><small>输入 / 输出价格</small><b>${price}</b></span>${hasContext(model) ? `<span><small>上下文</small><b>${esc(model.context)}</b></span>` : ''}</div></article>`
+    const priced = !(model.imagePrice || model.audioPrice)
+    return `<article class="sr-model-card" data-route="#/models/${encodeURIComponent(model.id)}" tabindex="0" role="link"><div class="sr-model-head"><span class="sr-model-logo">${logo(model.provider)}</span><p><strong>${esc(model.name)}</strong><small>${esc(model.slug || model.id)}</small></p></div><div class="sr-model-data">${priced ? `<span><small>输入 / 百万</small><b>${money(model.inputRate)}</b></span><span><small>输出 / 百万</small><b>${money(model.outputRate)}</b></span>` : `<span><small>计价</small><b>${modelPrice(model)}</b></span>`}${hasContext(model) ? `<span><small>上下文</small><b>${esc(contextLabel(model))}</b></span>` : ''}</div></article>`
   }
   function renderHome() {
     app.append(document.getElementById('page-home').content.cloneNode(true))
@@ -1022,12 +1070,22 @@
         (best, model) => ((model.contextTokens || 0) > (best?.contextTokens || 0) ? model : best),
         null,
       )
-      setMetric('sr-metric-context', longest && hasContext(longest) ? longest.context : '')
+      setMetric('sr-metric-context', longest && hasContext(longest) ? contextLabel(longest) : '')
       const rates = models.map((model) => model.inputRate).filter((rate) => rate > 0)
       setMetric('sr-metric-price', rates.length ? money(Math.min(...rates)) : '')
     }
     const metricGroup = home.querySelector('.sr-metric-group')
     if (metricGroup) metricGroup.dataset.count = metricGroup.querySelectorAll('.sr-metric:not([hidden])').length
+    // 信任条：列出现目录实际接入的提供商（去重取前 6），目录未就绪时整条隐藏
+    const trustBar = home.querySelector('#sr-trust-bar')
+    const trustList = home.querySelector('#sr-trust-list')
+    if (trustBar && trustList) {
+      const names = [...new Set(models.map((model) => model.provider).filter(Boolean))].slice(0, 6)
+      if (ready && names.length) {
+        trustList.textContent = names.join(' · ')
+        trustBar.hidden = false
+      }
+    }
     // 精选模型：优先 config.featuredModels 指定的真实模型，否则取目录前三个；空目录整块隐藏
     const featuredSection = home.querySelector('.sr-models')
     const featuredGrid = home.querySelector('#sr-model-grid')
@@ -1356,8 +1414,8 @@
         )
       : catalogFilter.view === 'list'
         ? `<div class="v6-models">${list.map(modelCard).join('')}</div>`
-        : `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>模型</th><th class="num">输入 $/M</th><th class="num">输出 $/M</th><th>上下文</th><th>输出模态</th><th class="num">延迟</th><th class="num">成功率</th><th class="v6-pin-cell">收藏</th></tr></thead><tbody>${list.map((model) => `<tr><td>${link('models/' + model.id, `<span class="v6-row">${logo(model.provider)}${esc(model.name)}</span>`, '')}</td><td class="num">${model.imagePrice || model.audioPrice ? modelPrice(model) : money(model.inputRate)}</td><td class="num">${model.imagePrice || model.audioPrice ? '不适用' : money(model.outputRate)}</td><td>${model.context}</td><td>${modalityNames[model.outputs[0]]}</td><td class="num" data-perf-latency-for="${esc(model.id)}">—</td><td class="num" data-perf-rate-for="${esc(model.id)}">—</td><td class="v6-pin-cell">${pin(model)}</td></tr>`).join('')}</tbody></table></div>`
-    document.getElementById('context-label').textContent = minContext / 1000 + 'K'
+        : `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>模型</th><th class="num">输入 $/百万</th><th class="num">输出 $/百万</th><th class="num">上下文</th><th>输出模态</th><th class="num">延迟</th><th class="num">成功率</th><th class="v6-pin-cell">收藏</th></tr></thead><tbody>${list.map((model) => `<tr><td>${link('models/' + model.id, `<span class="v6-row">${logo(model.provider)}${esc(model.name)}</span>`, '')}</td><td class="num">${model.imagePrice || model.audioPrice ? modelPrice(model) : money(model.inputRate)}</td><td class="num">${model.imagePrice || model.audioPrice ? '不适用' : money(model.outputRate)}</td><td class="num">${esc(contextLabel(model))}</td><td>${modalityNames[model.outputs[0]]}</td><td class="num" data-perf-latency-for="${esc(model.id)}">—</td><td class="num" data-perf-rate-for="${esc(model.id)}">—</td><td class="v6-pin-cell">${pin(model)}</td></tr>`).join('')}</tbody></table></div>`
+    document.getElementById('context-label').textContent = fmtContext(minContext)
     document.getElementById('price-label').textContent = maxPrice === 20 ? '不限' : money(maxPrice)
     document.getElementById('output-price-label').textContent =
       maxOutput === 30 ? '不限' : money(maxOutput)
@@ -1415,9 +1473,11 @@
   }
   function updatePerfBadges() {
     app.querySelectorAll('[data-perf-for]').forEach((node) => {
+      const slot = node.matches('.v6-perf') ? node : node.querySelector('.v6-perf')
+      if (!slot) return
       const html = perfBadgeHTML(node.dataset.perfFor)
-      node.innerHTML = html
-      node.hidden = !html
+      slot.innerHTML = html
+      slot.hidden = !html
     })
     app.querySelectorAll('[data-perf-latency-for]').forEach((node) => {
       const entry = perfEntry(node.dataset.perfLatencyFor)
@@ -1495,8 +1555,38 @@
   }
   // 文档页兜底示例模型：真实目录为空时代替 models[0] 生成调用示例
   const docsSampleModel = { id: '__docs-sample__', slug: 'provider/model-name', outputs: ['text'] }
+  // T6.3/DT-04：≤2KB 本地语法高亮——注释/字符串/键名/关键字/数字五类，包 <i class="tk-*">
+  function highlightCode(code, lang) {
+    const KEYWORDS = {
+      python: 'import|from|def|return|if|else|elif|for|in|with|as|class|print|await|async|open|None|True|False',
+      javascript: 'import|from|const|let|var|await|async|function|return|new|if|else|for|of|console|process',
+      curl: 'curl|POST|GET|PUT|DELETE|PATCH',
+    }
+    const parts = [
+      ['com', lang === 'curl' ? '(?!)' : lang === 'python' ? '#[^\\n]*' : '//[^\\n]*|/\\*[\\s\\S]*?\\*/'],
+      ['str', '"(?:[^"\\\\]|\\\\.)*"|\'(?:[^\'\\\\]|\\\\.)*\'|`(?:[^`\\\\]|\\\\.)*`'],
+      // curl 的 flag 与 URL 要先于键名匹配，否则 https: 会被键名截走
+      ...(lang === 'curl' ? [['kw', 'https?://[^\\s"\']+|--?[\\w-]+']] : []),
+      ['key', '[\\w$][\\w$-]*(?==|:)'],
+      ['kw', `\\b(?:${KEYWORDS[lang] || '(?!a)a'})\\b`],
+      ['num', '\\b\\d[\\d.]*\\b'],
+    ]
+    const re = new RegExp(parts.map(([, p]) => `(${p})`).join('|'), 'g')
+    const names = parts.map(([name]) => name)
+    let out = ''
+    let last = 0
+    let m
+    while ((m = re.exec(code))) {
+      out += esc(code.slice(last, m.index))
+      const i = m.findIndex((g, j) => j > 0 && g !== undefined) - 1
+      out += `<i class="tk-${names[i]}">${esc(m[0])}</i>`
+      last = m.index + m[0].length
+      if (!m[0]) re.lastIndex++
+    }
+    return out + esc(code.slice(last))
+  }
   function codeBlock(model) {
-    return `<div class="v6-code" data-code-model="${esc(model.id)}"><div class="v6-code-head"><div class="v6-segment" aria-label="代码语言">${['python', 'javascript', 'curl'].map((language, index) => `<button type="button" data-action="code-language" data-value="${language}" aria-pressed="${index === 0}" class="${index === 0 ? 'active' : ''}">${language === 'curl' ? 'cURL' : language === 'python' ? 'Python' : 'JavaScript'}</button>`).join('')}</div>${iconButton('copy-code', '复制代码', 'copy')}</div><pre><code>${esc(codeExample(model))}</code></pre></div>`
+    return `<div class="v6-code" data-code-model="${esc(model.id)}"><div class="v6-code-head"><div class="v6-segment" aria-label="代码语言">${['python', 'javascript', 'curl'].map((language, index) => `<button type="button" data-action="code-language" data-value="${language}" aria-pressed="${index === 0}" class="${index === 0 ? 'active' : ''}">${language === 'curl' ? 'cURL' : language === 'python' ? 'Python' : 'JavaScript'}</button>`).join('')}</div>${iconButton('copy-code', '复制代码', 'copy')}</div><pre><code>${highlightCode(codeExample(model), 'python')}</code></pre></div>`
   }
   function providerTable(model, sort = 'latency', percentile = 50) {
     const live = !!model.live
@@ -1513,8 +1603,8 @@
     )
     // 平台(live)模型没有真实遥测数据，表格只保留 提供商/输入/输出 三列
     const columns = [
-      ['input', '输入 /M'],
-      ['output', '输出 /M'],
+      ['input', '输入 $/百万'],
+      ['output', '输出 $/百万'],
       ...(live
         ? []
         : [
@@ -1526,7 +1616,7 @@
     const metricCells = (row) =>
       live
         ? ''
-        : `<td class="v6-col-metric num" data-label="延迟">${(row.latency / 1000).toFixed(2)} s</td><td class="v6-col-metric num" data-label="吞吐量">${row.throughput} ${model.imagePrice ? 'img/s' : model.audioPrice ? 'sec/s' : 'tok/s'}</td><td class="v6-col-metric" data-label="可用性"><span class="v6-badge success">${row.uptime.toFixed(2)}%</span></td>`
+        : `<td class="v6-col-metric num" data-label="延迟">${(row.latency / 1000).toFixed(2)} s</td><td class="v6-col-metric num" data-label="吞吐量">${row.throughput} ${model.imagePrice ? 'img/s' : model.audioPrice ? 'sec/s' : 'tok/s'}</td><td class="v6-col-metric" data-label="可用性"><span class="v6-badge success">${pct(row.uptime)}</span></td>`
     return `<div class="v6-table-wrap"><table class="v6-table v6-mobile-cards"><thead><tr><th>提供商</th>${columns
       .map(
         ([value, label]) =>
@@ -1534,7 +1624,7 @@
       )
       .join(
         '',
-      )}</tr></thead><tbody>${rows.map((row) => `<tr><td data-label="提供商"><button type="button" class="v6-provider-name" data-action="provider-info" data-name="${esc(row.name)}" data-model="${esc(model.id)}">${logo(row.name)}${esc(row.name)}</button></td><td class="num" data-label="输入 /M">${model.imagePrice || model.audioPrice ? modelPrice(model) : money(row.input)}</td><td class="num" data-label="输出 /M">${model.imagePrice || model.audioPrice ? '不适用' : money(row.output)}</td>${metricCells(row)}</tr>`).join('')}</tbody></table></div>`
+      )}</tr></thead><tbody>${rows.map((row) => `<tr><td data-label="提供商"><button type="button" class="v6-provider-name" data-action="provider-info" data-name="${esc(row.name)}" data-model="${esc(model.id)}">${logo(row.name)}${esc(row.name)}</button></td><td class="num" data-label="输入 $/百万">${model.imagePrice || model.audioPrice ? modelPrice(model) : money(row.input)}</td><td class="num" data-label="输出 $/百万">${model.imagePrice || model.audioPrice ? '不适用' : money(row.output)}</td>${metricCells(row)}</tr>`).join('')}</tbody></table></div>`
   }
   function renderDetail(id) {
     const model = getModel(id)
@@ -1553,7 +1643,7 @@
       ['faq', '常见问题', 'circle-help'],
       ['explore', '相关模型', 'compass'],
     ]
-    app.innerHTML = `<div class="v6-shell"><header class="v6-detail-head"><div class="v6-title"><div><div class="v6-row">${logo(model.provider)}<h1>${esc(model.provider + ': ' + model.name)}</h1></div><div class="v6-row v6-slug"><span>${esc(model.slug)}</span>${iconButton('copy', '复制模型 ID', 'copy', `data-copy="${esc(model.slug)}"`)}${pin(model)}</div></div><div class="v6-row v6-wrap">${link('models/' + encodeURIComponent(model.id) + '?section=api', '调用示例', 'v6-btn', 'code')}${link('console/keys', '获取 API Key', 'v6-btn primary', 'key-round')}</div></div>${model.description ? `<p class="v6-detail-description">${esc(model.description)}</p>` : ''}<div class="v6-stats">${stat('输入 / 输出模态', `<span class="v6-row">${model.inputs.map((value) => `<span title="${modalityNames[value]}">${icon(modalityIcons[value])}</span>`).join('')}${icon('arrow-right')}${icon(modalityIcons[model.outputs[0]])}</span>`)}${stat('输入 / 输出价格', model.imagePrice || model.audioPrice ? modelPrice(model) : money(model.inputRate) + ' / ' + money(model.outputRate), model.imagePrice || model.audioPrice ? '' : '每百万 tokens')}${stat('上下文长度', model.context)}${model.date ? stat('发布日期', model.date) : ''}</div></header><div class="v6-section-layout">${sectionNav(sections)}<div>${section('providers', '提供商', `此模型由 ${model.hosts.length} 个提供商提供服务。${telemetry ? '可按价格、延迟、吞吐和可用性查看路由。' : '价格来自当前计费配置。'}`, `<div class="v6-toolbar">${telemetry ? `<label class="v6-row v6-small v6-ml-auto">延迟分位数<select class="v6-select" id="provider-percentile"><option value="50">P50</option><option value="90">P90</option><option value="99">P99</option></select></label>` : ''}</div><div id="provider-table" data-sort="latency">${providerTable(model)}</div>`, telemetry ? '<span class="v6-badge">演示指标</span>' : '')}${section('pricing', '价格', `模型费率与单次调用成本。${model.live ? '费率来自当前计费配置。' : '价格使用演示目录中的固定数据。'}`, `<div class="v6-stat-band"><div><small>${model.imagePrice ? '每张图像' : model.audioPrice ? '每分钟音频' : '输入 / 百万 tokens'}</small><strong>${kpi(money(model.imagePrice || model.audioPrice || model.inputRate))}</strong></div>${!model.imagePrice && !model.audioPrice ? `<div><small>输出 / 百万 tokens</small><strong>${kpi(money(model.outputRate))}</strong></div>` : ''}</div>${!model.imagePrice && !model.audioPrice ? `<div class="v6-estimator">输入 <input class="v6-input" type="number" min="0" max="10000000" id="estimate-input" value="2000" aria-label="输入 tokens"> tokens · 输出 <input class="v6-input" type="number" min="0" max="1000000" id="estimate-output" value="800" aria-label="输出 tokens" ${model.outputs[0] === 'embeddings' ? 'disabled' : ''}> tokens<span class="v6-estimator-result"><small>预计单次成本</small><strong id="estimate-cost" class="v6-num">${kpi(money((model.inputRate * 2000 + model.outputRate * 800) / 1e6))}</strong></span></div>` : ''}`)}${telemetry ? section('performance', '性能', '吞吐量越高，生成越快；首 token 延迟越低，等待越短。', `<div class="v6-stat-band"><div><small>吞吐量</small><strong>${kpi(model.throughput)}</strong></div><div><small>首 token 延迟</small><strong>${kpi(model.latency)}</strong></div></div><div class="v6-row v6-between"><h3>吞吐量趋势</h3><select class="v6-select" data-chart-period="detail-performance" aria-label="性能统计周期"><option value="7">最近 7 天</option><option value="30">最近 30 天</option></select></div>${chart('detail-performance', 'performance')}`) : ''}${model.live ? section('performance', '性能', '实测指标，按分组聚合。', `<div id="model-perf">${skeletonRows(4)}</div>`) : ''}${telemetry ? section('uptime', '可用性', '最近 30 天的服务状态，所有指标为演示样本。', `<div class="v6-row v6-between"><h3>${kpi(model.uptime)}</h3><span class="v6-badge green">服务正常</span></div><div class="v6-uptime" role="img" aria-label="最近30天每日可用性">${Array.from({ length: 30 }, (_, index) => `<i data-tip="第 ${index + 1} 天：${index === 12 ? '99.5%' : '100%'}" class="${index === 12 ? 'warn' : ''}"></i>`).join('')}</div><div class="v6-row v6-between v6-small v6-muted"><span>30 天前</span><span>今天</span></div>`) : ''}${model.live ? section('uptime', '可用性', '分时段实测成功率。', `<div id="model-uptime">${skeletonRows(2)}</div>`) : ''}${section('api', 'API 调用', '使用 OpenAI 兼容 SDK。以下 Base URL 为示例地址，接入时替换为你的实际服务地址。', codeBlock(model))}${section('faq', '常见问题', '', `<details class="v6-faq"><summary>这个模型支持哪些输入？${icon('chevron-right')}</summary><p>支持${model.inputs.map((value) => modalityNames[value]).join('、')}输入，输出类型为${modalityNames[model.outputs[0]]}。</p></details><details class="v6-faq"><summary>如何选择提供商？${icon('chevron-right')}</summary><p>可在提供商列表中查看性能指标。实际请求的路由取决于服务端配置、可用性和账户策略。</p></details><details class="v6-faq"><summary>免费模型有什么限制？${icon('chevron-right')}</summary><p>免费变体通常有请求频率和每日用量限制，适合试验和评估。具体限制以服务提供商为准。</p></details>`)}${section(
+    app.innerHTML = `<div class="v6-shell"><header class="v6-detail-head"><div class="v6-title"><div><div class="v6-row">${logo(model.provider, 'lg')}<h1>${esc(model.provider + ': ' + model.name)}</h1></div><div class="v6-row v6-slug"><button type="button" class="v6-slug-pill" data-action="copy" data-copy="${esc(model.slug)}" aria-label="复制模型 ID" data-tip="复制模型 ID"><span class="v6-slug-text">${esc(model.slug)}</span><span class="v6-slug-ico" data-copy-icon>${icon('copy')}</span></button>${pin(model)}</div></div><div class="v6-row v6-wrap">${link('models/' + encodeURIComponent(model.id) + '?section=api', '调用示例', 'v6-btn', 'code')}${link('console/keys', '获取 API Key', 'v6-btn primary', 'key-round')}</div></div>${model.description ? `<p class="v6-detail-description">${esc(model.description)}</p>` : ''}<div class="v6-stats">${stat('输入 / 输出模态', `<span class="v6-row">${model.inputs.map((value) => `<span title="${modalityNames[value]}">${icon(modalityIcons[value])}</span>`).join('')}${icon('arrow-right')}${icon(modalityIcons[model.outputs[0]])}</span>`)}${stat('输入 / 输出价格', model.imagePrice || model.audioPrice ? modelPrice(model) : money(model.inputRate) + ' / ' + money(model.outputRate), model.imagePrice || model.audioPrice ? '' : '每百万 tokens')}${stat('上下文长度', contextLabel(model))}${model.date ? stat('发布日期', model.date) : ''}</div></header><div class="v6-section-layout">${sectionNav(sections)}<div>${section('providers', '提供商', `此模型由 ${model.hosts.length} 个提供商提供服务。${telemetry ? '可按价格、延迟、吞吐和可用性查看路由。' : '价格来自当前计费配置。'}`, `<div class="v6-toolbar">${telemetry ? `<label class="v6-row v6-small v6-ml-auto">延迟分位数<select class="v6-select" id="provider-percentile"><option value="50">P50</option><option value="90">P90</option><option value="99">P99</option></select></label>` : ''}</div><div id="provider-table" data-sort="latency">${providerTable(model)}</div>`, telemetry ? '<span class="v6-badge">演示指标</span>' : '')}${section('pricing', '价格', `模型费率与单次调用成本。${model.live ? '费率来自当前计费配置。' : '价格使用演示目录中的固定数据。'}`, `<div class="v6-stat-band"><div><small>${model.imagePrice ? '每张图像' : model.audioPrice ? '每分钟音频' : '输入 / 百万 tokens'}</small><strong>${kpi(money(model.imagePrice || model.audioPrice || model.inputRate))}</strong></div>${!model.imagePrice && !model.audioPrice ? `<div><small>输出 / 百万 tokens</small><strong>${kpi(money(model.outputRate))}</strong></div>` : ''}</div>${!model.imagePrice && !model.audioPrice ? `<div class="v6-estimator">输入 <span class="v6-input-suffix"><input class="v6-input" type="number" min="0" max="10000000" id="estimate-input" value="2000" aria-label="输入 tokens"><em>tokens</em></span> · 输出 <span class="v6-input-suffix"><input class="v6-input" type="number" min="0" max="1000000" id="estimate-output" value="800" aria-label="输出 tokens" ${model.outputs[0] === 'embeddings' ? 'disabled' : ''}><em>tokens</em></span><span class="v6-estimator-result"><small>预计单次成本</small><strong id="estimate-cost" class="v6-num">${kpi(money((model.inputRate * 2000 + model.outputRate * 800) / 1e6))}</strong></span></div>` : ''}`)}${telemetry ? section('performance', '性能', '吞吐量越高，生成越快；首 token 延迟越低，等待越短。', `<div class="v6-stat-band"><div><small>吞吐量</small><strong>${kpi(model.throughput)}</strong></div><div><small>首 token 延迟</small><strong>${kpi(model.latency)}</strong></div></div><div class="v6-row v6-between"><h3>吞吐量趋势</h3><select class="v6-select" data-chart-period="detail-performance" aria-label="性能统计周期"><option value="7">最近 7 天</option><option value="30">最近 30 天</option></select></div>${chart('detail-performance', 'performance', 'detail')}`) : ''}${model.live ? section('performance', '性能', '实测指标，按分组聚合。', `<div id="model-perf">${skeletonRows(4)}</div>`) : ''}${telemetry ? section('uptime', '可用性', '最近 30 天的服务状态，所有指标为演示样本。', `<div class="v6-row v6-between"><h3>${kpi(model.uptime)}</h3><span class="v6-badge green">服务正常</span></div><div class="v6-uptime" role="img" aria-label="最近30天每日可用性">${Array.from({ length: 30 }, (_, index) => { const day = new Date(Date.now() - (29 - index) * 864e5); const tip = `${day.getMonth() + 1}/${day.getDate()}：${index === 12 ? '99.5%' : '100%'}`; return `<i data-tip="${tip}" class="${index === 12 ? 'warning' : ''}"></i>` }).join('')}</div><div class="v6-row v6-between v6-small v6-muted"><span>30 天前</span><span>今天</span></div>${uptimeLegend()}`) : ''}${model.live ? section('uptime', '可用性', '分时段实测成功率。', `<div id="model-uptime">${skeletonRows(2)}</div>`) : ''}${section('api', 'API 调用', '使用 OpenAI 兼容 SDK。以下 Base URL 为示例地址，接入时替换为你的实际服务地址。', codeBlock(model))}${section('faq', '常见问题', '', `<details class="v6-faq"><summary>这个模型支持哪些输入？${icon('chevron-right')}</summary><p>支持${model.inputs.map((value) => modalityNames[value]).join('、')}输入，输出类型为${modalityNames[model.outputs[0]]}。</p></details><details class="v6-faq"><summary>如何选择提供商？${icon('chevron-right')}</summary><p>可在提供商列表中查看性能指标。实际请求的路由取决于服务端配置、可用性和账户策略。</p></details><details class="v6-faq"><summary>免费模型有什么限制？${icon('chevron-right')}</summary><p>免费变体通常有请求频率和每日用量限制，适合试验和评估。具体限制以服务提供商为准。</p></details>`)}${section(
       'explore',
       '相关模型',
       '',
@@ -1563,7 +1653,7 @@
           .slice(0, 3)
           .map(modelCard)
           .join('') ||
-        empty('暂无同类模型', '浏览目录中的其他模型。', link('models', '浏览全部模型', 'v6-btn'))
+        empty('还没有同类模型', '浏览目录中的其他模型。', link('models', '浏览全部模型', 'v6-btn'))
       }</div>`,
     )}</div></div></div>`
     if (model.live) loadModelPerf(model.id)
@@ -1613,14 +1703,14 @@
         [168, '最近 7 天'],
       ]
         .map(([v, n]) => `<option value="${v}" ${win === v ? 'selected' : ''}>${n}</option>`)
-        .join('')}</select></div>${chart('detail-perf-tps', 'perf-live')}`
+        .join('')}</select></div>${chart('detail-perf-tps', 'perf-live', 'detail')}`
       const level = successLevel(summary.success_rate)
       upEl.innerHTML = `<div class="v6-row v6-between"><h3 class="${level}">${kpi(fmtRate(summary.success_rate))}</h3><span class="v6-badge ${level === 'excellent' || level === 'good' ? 'green' : ''}">${level === 'excellent' || level === 'good' ? '服务正常' : level === 'warning' ? '轻微波动' : '可用性异常'}</span></div><div class="v6-uptime" role="img" aria-label="最近 ${win} 小时分时段成功率">${series
         .map(
           (p) =>
-            `<i data-tip="${perfHourLabel(p.ts, win)}：${fmtRate(p.success_rate)}" class="${successLevel(p.success_rate)}"></i>`,
+            `<i data-tip="${perfHourLabel(p.ts, win)}：${pct(p.success_rate)}" class="${successLevel(p.success_rate)}"></i>`,
         )
-        .join('')}</div><div class="v6-row v6-between v6-small v6-muted"><span>${perfHourLabel(data.window_start, win)}</span><span>${perfHourLabel(data.window_end, win)}</span></div>`
+        .join('')}</div><div class="v6-row v6-between v6-small v6-muted"><span>${perfHourLabel(data.window_start, win)}</span><span>${perfHourLabel(data.window_end, win)}</span></div>${uptimeLegend()}`
       liveChartData['detail-perf-tps'] = {
         state: 'ok',
         buckets: series.map((p) => Number(p.avg_tps) || 0),
@@ -1659,19 +1749,17 @@
       .map((model) => {
         const demo = catalogLive ? undefined : demoDefs.find(([, id]) => id === model.id)
         return {
-          id: model.id,
+          model,
           label: demo ? demo[0] : model.provider || '精选',
           symbol: demo ? demo[2] : 'star',
           metric: demo ? demo[3] : modelPrice(model),
         }
       })
+    // T6.6 / DS-03：速览卡固定三级层级 —— 标签 12px → 名称 16/600 → 指标 13px（tnum）
+    const pickCard = (item) =>
+      `<a class="v6-item v6-pick" href="#/models/${esc(item.model.id)}"><span class="v6-pick-label">${icon(item.symbol)}${esc(item.label)}</span><span class="v6-pick-name">${logo(item.model.provider)}<strong>${esc(item.model.name)}</strong></span><span class="v6-pick-metric">${esc(item.metric)}</span></a>`
     const featuredGrid = featured.length
-      ? `<div class="v6-grid-3">${featured
-          .map(
-            (item) =>
-              `<a class="v6-item" href="#/models/${esc(item.id)}"><span class="v6-row v6-muted v6-small">${icon(item.symbol)}${esc(item.label)}</span><div class="v6-row">${logo(getModel(item.id).provider)}<h3>${esc(getModel(item.id).name)}</h3></div><p>${esc(item.metric)}</p></a>`,
-          )
-          .join('')}</div>`
+      ? `<div class="v6-grid-3">${featured.map(pickCard).join('')}</div>`
       : ''
     // DS-01：live 目录下用真实目录数据生成速览（最新上线 / 最长上下文 / 最低价格 + 模态统计）
     const leadSection = catalogLive
@@ -1700,14 +1788,49 @@
           )
             .map(([key, count]) => `<div><small>${modalityNames[key] || key}输出</small><strong>${kpi(count)}</strong></div>`)
             .join('')}<div><small>提供商</small><strong>${kpi(new Set(models.map((model) => model.provider)).size)}</strong></div></div><div class="v6-grid-3 v6-picks">${picks
-            .map(
-              ([symbol, label, model, metric]) =>
-                `<a class="v6-item" href="#/models/${esc(model.id)}"><span class="v6-row v6-muted v6-small">${icon(symbol)}${label}</span><div class="v6-row">${logo(model.provider)}<h3>${esc(model.name)}</h3></div><p>${esc(metric)}</p></a>`,
-            )
+            .map(([symbol, label, model, metric]) => pickCard({ model, symbol, label, metric }))
             .join('')}</div></section>`
         })()
       : `<section class="v6-discover-lead"><div><div class="v6-eyebrow">本周热门</div><h2>开发者正在使用<br>哪些模型？</h2><p class="v6-muted">探索通用对话、编程和推理模型，查看上下文、费率与提供商。</p><span class="v6-badge">演示数据 · 最近 7 天</span></div><div>${rankedRows(leaders.slice(0, 5))}</div></section>`
-    app.innerHTML = `<div class="v6-shell"><div class="v6-title"><div><h1>发现模型</h1><p>从热门用量、任务需求和运行表现找到合适的起点。</p></div>${link('models', `浏览全部 ${models.length} 个模型`, 'v6-btn', '', 'arrow-right')}</div>${leadSection}${featuredGrid}<section class="v6-home-band"><div class="v6-title"><h2>按任务探索</h2></div><div class="v6-grid-3">${[
+    // T6.6：按模态分组网格 —— 每卡显示数量与代表模型（用量前 3），全部取自实时目录
+    const modalityGroups = Object.entries(
+      models.reduce((map, model) => {
+        const key = model.outputs[0] || 'text'
+        ;(map[key] ||= []).push(model)
+        return map
+      }, {}),
+    ).sort((a, b) => b[1].length - a[1].length)
+    const modalitySection = section(
+      'discover-modality',
+      '按模态浏览',
+      '按输出模态查看模型分布与代表模型。',
+      `<div class="v6-grid-3">${modalityGroups
+        .map(([key, list]) => {
+          const reps = [...list].sort((a, b) => b.usage - a.usage).slice(0, 3)
+          return `<a class="v6-item v6-mod" href="#/models?output=${key}"><div class="v6-mod-head"><span class="v6-mod-icon">${icon(modalityIcons[key] || 'layers')}</span><h3>${modalityNames[key] || key}</h3><span class="v6-mod-count">${list.length}</span></div><div class="v6-mod-reps">${reps
+            .map((model) => `<span class="v6-mod-rep">${logo(model.provider)}<span>${esc(model.name)}</span></span>`)
+            .join('')}</div><span class="v6-link">查看全部 ${list.length} 个 →</span></a>`
+        })
+        .join('')}</div>`,
+    )
+    // T6.6：按提供商一组横条 —— 承载模型数占头名比例（取前 8）
+    const providerCounts = currentHosts()
+      .map((name) => [name, models.filter((model) => model.hosts.includes(name)).length])
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+    const providerMax = providerCounts[0]?.[1] || 1
+    const providerSection = section(
+      'discover-providers',
+      '按提供商',
+      '目录中各提供商承载的模型数量。',
+      `<div class="v6-prov-bars">${providerCounts
+        .map(
+          ([name, count]) =>
+            `<a class="v6-prov-row" href="#/models?provider=${encodeURIComponent(name)}"><span class="v6-prov-name">${logo(name)}<span>${esc(name)}</span></span><span class="v6-progress v6-prov-track"><i style="width:${Math.round((count / providerMax) * 100)}%"></i></span><span class="v6-prov-num">${count}</span></a>`,
+        )
+        .join('')}</div>`,
+    )
+    app.innerHTML = `<div class="v6-shell"><div class="v6-title"><div><h1>发现模型</h1><p>从热门用量、任务需求和运行表现找到合适的起点。</p></div>${link('models', `浏览全部 ${models.length} 个模型`, 'v6-btn', '', 'arrow-right')}</div>${leadSection}${featuredGrid}${modalitySection}${providerSection}<section class="v6-home-band"><div class="v6-title"><h2>按任务探索</h2></div><div class="v6-grid-3">${[
       ['code', '编程与 Agent', '代码生成、工具调用和结构化输出'],
       ['reasoning', '深度推理', '复杂问题、数学分析和多步骤任务'],
       ['vision', '多模态理解', '理解图像、文档与长上下文'],
@@ -1726,14 +1849,17 @@
     try {
       const data = await SkinAPI.rankings(period)
       const list = data.models || data.items || data.data || []
+      // T6.8：份额 = 该项 tokens / 总量；总量为 0 时全部按 0 处理
+      const total = list.reduce((sum, item) => sum + Number(item.quota || item.tokens || 0), 0)
       box.innerHTML = list.length
-        ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th class="v6-rank-col">#</th><th>模型</th><th class="num">Tokens</th><th class="num">请求数</th></tr></thead><tbody>${list.slice(0, 50).map((item, i) => `<tr><td class="v6-rank-col">${i + 1}</td><td>${esc(item.model_name || item.name || item.model || '—')}</td><td class="num">${Number(item.quota || item.tokens || 0).toLocaleString()}</td><td class="num">${Number(item.count || item.requests || 0).toLocaleString()}</td></tr>`).join('')}</tbody></table></div>`
-        : empty('暂无排行数据', '当前还没有排行统计。')
+        ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th class="v6-rank-col">#</th><th>模型</th><th class="num">Tokens</th><th class="v6-share-col">份额</th><th class="num">请求数</th></tr></thead><tbody>${list.slice(0, 50).map((item, i) => { const share = total ? (Number(item.quota || item.tokens || 0) / total) * 100 : 0; return `<tr><td class="v6-rank-col">${rankBadge(i)}</td><td>${esc(item.model_name || item.name || item.model || '—')}</td><td class="num">${fmtTokens(item.quota || item.tokens || 0)}</td><td><span class="v6-share"><span class="v6-progress"><i style="width:${share.toFixed(1)}%"></i></span><span class="v6-num">${share.toFixed(1)}%</span></span></td><td class="num">${Number(item.count || item.requests || 0).toLocaleString()}</td></tr>` }).join('')}</tbody></table></div>`
+        : empty('还没有排行数据', '当前还没有排行统计。')
     } catch (error) {
       box.innerHTML = errorBox(
         '排行榜加载失败',
-        error.message,
+        '当前无法获取排行数据，请稍后重试。',
         `<button class="v6-btn" data-action="retry-rankings" data-period="${esc(period)}">${icon('refresh-cw')}重试</button>`,
+        error.message,
       )
     }
   }
@@ -1750,6 +1876,11 @@
       )
     const multiplier = period === 'day' ? 0.16 : period === 'month' ? 4.4 : 1
     const totalUsage = list.reduce((sum, model) => sum + model.usage, 0)
+    // T6.8：行内份额条（tnum 百分比），徽标用 rankBadge()
+    const shareCell = (model) => {
+      const share = totalUsage ? (model.usage / totalUsage) * 100 : 0
+      return `<span class="v6-share"><span class="v6-progress"><i style="width:${share.toFixed(1)}%"></i></span><span class="v6-num">${share.toFixed(1)}%</span></span>`
+    }
     const demoSections = [
       ['top-models', '热门模型', 'chart-no-axes-combined'],
       ['leaderboard', '模型榜单', 'trophy'],
@@ -1769,25 +1900,18 @@
           'top-models',
           '热门模型',
           '不同模型的用量变化。',
-          `<div class="v6-toolbar"><select id="ranking-period" class="v6-select" aria-label="排行榜周期">${[
-            ['day', '最近 24 小时'],
-            ['week', '最近 7 天'],
-            ['month', '最近 30 天'],
-          ]
-            .map(
-              ([value, name]) =>
-                `<option value="${value}" ${period === value ? 'selected' : ''}>${name}</option>`,
-            )
-            .join(
-              '',
-            )}</select><div class="v6-segment" style="margin-left:auto">${button('chart-scale', '线性', '', 'data-value="linear" aria-pressed="true"', 'active')}${button('chart-scale', '对数', '', 'data-value="log" aria-pressed="false"', '')}</div></div>${chart('rankings-usage')}<div class="v6-legend">${list
+          `<div class="v6-toolbar"><div class="v6-segment v6-ml-auto">${button('chart-scale', '线性', '', 'data-value="linear" aria-pressed="true"', 'active')}${button('chart-scale', '对数', '', 'data-value="log" aria-pressed="false"', '')}</div></div>${chart('rankings-usage')}<div class="v6-legend">${list
             .slice(0, 5)
             .map(
               (model, index) =>
                 `<span><i style="--series-color:var(${['--accent', '--info', '--warning', '--muted', '--accent-soft'][index]})"></i>${esc(model.name)}</span>`,
             )
             .join('')}</div>`,
-        )}${section('leaderboard', '模型榜单', '', `<div class="v6-toolbar"><label class="v6-row v6-small">排序<select class="v6-select" id="ranking-metric"><option value="usage" ${metric === 'usage' ? 'selected' : ''}>Token 用量</option><option value="speed" ${metric === 'speed' ? 'selected' : ''}>吞吐量</option></select></label></div><div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>排名</th><th>模型</th><th>${metric === 'speed' ? '吞吐量' : 'Tokens'}</th><th>变化</th></tr></thead><tbody>${list.map((model, index) => `<tr><td>${index + 1}.</td><td>${link('models/' + model.id, `<span class="v6-row">${logo(model.provider)}<span>${esc(model.name)}<div class="v6-muted">${esc(model.provider)}</div></span></span>`, '')}</td><td class="num">${metric === 'speed' ? model.throughput : (model.usage * multiplier).toFixed(2) + 'B'}</td><td><span class="v6-delta">+${(8 + index * 3) * (period === 'month' ? 2 : 1)}%</span></td></tr>`).join('')}</tbody></table></div>`)}${section(
+        )}${section('leaderboard', '模型榜单', '', `<div class="v6-toolbar"><label class="v6-row v6-small v6-ml-auto">排序<select class="v6-select" id="ranking-metric"><option value="usage" ${metric === 'usage' ? 'selected' : ''}>Token 用量</option><option value="speed" ${metric === 'speed' ? 'selected' : ''}>吞吐量</option></select></label></div>${
+          list.length
+            ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>排名</th><th>模型</th><th class="num">${metric === 'speed' ? '吞吐量' : 'Tokens'}</th><th class="v6-share-col">份额</th><th class="num">变化</th></tr></thead><tbody>${list.map((model, index) => `<tr><td class="v6-rank-cell">${rankBadge(index)}</td><td>${link('models/' + model.id, `<span class="v6-row">${logo(model.provider)}<span>${esc(model.name)}<div class="v6-muted">${esc(model.provider)}</div></span></span>`, '')}</td><td class="num">${metric === 'speed' ? model.throughput : fmtTokens(model.usage * multiplier)}</td><td>${shareCell(model)}</td><td class="num"><span class="v6-delta">+${(8 + index * 3) * (period === 'month' ? 2 : 1)}%</span></td></tr>`).join('')}</tbody></table></div>`
+            : empty('没有可排名的模型', '当前模态下目录为空，换个输出类型试试。')
+        }`)}${section(
           'market-share',
           '模型作者份额',
           '当前模态下各作者的 Token 用量占比。',
@@ -1805,12 +1929,12 @@
                   return `<div><div class="v6-row v6-between"><span>${esc(provider)}</span><span class="v6-num">${share.toFixed(1)}%</span></div><div class="v6-progress"><i style="width:${share}%"></i></div></div>`
                 })
                 .join('')}</div>`
-            : empty('暂无用量数据', '当前目录还没有可统计的用量。'),
-        )}${section('fastest', '最快模型', '按当前模态的生成吞吐量排序。', rankedRows([...list].sort((a, b) => parseInt(b.throughput, 10) - parseInt(a.throughput, 10)).slice(0, 5), 'speed'))}`
+            : empty('还没有用量数据', '当前目录还没有可统计的用量。'),
+        )}${section('fastest', '最快模型', '按当前模态的生成吞吐量排序。', list.length ? rankedRows([...list].sort((a, b) => parseInt(b.throughput, 10) - parseInt(a.throughput, 10)).slice(0, 5), 'speed') : empty('没有可排名的模型', '当前模态下目录为空。'))}`
     const navItems = catalogLive
       ? [['rankings-live', '实时排行', 'activity']]
       : [...demoSections, ['rankings-live', '实时排行', 'activity']]
-    app.innerHTML = `<div class="v6-shell"><div class="v6-title"><div><h1>AI 模型排行榜</h1><p>按模型用量观察趋势，发现热门模型与提供商。</p></div>${catalogLive ? '' : '<span class="v6-badge">本地演示数据 · 非实时榜单</span>'}</div>${tabs(
+    app.innerHTML = `<div class="v6-shell"><div class="v6-title"><div><h1>AI 模型排行榜</h1><p>按模型用量观察趋势，发现热门模型与提供商。</p></div>${catalogLive ? '' : '<span class="v6-badge">本地演示数据 · 非实时榜单</span>'}</div><div class="v6-toolbar v6-rank-toolbar">${tabs(
       ['text', 'image', 'transcription', 'embeddings'].map((value) => [
         value,
         modalityNames[value],
@@ -1819,7 +1943,16 @@
       selectedOutput,
       'ranking-output',
       '排行榜模态',
-    )}<div class="v6-section-layout">${sectionNav(navItems)}<div>${liveSection}${demoBlock}</div></div></div>`
+    )}<div class="v6-ml-auto">${tabs(
+      [
+        ['day', '24 小时'],
+        ['week', '7 天'],
+        ['month', '30 天'],
+      ],
+      period,
+      'ranking-period',
+      '统计周期',
+    )}</div></div><div class="v6-section-layout">${sectionNav(navItems)}<div>${liveSection}${demoBlock}</div></div></div>`
     loadRankings(period)
   }
 
@@ -1865,7 +1998,7 @@
               ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>状态</th><th>监控项</th><th>分组</th><th class="num">24 小时可用率</th></tr></thead><tbody>${monitors
                   .map(
                     (m) =>
-                      `<tr><td><span class="v6-status-dot s${Number(m.status)}" data-tip="${statusName[Number(m.status)] || '未知'}"></span></td><td>${esc(m.name || '—')}</td><td>${esc(m.group || '—')}</td><td class="num">${(Number(m.uptime || 0) * 100).toFixed(2)}%</td></tr>`,
+                      `<tr><td><span class="v6-status-dot s${Number(m.status)}" data-tip="${statusName[Number(m.status)] || '未知'}"></span></td><td>${esc(m.name || '—')}</td><td>${esc(m.group || '—')}</td><td class="num">${pct(Number(m.uptime || 0) * 100)}</td></tr>`,
                   )
                   .join('')}</tbody></table></div>`
               : empty('该分组暂无监控项', 'Uptime Kuma 未返回此分组下的监控。'),
@@ -1876,8 +2009,9 @@
       if (route !== 'status' || !document.getElementById('uptime-status')) return
       box.innerHTML = errorBox(
         '状态加载失败',
-        error.message,
+        '当前无法获取服务状态，请稍后重试。',
         `<button class="v6-btn" data-action="retry-uptime">${icon('refresh-cw')}重试</button>`,
+        error.message,
       )
     }
   }
@@ -1888,35 +2022,116 @@
   }
   function filterProviders() {
     const query = document.getElementById('provider-search').value.toLowerCase()
-    const list = currentHosts().filter((name) => name.toLowerCase().includes(query))
+    // T6.7：卡片网格按承载模型数降序
+    const list = currentHosts()
+      .filter((name) => name.toLowerCase().includes(query))
+      .map((name) => [name, models.filter((model) => model.hosts.includes(name)).length])
+      .sort((a, b) => b[1] - a[1])
+      .map(([name]) => name)
     document.getElementById('provider-count').textContent = list.length
       ? `${list.length} 个提供商`
       : ''
     document.getElementById('provider-results').innerHTML = list.length
-      ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>提供商</th><th class="num">模型数量</th><th>模型</th></tr></thead><tbody>${list
+      ? `<div class="v6-grid-3 v6-provider-grid">${list
           .map((name) => {
             const available = models.filter((model) => model.hosts.includes(name))
-            return `<tr><td><button type="button" class="v6-provider-name" data-action="provider-info" data-name="${esc(name)}">${logo(name)}${esc(name)}</button></td><td class="num">${available.length}</td><td>${link('models?provider=' + encodeURIComponent(name), '浏览模型 →', 'v6-link')}</td></tr>`
+            const mods = [...new Set(available.flatMap((model) => model.outputs))]
+            const rates = available
+              .map((model) => model.inputRate)
+              .filter((value) => value != null)
+              .sort((a, b) => a - b)
+            const unit = available.find((model) => model.imagePrice || model.audioPrice)
+            // 价格区间：文本模型按输入 $/百万取 min–max；纯图像/音频提供商退回单价描述
+            const price = rates.length
+              ? rates[0] === rates[rates.length - 1]
+                ? `${money(rates[0])} / 百万 tokens`
+                : `${money(rates[0])} – ${money(rates[rates.length - 1])} / 百万 tokens`
+              : unit
+                ? modelPrice(unit)
+                : '—'
+            return `<a class="v6-item v6-provider" href="#/models?provider=${encodeURIComponent(name)}"><div class="v6-provider-head">${logo(name, 'lg')}<div class="v6-provider-id"><h3>${esc(name)}</h3><span class="v6-muted">${available.length} 个模型</span></div></div><div class="v6-provider-meta"><span class="v6-provider-mods">${mods
+              .map((mod) => `<span title="${modalityNames[mod] || mod}">${icon(modalityIcons[mod] || 'layers')}</span>`)
+              .join('')}</span><span class="v6-provider-price">${esc(price)}</span></div></a>`
           })
-          .join('')}</tbody></table></div>`
-      : empty('没有找到提供商', '尝试其他名称。')
+          .join('')}</div>`
+      : query
+        ? empty(
+            '没有找到提供商',
+            '尝试其他名称。',
+            `<button class="v6-btn" data-action="search-clear" data-for="provider-search">${icon('x')}清除筛选</button>`,
+          )
+        : empty('还没有提供商', '目录加载后提供商列表会显示在这里。')
   }
 
-  function renderPricing() {
-    const priced = models.filter((model) => model.inputRate || model.imagePrice || model.audioPrice)
-    const rows = priced
-      .slice()
-      .sort((a, b) => (a.provider + a.name).localeCompare(b.provider + b.name))
-      .map(
+  // T6.4：价格页筛选状态（搜索 + 输出模态，复用目录的交互模式）
+  let pricingFilter = { q: '', modality: 'all' }
+  function pricingResults() {
+    const q = pricingFilter.q.trim().toLowerCase()
+    // inputRate 为 0 的免费变体也是有效定价，不能按 falsy 滤掉
+    const priced = models.filter(
+      (model) =>
+        model.inputRate != null || model.imagePrice != null || model.audioPrice != null,
+    )
+    const list = priced
+      .filter((model) => pricingFilter.modality === 'all' || model.outputs.includes(pricingFilter.modality))
+      .filter(
         (model) =>
-          `<tr><td data-th="模型">${link('models/' + encodeURIComponent(model.id), `<span class="v6-row">${logo(model.provider)}<span>${esc(model.name)}<div class="v6-muted">${esc(model.provider)}</div></span>`, '')}</td><td data-th="输出类型">${esc(model.outputs.map((o) => modalityNames[o]).join(' / '))}</td><td data-th="上下文">${esc(model.context)}</td>${
-            model.imagePrice || model.audioPrice
-              ? `<td class="num" data-th="费率" colspan="2">${esc(modelPrice(model))}</td>`
-              : `<td class="num" data-th="输入 $/M">${money(model.inputRate)}</td><td class="num" data-th="输出 $/M">${money(model.outputRate)}</td>`
-          }<td data-th="操作">${link('models/' + encodeURIComponent(model.id) + '?section=api', '调用示例', 'v6-link')}</td></tr>`,
+          !q ||
+          `${model.name} ${model.slug || ''} ${model.provider}`.toLowerCase().includes(q),
       )
+      .sort((a, b) => (a.provider + a.name).localeCompare(b.provider + b.name))
+    const rows = list
+      .map((model) => {
+        const free =
+          !model.imagePrice && !model.audioPrice && !model.inputRate && !model.outputRate
+        const tag = free
+          ? '<span class="v6-badge success">免费</span>'
+          : model.imagePrice
+            ? '<span class="v6-badge neutral">按张</span>'
+            : model.audioPrice
+              ? '<span class="v6-badge neutral">按分钟</span>'
+              : ''
+        return `<tr><td data-th="模型">${link('models/' + encodeURIComponent(model.id), `<span class="v6-row">${logo(model.provider)}<span>${esc(model.name)}${tag}<div class="v6-muted">${esc(model.provider)}</div></span>`, '')}</td><td data-th="输出类型">${esc(model.outputs.map((o) => modalityNames[o]).join(' / '))}</td><td data-th="上下文" class="num">${esc(contextLabel(model))}</td>${
+          model.imagePrice || model.audioPrice
+            ? `<td class="num" data-th="费率" colspan="2">${esc(modelPrice(model))}</td>`
+            : free
+              ? `<td class="num" data-th="输入 $/百万">$0.00</td><td class="num" data-th="输出 $/百万">$0.00</td>`
+              : `<td class="num" data-th="输入 $/百万">${money(model.inputRate)}</td><td class="num" data-th="输出 $/百万">${money(model.outputRate)}</td>`
+        }<td data-th="操作">${link('models/' + encodeURIComponent(model.id) + '?section=api', '调用示例', 'v6-link')}</td></tr>`
+      })
       .join('')
-    app.innerHTML = `<div class="v6-shell v6-pricing">${head('价格', '按实际使用量付费；价格以实际计费为准。', `<span class="v6-badge">${catalogLive ? '实时价格' : '演示价格'}</span>`, '按量付费')}${priced.length ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>模型</th><th>输出类型</th><th>上下文</th><th class="num">输入 $/M</th><th class="num">输出 $/M</th><th>操作</th></tr></thead><tbody>${rows}</tbody></table></div>` : empty('暂无价格数据', '暂未获取到定价信息。')}${section(
+    return `<div class="v6-result-count" aria-live="polite">${list.length} 个模型 · ${catalogLive ? '实时价格' : '演示价格'}</div>${
+      list.length
+        ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>模型</th><th>输出类型</th><th class="num">上下文</th><th class="num">输入<span class="v6-th-unit">$ / 百万 tokens</span></th><th class="num">输出<span class="v6-th-unit">$ / 百万 tokens</span></th><th>操作</th></tr></thead><tbody>${rows}</tbody></table></div>`
+        : empty(
+            priced.length ? '没有匹配的模型' : '还没有价格数据',
+            priced.length ? '换个关键词或输出模态试试。' : '暂未获取到定价信息。',
+            priced.length ? button('pricing-clear', '清除筛选', 'x') : '',
+          )
+    }`
+  }
+  function refreshPricing() {
+    const host = document.getElementById('pricing-results')
+    if (host) host.innerHTML = pricingResults()
+  }
+  function renderPricing() {
+    app.innerHTML = `<div class="v6-shell v6-pricing">${head('价格', '按实际使用量付费；价格以实际计费为准。', `<span class="v6-badge">${catalogLive ? '实时价格' : '演示价格'}</span>`, '按量付费')}<div class="v6-toolbar">${search('pricing-search', '搜索模型或提供商', pricingFilter.q)}</div>${tabs(
+      ['all', 'text', 'image', 'video', 'speech', 'transcription', 'embeddings'].map((value) => {
+        const count =
+          value === 'all'
+            ? -1
+            : models.filter((model) => model.outputs.includes(value)).length
+        return [
+          value,
+          modalityNames[value] +
+            (count < 0 ? '' : ` <span class="v6-count${count ? '' : ' empty'}">${count}</span>`),
+          modalityIcons[value],
+        ]
+      }),
+      pricingFilter.modality,
+      'pricing-modality',
+      '输出模态',
+    )}<div id="pricing-results">${pricingResults()}</div>${section(
       'pricing-faq',
       '常见问题',
       '',
@@ -1942,11 +2157,11 @@
       ['errors', '错误处理', 'circle-help'],
       ['business', '企业接入', 'building-2'],
     ]
-    app.innerHTML = `<div class="v6-shell v6-docs-layout"><nav class="v6-section-nav v6-docs-dir" aria-label="文档目录"><div class="v6-docs-dir-label">指南</div><a href="#/docs" class="active">${icon('book-open')}快速开始</a><div class="v6-docs-dir-label">资源</div><a href="#/models">${icon('layers')}模型目录</a><a href="#/providers">${icon('server')}提供商</a><a href="#/console/keys">${icon('key-round')}API Keys</a></nav><article><div class="v6-eyebrow">文档</div><h1 id="quickstart">快速开始</h1><p>使用统一的 OpenAI 兼容接口访问多个模型。在现有 SDK 中配置 Base URL、API Key 与模型标识即可开始。</p>${section('authentication', '创建 API Key', '为每个应用使用单独的密钥，设置用量上限，并避免在客户端暴露密钥。', link('console/keys', '管理 API Keys', 'v6-btn', 'key-round'))}${section('request', '发出首个请求', `下方是请求结构示例，Base URL 为 ${apiBaseURL()}。`, codeBlock(models[0] || docsSampleModel))}${section('model-selection', '选择模型', '模型标识采用 provider/model-name 格式。不同模型支持的模态、上下文与参数不同。', `<p>从目录中选择模型后，可在详情页复制 ID。发送请求前，确认输入类型与模型支持的模态一致。</p>${link('models', '浏览模型目录', 'v6-link', 'arrow-right')}`)}${section('routing', '路由与故障回退', '同一模型可由多个提供商承载。网关按可用性、配置和账户策略选择服务。', `<p>连接错误和可重试的上游错误可触发故障回退。建议在应用侧设置有限的重试次数，并使用指数退避处理临时限流。</p>${link('providers', '查看提供商', 'v6-link', 'arrow-right')}`)}${section(
+    app.innerHTML = `<div class="v6-shell v6-docs-layout"><nav class="v6-section-nav v6-docs-dir" aria-label="文档目录"><div class="v6-docs-dir-label">指南</div><a href="#/docs" class="active">${icon('book-open')}快速开始</a><div class="v6-docs-dir-label">资源</div><a href="#/models">${icon('layers')}模型目录</a><a href="#/providers">${icon('server')}提供商</a><a href="#/console/keys">${icon('key-round')}API Keys</a></nav><article><div class="v6-eyebrow">文档</div><h1 id="quickstart">快速开始</h1><p>使用统一的 OpenAI 兼容接口访问多个模型。在现有 SDK 中配置 Base URL、API Key 与模型标识即可开始。</p>${section('authentication', '创建 API Key', '为每个应用使用单独的密钥，设置用量上限，并避免在客户端暴露密钥。', `<div class="v6-callout">${icon('info')}<div>完整密钥只在创建时展示一次。请立即复制并妥善保管，遗失后只能重新生成。</div></div>${link('console/keys', '管理 API Keys', 'v6-btn', 'key-round')}`)}${section('request', '发出首个请求', `下方是请求结构示例，Base URL 为 ${apiBaseURL()}。`, codeBlock(models[0] || docsSampleModel))}${section('model-selection', '选择模型', '模型标识采用 provider/model-name 格式。不同模型支持的模态、上下文与参数不同。', `<p>从目录中选择模型后，可在详情页复制 ID。发送请求前，确认输入类型与模型支持的模态一致。</p>${link('models', '浏览模型目录', 'v6-link', 'arrow-right')}`)}${section('routing', '路由与故障回退', '同一模型可由多个提供商承载。网关按可用性、配置和账户策略选择服务。', `<p>连接错误和可重试的上游错误可触发故障回退。建议在应用侧设置有限的重试次数，并使用指数退避处理临时限流。</p><div class="v6-callout warning">${icon('alert-triangle')}<div>应用侧重试请限制次数并加指数退避；对 5xx 与限流的无上限重试会放大故障与计费。</div></div>${link('providers', '查看提供商', 'v6-link', 'arrow-right')}`)}${section(
       'errors',
       '处理错误',
       '',
-      `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>状态码</th><th>含义</th><th>处理方式</th></tr></thead><tbody>${[
+      `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th class="num">状态码</th><th>含义</th><th>处理方式</th></tr></thead><tbody>${[
         ['400', '请求参数错误', '检查模型、模态和参数'],
         ['401', '身份验证失败', '检查 API Key'],
         ['402', '余额不足', '检查余额与额度'],
@@ -1955,7 +2170,7 @@
       ]
         .map(
           ([code, meaning, handling]) =>
-            `<tr><td><span class="v6-badge mono ${code.startsWith('5') ? 'danger' : 'warning'}">${code}</span></td><td>${meaning}</td><td>${handling}</td></tr>`,
+            `<tr><td class="num"><span class="v6-badge mono ${code.startsWith('5') ? 'danger' : 'warning'}">${code}</span></td><td>${meaning}</td><td>${handling}</td></tr>`,
         )
         .join('')}</tbody></table></div>`,
     )}${section('business', '企业接入', '从应用密钥、数据策略与预算开始配置工作区。', `<p>在接入前确认模型覆盖、数据保留要求和流量规模。控制台提供工作区名称、零数据保留与自动回退策略的本地配置。</p>${link('console/settings', '配置工作区', 'v6-btn', 'settings')}`)}</article><aside class="v6-docs-toc"><div class="v6-eyebrow">本页内容</div>${sectionNav(items)}</aside></div>`
@@ -2025,7 +2240,15 @@
                                     : route === 'console/preferences'
                                       ? pagePreferences()
                                       : pageOverview()
-    app.innerHTML = `<div class="v6-console">${accountNav()}<main class="v6-console-main">${page}</main></div>`
+    // T5.4：设置类页面收窄面板（label→switch 不超过 480px）
+    const narrowConsole = [
+      'console/settings',
+      'console/profile',
+      'console/notifications',
+      'console/privacy',
+      'console/preferences',
+    ].includes(route)
+    app.innerHTML = `<div class="v6-console${narrowConsole ? ' v6-console-narrow' : ''}">${accountNav()}<main class="v6-console-main">${page}</main></div>`
     if (route === 'console/keys') renderKeys()
     if (route === 'console/activity') loadActivity(1)
     clearInterval(logsTimer)
@@ -2125,7 +2348,7 @@
     return `${head('BYOK', '使用你自己的提供商 API 密钥。')}${card('提供商密钥', '添加提供商密钥后，对应请求将走你的账户计费。', `<p class="v6-muted">尚未配置任何提供商密钥。</p>`, button('add-byok', '添加提供商密钥', 'plus'))}`
   }
   function pageRouting() {
-    return `${head('路由', '为模型和提供商设置路由策略。')}${card('提供商排序', '拖动调整提供商优先级，请求将按顺序尝试。', `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>提供商</th><th>优先级</th><th>状态</th></tr></thead><tbody>${['OpenAI', 'Anthropic', 'Google', 'DeepSeek'].map((p, i) => `<tr><td>${p}</td><td>${i + 1}</td><td><span class="v6-badge green">启用</span></td></tr>`).join('')}</tbody></table></div>`)}${field('允许回退', '主要提供商不可用时尝试其他提供商。', toggle('fallback', state.settings.fallback))}`
+    return `${head('路由', '为模型和提供商设置路由策略。')}${card('提供商排序', '拖动调整提供商优先级，请求将按顺序尝试。', `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>提供商</th><th class="num">优先级</th><th>状态</th></tr></thead><tbody>${['OpenAI', 'Anthropic', 'Google', 'DeepSeek'].map((p, i) => `<tr><td>${p}</td><td class="num">${i + 1}</td><td><span class="v6-badge green">启用</span></td></tr>`).join('')}</tbody></table></div>`)}${field('允许回退', '主要提供商不可用时尝试其他提供商。', toggle('fallback', state.settings.fallback))}`
   }
   function pagePresets() {
     return `${head('预设', '保存系统提示词和请求参数的快捷方式。', button('create-preset', '新建预设', 'plus', '', 'v6-btn primary'))}${card('预设', '', `<p class="v6-muted">还没有预设。预设可快速应用一组系统提示词和参数。</p>`)}`
@@ -2221,19 +2444,25 @@
     const query = document.getElementById('key-search')?.value.toLowerCase() || ''
     const list = (platform.tokens || []).filter((key) => key.name.toLowerCase().includes(query))
     box.innerHTML = list.length
-      ? `<div class="v6-table-wrap"><table class="v6-table v6-mobile-cards"><thead><tr><th>密钥</th><th>分组</th><th>过期时间</th><th>最近使用</th><th>用量</th><th>状态</th><th>操作</th></tr></thead><tbody>${list
+      ? `<div class="v6-table-wrap"><table class="v6-table v6-mobile-cards"><thead><tr><th>密钥</th><th>分组</th><th>过期时间</th><th>最近使用</th><th class="num">用量</th><th>状态</th><th>操作</th></tr></thead><tbody>${list
           .map((key) => {
             const enabled = key.status === 1
-            return `<tr><td data-label="密钥"><strong title="${esc(key.name)}">${esc(key.name)}</strong><div class="v6-muted mono v6-row">${esc(maskedKey(key))}${iconButton('copy', '复制密钥标识', 'copy', `data-copy="${esc(maskedKey(key))}"`)}</div></td><td data-label="分组">${esc(key.group || platform.group || '—')}<div class="v6-muted v6-small">${key.model_limits_enabled ? '已限制模型' : '不限制模型'}</div></td><td data-label="过期时间">${expiryText(key)}</td><td data-label="最近使用">${accessText(key)}</td><td data-label="用量">${quotaHtml(key)}</td><td data-label="状态"><label class="v6-switch" title="${enabled ? '已启用，点击停用' : '已停用，点击启用'}"><input type="checkbox" role="switch" data-key-toggle="${esc(key.id)}" ${enabled ? 'checked' : ''} aria-label="启用或停用密钥"><span></span></label></td><td data-label="操作" class="v6-nowrap">${iconButton('edit-key', '编辑密钥', 'pencil', `data-id="${esc(key.id)}"`)}${iconButton('delete-key', '删除密钥', 'trash-2', `data-id="${esc(key.id)}"`, 'v6-btn ghost v6-icon-btn danger')}</td></tr>`
+            return `<tr><td data-label="密钥"><strong title="${esc(key.name)}">${esc(key.name)}</strong><div class="v6-muted mono v6-row">${esc(maskedKey(key))}${iconButton('copy', '复制密钥标识', 'copy', `data-copy="${esc(maskedKey(key))}"`)}</div></td><td data-label="分组">${esc(key.group || platform.group || '—')}<div class="v6-muted v6-small">${key.model_limits_enabled ? '已限制模型' : '不限制模型'}</div></td><td data-label="过期时间">${expiryText(key)}</td><td data-label="最近使用">${accessText(key)}</td><td data-label="用量" class="num">${quotaHtml(key)}</td><td data-label="状态"><label class="v6-switch" title="${enabled ? '已启用，点击停用' : '已停用，点击启用'}"><input type="checkbox" role="switch" data-key-toggle="${esc(key.id)}" ${enabled ? 'checked' : ''} aria-label="启用或停用密钥"><span></span></label></td><td data-label="操作" class="v6-nowrap">${iconButton('edit-key', '编辑密钥', 'pencil', `data-id="${esc(key.id)}"`)}${iconButton('delete-key', '删除密钥', 'trash-2', `data-id="${esc(key.id)}"`, 'v6-btn ghost v6-icon-btn danger')}</td></tr>`
           })
           .join(
             '',
           )}</tbody></table><div class="v6-table-note">${list.length} 个密钥 · 完整密钥只在创建时出现一次</div></div>`
-      : empty(
-          '没有找到密钥',
-          '创建一个密钥后，明文只展示一次。',
-          button('create-key', '创建密钥', 'plus'),
-        )
+      : query
+        ? empty(
+            '没有找到密钥',
+            '没有名称匹配的密钥，试试其他关键词。',
+            `<button class="v6-btn" data-action="search-clear" data-for="key-search">${icon('x')}清除筛选</button>`,
+          )
+        : empty(
+            '还没有 API Key',
+            '创建一个密钥后，明文只展示一次。',
+            button('create-key', '创建密钥', 'plus'),
+          )
   }
   function logTypeLabel(type) {
     return { 1: '充值', 2: '消费', 3: '管理', 4: '系统' }[type] || '消费'
@@ -2323,8 +2552,9 @@
       drawCharts()
       box.innerHTML = errorBox(
         '请求记录加载失败',
-        error.message,
+        '请稍后重试，或调整筛选条件。',
         `<button class="v6-btn" data-action="activity-retry">${icon('refresh-cw')}重试</button>`,
+        error.message,
       )
     }
   }
@@ -2339,7 +2569,12 @@
       const items = result.items || []
       box.innerHTML = items.length ? activityTable(items) : empty('还没有请求记录', '调用模型后日志会显示在这里。')
     } catch (error) {
-      box.innerHTML = `<p class="v6-error">日志加载失败：${esc(error.message)}</p>`
+      box.innerHTML = errorBox(
+        '日志加载失败',
+        '请稍后重试，或检查网络连接。',
+        `<button class="v6-btn" data-action="logs-refresh">${icon('refresh-cw')}重试</button>`,
+        error.message,
+      )
     }
   }
   // G-33/34：图表数据三态——只存真实值（美元），不预归一化；
@@ -2417,7 +2652,7 @@
   }
   function fmtTick(v, unit) {
     const n =
-      v >= 100 ? Math.round(v).toLocaleString() : String(+v.toPrecision(3))
+      v >= 1000 ? fmtTokens(v) : v >= 100 ? String(Math.round(v)) : String(+v.toPrecision(3))
     return unit === '$' ? '$' + n : unit === 'B' ? n + 'B' : n
   }
   function setChartState(canvas, state) {
@@ -2435,7 +2670,7 @@
         ? '<span class="v6-skeleton" style="display:block;width:60%;height:14px"></span><span class="v6-skeleton" style="display:block;width:40%;height:14px"></span>'
         : state === 'error'
           ? `${icon('info')}<span>用量数据加载失败</span><button type="button" class="v6-btn sm" data-action="chart-retry" data-chart-id="${esc(canvas.id)}">重试</button>`
-          : `${icon('chart-no-axes-combined')}<span>暂无用量数据</span>`
+          : `${icon('chart-no-axes-combined')}<span>还没有用量数据</span>`
   }
   function clearChartState(canvas) {
     canvas.style.visibility = ''
@@ -2800,13 +3035,15 @@
       await navigator.clipboard.writeText(value)
       if (btn) {
         // OL-04：有触发按钮时改为就地反馈——图标变 ✓ 1.2s + aria-live，不弹 toast
-        const html = btn.innerHTML
-        btn.innerHTML = icon('check')
+        // 带 [data-copy-icon] 槽位的按钮（如 slug 胶囊）只换图标，保留文字
+        const slot = btn.querySelector('[data-copy-icon]') || btn
+        const html = slot.innerHTML
+        slot.innerHTML = icon('check')
         btn.classList.add('copied')
         announce('已复制到剪贴板')
         setTimeout(() => {
           if (!btn.isConnected) return
-          btn.innerHTML = html
+          slot.innerHTML = html
           btn.classList.remove('copied')
         }, 1200)
       } else {
@@ -2860,7 +3097,7 @@
         : model.inputRate != null
           ? `${money(model.inputRate)} / ${money(model.outputRate ?? model.inputRate)}`
           : ''
-    return [model.provider, model.context, price].filter(Boolean).join(' · ')
+    return [model.provider, contextLabel(model), price].filter(Boolean).join(' · ')
   }
   // 最近访问的 5 条只存 path，名称/图标/价格在渲染时取实时数据，模型下线后自动剔除
   function paletteRemember(path) {
@@ -3068,11 +3305,14 @@
           ? parseInt(detail?.throughput || '100', 10) * 1.2
           : Math.max(...buckets, 0.000001),
       )
-      ctx.font = `11px ${colors.getPropertyValue('--font-sans').trim() || 'sans-serif'}`
+      ctx.font = `11px ${colors.getPropertyValue('--font-mono').trim() || 'monospace'}`
       ctx.textAlign = 'right'
+      // T4.2：1px 虚线网格，降低视觉噪声
+      ctx.setLineDash([3, 3])
       for (let index = 0; index <= 4; index++) {
         const y = top + (plotHeight * index) / 4
         ctx.strokeStyle = colors.getPropertyValue('--border').trim()
+        ctx.lineWidth = 1
         ctx.beginPath()
         ctx.moveTo(left, y)
         ctx.lineTo(width - right, y)
@@ -3083,6 +3323,7 @@
           : max * (1 - index / 4)
         ctx.fillText(fmtTick(tick, tickUnit || ''), left - 8, y + 4)
       }
+      ctx.setLineDash([])
       const data = []
       const unit = plotWidth / points
       for (let index = 0; index < points; index++) {
@@ -3102,7 +3343,8 @@
         if (canvas.dataset.chart === 'usage') {
           let y = top + plotHeight
           const shares = series.map((usage) => usage / total)
-          const barWidth = Math.max(2, Math.min(unit - 4, Math.max(unit * 0.56, 6), 40))
+          // T4.2：柱宽上限 24，顶部 r3
+          const barWidth = Math.max(2, Math.min(unit - 4, Math.max(unit * 0.56, 6), 24))
           const barX = left + index * unit + (unit - barWidth) / 2
           const topSegment = shares.reduce((last, share, i) => (share > 0 ? i : last), -1)
           shares.forEach((share, series) => {
@@ -3110,13 +3352,15 @@
             ctx.fillStyle = seriesColors[series]
             if (series === topSegment && ctx.roundRect && barHeight > 2) {
               ctx.beginPath()
-              ctx.roundRect(barX, y - barHeight, barWidth, barHeight, [2, 2, 0, 0])
+              ctx.roundRect(barX, y - barHeight, barWidth, barHeight, [3, 3, 0, 0])
               ctx.fill()
             } else {
               ctx.fillRect(barX, y - barHeight, barWidth, barHeight)
             }
             y -= barHeight
           })
+          data[index].y = y
+          data[index].parts = shares.map((share) => share * base)
         }
         if (index % Math.max(1, Math.floor(points / 6), Math.ceil((points * 44) / plotWidth)) === 0) {
           ctx.fillStyle = colors.getPropertyValue('--muted').trim()
@@ -3125,17 +3369,42 @@
         }
       }
       if (canvas.dataset.chart !== 'usage') {
+        // T4.2：1.75px 折线 + 8% 面积渐变
         ctx.strokeStyle = seriesColors[0]
-        ctx.lineWidth = 2
+        ctx.lineWidth = 1.75
         ctx.beginPath()
         data.forEach((point, index) => {
           const y = top + plotHeight * (1 - point.value / max)
+          point.y = y
+          point.parts = [point.value]
           if (index === 0) ctx.moveTo(point.x, y)
           else ctx.lineTo(point.x, y)
         })
         ctx.stroke()
+        if (data.length) {
+          ctx.lineTo(data[data.length - 1].x, top + plotHeight)
+          ctx.lineTo(data[0].x, top + plotHeight)
+          ctx.closePath()
+          ctx.globalAlpha = 0.08
+          ctx.fillStyle = seriesColors[0]
+          ctx.fill()
+          ctx.globalAlpha = 1
+        }
       }
-      charts.push({ canvas, data, unit: tickUnit })
+      // 系列名：排行榜图取 top5 模型名，其余单系列图给语义标签（tooltip 用）
+      const names =
+        canvas.id === 'rankings-usage'
+          ? ranked.slice(0, 5).map((model) => model.name)
+          : canvas.dataset.chart === 'usage'
+            ? ['用量']
+            : ['吞吐量']
+      charts.push({
+        canvas,
+        data,
+        unit: tickUnit,
+        names,
+        colors: seriesColors.slice(0, Math.max(names.length, 1)),
+      })
     })
   }
   function observePage() {
@@ -3143,22 +3412,41 @@
     chartObserver = new ResizeObserver(drawCharts)
     app.querySelectorAll('.v6-chart').forEach((node) => chartObserver.observe(node))
     drawCharts()
+    // DT-05：分区导航高亮——observer 只做触发器，回调里对全部节段重算，
+    // 取"观察带内最靠上的节段"；滚到底兜底最后一节（末段太短永远进不了带）
     sectionObserver?.disconnect()
-    sectionObserver = new IntersectionObserver(
-      (entries) => {
-        if (Date.now() < sectionLockUntil) return
-        const current = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0]
-        const links = app.querySelectorAll('[data-section]')
-        // 首个目录项可能指向页面标题而非 .v6-section，页面顶部时观察器只能看到第二节
-        const activeId = window.scrollY < 24 ? links[0]?.dataset.section : current?.target.id
-        if (activeId)
-          links.forEach((link) => link.classList.toggle('active', link.dataset.section === activeId))
-      },
-      { rootMargin: '-80px 0px -60% 0px' },
-    )
+    const updateSectionActive = () => {
+      if (Date.now() < sectionLockUntil) return
+      const links = app.querySelectorAll('[data-section]')
+      const secs = [...app.querySelectorAll('.v6-section[id]')]
+      if (!links.length || !secs.length) return
+      let activeId
+      if (window.scrollY < 24) activeId = links[0].dataset.section
+      else {
+        const bandBottom = Math.min(360, window.innerHeight * 0.4)
+        const inBand = secs.filter((s) => {
+          const r = s.getBoundingClientRect()
+          return r.top < bandBottom && r.bottom > 80
+        })
+        activeId = (
+          inBand[0] || [...secs].reverse().find((s) => s.getBoundingClientRect().top <= 80)
+        )?.id
+        if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2)
+          activeId = secs[secs.length - 1].id
+      }
+      if (activeId)
+        links.forEach((link) => link.classList.toggle('active', link.dataset.section === activeId))
+    }
+    sectionObserver = new IntersectionObserver(updateSectionActive, {
+      rootMargin: '-80px 0px -60% 0px',
+    })
     app.querySelectorAll('.v6-section[id]').forEach((node) => sectionObserver.observe(node))
+    // 到底兜底需要 scroll 事件（observer 只在进出带时触发）；先卸旧引用避免监听累积
+    if (sectionActiveUpdater) window.removeEventListener('scroll', sectionActiveUpdater)
+    sectionActiveUpdater = updateSectionActive
+    window.addEventListener('scroll', sectionActiveUpdater, { passive: true })
+    // T5.2：窄屏侧栏是横向标签条，把激活项滚入视野
+    app.querySelector('.v6-side-link.active')?.scrollIntoView({ inline: 'center', block: 'nearest' })
   }
 
   function render() {
@@ -3268,8 +3556,13 @@
     }
     const { action, id, value } = target.dataset
     if (action === 'search') searchDialog()
-    else if (action === 'search-clear') {
-      const input = target.parentElement?.querySelector('input')
+    else if (action === 'anchor-scroll') {
+      document.getElementById(target.dataset.anchor)?.scrollIntoView({ behavior: 'smooth' })
+    } else if (action === 'search-clear') {
+      // data-for：空态「清除筛选」按钮直接按 id 找输入框
+      const input = target.dataset.for
+        ? document.getElementById(target.dataset.for)
+        : target.parentElement?.querySelector('input')
       if (input) {
         input.value = ''
         input.dispatchEvent(new Event('input', { bubbles: true }))
@@ -3340,6 +3633,17 @@
         tab.tabIndex = tab === target ? 0 : -1
       })
       filterModels()
+    } else if (action === 'pricing-modality') {
+      pricingFilter.modality = value
+      target.parentElement.querySelectorAll('[role=tab]').forEach((tab) => {
+        tab.classList.toggle('active', tab === target)
+        tab.setAttribute('aria-selected', tab === target)
+        tab.tabIndex = tab === target ? 0 : -1
+      })
+      refreshPricing()
+    } else if (action === 'pricing-clear') {
+      pricingFilter = { q: '', modality: 'all' }
+      renderPricing()
     } else if (action === 'model-view') {
       catalogFilter.view = value
       target.parentElement.querySelectorAll('button').forEach((node) => {
@@ -3353,8 +3657,8 @@
         node.classList.toggle('active', node === target)
         node.setAttribute('aria-pressed', node === target)
       })
-      block.querySelector('code').textContent = codeExample(
-        getModel(block.dataset.codeModel) || docsSampleModel,
+      block.querySelector('code').innerHTML = highlightCode(
+        codeExample(getModel(block.dataset.codeModel) || docsSampleModel, value),
         value,
       )
     } else if (action === 'provider-sort') {
@@ -3373,6 +3677,7 @@
         `<div class="v6-row">${logo(name, 'lg')}<p class="v6-muted">当前目录中 ${available.length} 个模型由该提供商承载。</p></div><div class="v6-stack">${available.map((model) => link('models/' + model.id, esc(model.name), 'v6-link')).join('')}</div><div class="v6-dialog-foot">${link('models?provider=' + encodeURIComponent(name), '浏览全部模型', 'v6-btn primary')}</div>`,
       )
     } else if (action === 'ranking-output') updateQuery('output', value)
+    else if (action === 'ranking-period') updateQuery('period', value)
     else if (action === 'chart-scale') {
       document.getElementById('rankings-usage').dataset.scale = value
       target.parentElement.querySelectorAll('button').forEach((node) => {
@@ -3801,6 +4106,10 @@
     if (['model-search', 'context-range', 'price-range', 'output-price-range'].includes(id))
       filterModels()
     if (id === 'provider-search') filterProviders()
+    if (id === 'pricing-search') {
+      pricingFilter.q = event.target.value
+      refreshPricing()
+    }
     if (id === 'key-search') renderKeys()
     if (id === 'global-search') renderSearchResults()
     if (id === 'activity-search') {
@@ -3939,22 +4248,47 @@
     const point = record.data.reduce((nearest, item) =>
       Math.abs(item.x - x) < Math.abs(nearest.x - x) ? item : nearest,
     )
-    const tooltip = record.canvas.nextElementSibling
+    const wrap = record.canvas.parentElement
+    const tooltip = wrap.querySelector('.v6-chart-tooltip')
+    const cross = wrap.querySelector('.v6-chart-cross')
     tooltip.hidden = false
     // G-54：tooltip 跟随指针横向移动，不再固定在右上角
     tooltip.style.left = Math.min(Math.max(point.x, 40), record.canvas.getBoundingClientRect().width - 60) + 'px'
-    tooltip.textContent =
-      point.label +
-      ' · ' +
-      (record.canvas.dataset.chart === 'usage'
-        ? fmtTick(point.value, record.unit || 'B')
-        : point.value.toFixed(1) + ' tok/s')
+    // T4.2：tooltip 卡片——日期 + 各系列值（带色点）+ 多系列时合计
+    const isUsage = record.canvas.dataset.chart === 'usage'
+    const fmt = (value) =>
+      isUsage ? fmtTick(value, record.unit || 'B') : (+value).toFixed(1) + ' tok/s'
+    const rows = (record.names || [])
+      .map(
+        (name, i) =>
+          `<span class="v6-chart-tip-row"><i style="background:${record.colors?.[i] || 'var(--accent)'}"></i>${esc(name)}<b class="v6-num">${fmt(point.parts ? point.parts[i] ?? 0 : point.value)}</b></span>`,
+      )
+      .join('')
+    const total =
+      isUsage && (record.names || []).length > 1
+        ? `<span class="v6-chart-tip-row v6-chart-tip-total">合计<b class="v6-num">${fmt(point.value)}</b></span>`
+        : ''
+    tooltip.innerHTML = `<b class="v6-chart-tip-title">${esc(point.label)}</b>${rows}${total}`
+    if (cross) {
+      // 十字准线限制在绘图区（left:44 / top:12，与 drawCharts 边距一致）
+      cross.hidden = false
+      cross.style.setProperty('--cx', point.x - 44 + 'px')
+      cross.style.setProperty('--cy', (point.y ?? 0) - 12 + 'px')
+    }
   })
   app.addEventListener('pointerout', (event) => {
-    if (event.target.matches('canvas[data-chart]')) event.target.nextElementSibling.hidden = true
+    if (!event.target.matches('canvas[data-chart]')) return
+    event.target.parentElement
+      .querySelectorAll('.v6-chart-cross, .v6-chart-tooltip')
+      .forEach((node) => (node.hidden = true))
   })
   window.addEventListener('skin:unauthorized', onUnauthorized)
   window.addEventListener('hashchange', render)
+  // T5.1：顶栏细分隔线——页面滚动超过 4px 后才出现
+  const siteHeader = document.querySelector('.app-header')
+  const syncHeaderHairline = () => siteHeader?.classList.toggle('is-scrolled', window.scrollY > 4)
+  window.addEventListener('scroll', syncHeaderHairline, { passive: true })
+  syncHeaderHairline()
   render()
   bootPlatform()
 })()
