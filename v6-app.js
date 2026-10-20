@@ -640,7 +640,7 @@
     const canvas = getComputedStyle(document.documentElement).getPropertyValue('--canvas').trim()
     if (meta && canvas) meta.content = canvas
   }
-  // 以触发按钮为圆心做圆形揭幕；不支持 View Transitions 或偏好减少动效时直接切换
+  // 150ms 交叉淡化；不支持 View Transitions 或偏好减少动效时直接切换
   function setTheme(value, origin) {
     const commit = () => {
       state.settings.theme = value
@@ -657,20 +657,8 @@
       commit()
       return
     }
-    const rect = origin?.getBoundingClientRect()
-    const x = rect ? rect.left + rect.width / 2 : window.innerWidth / 2
-    const y = rect ? rect.top + rect.height / 2 : 0
-    const radius = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y))
     root.classList.add('theme-transition')
     const transition = document.startViewTransition(commit)
-    transition.ready
-      .then(() =>
-        root.animate(
-          { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] },
-          { duration: 560, easing: 'cubic-bezier(0.65, 0, 0.35, 1)', pseudoElement: '::view-transition-new(root)' },
-        ),
-      )
-      .catch(() => {})
     transition.finished.finally(() => root.classList.remove('theme-transition'))
   }
   // canvas 图表在绘制时读取颜色 token，换主题后要重画，否则网格和文字停留在旧主题配色
@@ -719,7 +707,8 @@
     return `<svg class="v6-icon" aria-hidden="true" viewBox="0 0 24 24">${icons[name] || icons.layers}</svg>`
   }
   function money(value) {
-    // G-42：≥$1 保留两位小数；<$1 保留 4 位有效数字——避免 "$123.4568" 与 "$32.1" 并排
+    // G-42 / T4.1：≥$1 两位小数；$0.01–$1 至少两位小数、最多 4 位有效数字（0.30/0.27/0.15）；
+    // <$0.01 最多 4 位有效数字——避免 "$0.3" 与 "$0.27" 并列显得精度不一
     const n = Number(value) || 0
     const abs = Math.abs(n)
     if (abs >= 1)
@@ -727,6 +716,14 @@
         '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
       )
     if (abs === 0) return '$0.00'
+    if (abs >= 0.01)
+      return (
+        '$' +
+        Number(n.toPrecision(4)).toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 4,
+        })
+      )
     return '$' + n.toLocaleString('en-US', { maximumSignificantDigits: 4 })
   }
   // ── 性能监控格式化：对齐 new-api performance-metrics/format.ts ──
@@ -825,7 +822,7 @@
   }
   function errorBox(title, detail = '', retry = '') {
     // G-36：错误态统一为 图标 + 友好标题 + 技术详情 + 可选重试
-    return `<div class="v6-error-box"><span class="v6-empty-icon">${icon('info')}</span><h3>${esc(title)}</h3>${detail ? `<div class="detail">${esc(detail)}</div>` : ''}${retry}</div>`
+    return `<div class="v6-error-box v6-error"><span class="v6-empty-icon">${icon('info')}</span><h3>${esc(title)}</h3>${detail ? `<div class="detail">${esc(detail)}</div>` : ''}${retry}</div>`
   }
   function skeletonRows(n = 5) {
     // G-35：表格/列表加载骨架，占位高度避免数据回来后跳动
@@ -2255,12 +2252,23 @@
       const next = document.getElementById('activity-next')
       if (prev) prev.disabled = page <= 1
       if (next) next.disabled = items.length < 20 || page >= pages
-      if (!liveData.usage) loadUsageChart(days)
+      // R-04：表格重试成功后，若图表停在错误态一并恢复
+      if (!liveData.usage || liveChartData['account-usage']?.state === 'error') loadUsageChart(days)
     } catch (error) {
       const prev = document.getElementById('activity-prev')
       const next = document.getElementById('activity-next')
       if (prev) prev.disabled = false
       if (next) next.disabled = false
+      // R-04 / G-33：指标卡从骨架落到 "—" 并附提示；用量图进入错误态（自带重试）
+      liveChartData['account-usage'] = { state: 'error' }
+      liveData.usage = true
+      document.getElementById('activity-metrics')?.querySelectorAll('strong').forEach((cell, i) => {
+        if (i < 3) {
+          cell.textContent = '—'
+          cell.parentElement.title = '数据加载失败，请重试'
+        }
+      })
+      drawCharts()
       box.innerHTML = errorBox(
         '请求记录加载失败',
         error.message,
@@ -2343,12 +2351,17 @@
       drawCharts()
     }
   }
-  // G-34：nice-number 刻度（1/2/5×10ⁿ）
+  // G-34 / R-05：nice-number 刻度——step 取 1/2/2.5/5×10ⁿ 中最小且 step×4 ≥ max 的，
+  // 返回图表最大值（即 step×4），4 个刻度均匀落在整步长上
   function niceCeil(max) {
-    if (!(max > 0)) return 1
-    const pow = Math.pow(10, Math.floor(Math.log10(max)))
-    const n = max / pow
-    return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * pow
+    if (!(max > 0)) return 4
+    for (let p = Math.floor(Math.log10(max)) - 1; p < 12; p++) {
+      for (const s of [1, 2, 2.5, 5]) {
+        const top = s * Math.pow(10, p) * 4
+        if (top >= max) return top
+      }
+    }
+    return max
   }
   function fmtTick(v, unit) {
     const n =
@@ -2377,16 +2390,32 @@
     canvas.closest('.v6-chart')?.querySelector('.v6-chart-state')?.remove()
   }
 
+  // R-06：弹窗期间把同一个 #v6-toasts 节点挂进 dialog，关闭时移回 body——
+  // top layer 里 popover 后入者居上，移入后重新 showPopover 让 toast 始终压过遮罩
+  function moveToastsInto(node) {
+    const box = document.getElementById('v6-toasts')
+    if (!box || box.parentElement === node) return
+    const wasOpen = box.matches?.(':popover-open')
+    if (wasOpen) {
+      try { box.hidePopover() } catch {}
+    }
+    node.append(box)
+    if (wasOpen) {
+      try { box.showPopover() } catch {}
+    }
+  }
   function showDialog(title, body) {
     if (!dialog.open) dialogOpener = document.activeElement
     dialog.className = 'v6-dialog'
     dialog.innerHTML = `<div class="v6-dialog-head"><h2 id="v6-dialog-title">${title}</h2>${iconButton('close-dialog', '关闭', 'x')}</div><div class="v6-dialog-body">${body}</div>`
     dialog.setAttribute('aria-labelledby', 'v6-dialog-title')
     if (!dialog.open) dialog.showModal()
+    moveToastsInto(dialog)
     dialog.querySelector('input, textarea, select')?.focus()
   }
   function closeDialog() {
     dialog.close()
+    moveToastsInto(document.body)
     if (dialogOpener?.isConnected) dialogOpener.focus()
   }
   function expiryChoice(token) {
@@ -2599,7 +2628,7 @@
     platform.authed = false
     platform.user = null
     platform.tokens = []
-    toast('登录已过期，请重新登录')
+    toast('登录已过期，请重新登录', 'info')
     authDialog('login')
     render()
   }
@@ -2847,10 +2876,12 @@
       }
       clearChartState(canvas)
       const total = series.reduce((sum, usage) => sum + usage, 0) || 1
-      const max =
+      // R-05：perf 演示曲线也走同一套 niceCeil，刻度全部落在整步长上
+      const max = niceCeil(
         isPerf && !live
-          ? Math.ceil((parseInt(detail?.throughput || '100', 10) * 1.2) / 10) * 10
-          : niceCeil(Math.max(...buckets, 0.000001))
+          ? parseInt(detail?.throughput || '100', 10) * 1.2
+          : Math.max(...buckets, 0.000001),
+      )
       ctx.font = `11px ${colors.getPropertyValue('--font-sans').trim() || 'sans-serif'}`
       ctx.textAlign = 'right'
       for (let index = 0; index <= 4; index++) {
@@ -3188,7 +3219,7 @@
           renderKeys()
           toast('密钥已删除')
         })
-        .catch((error) => toast(error.message || '删除密钥失败'))
+        .catch((error) => toast(error.message || '删除密钥失败', 'error'))
     } else if (action === 'refresh-credits') {
       withBusy(target, () =>
         refreshSession()
@@ -3469,7 +3500,7 @@
             render()
             toast('兑换成功，余额已更新')
           })
-          .catch((error) => toast(error.message || '兑换失败')),
+          .catch((error) => toast(error.message || '兑换失败', 'error')),
       )
       return
     }
@@ -3510,7 +3541,7 @@
           })
       task.catch((error) => {
         if (submit) submit.disabled = false
-        toast(error.message || '保存密钥失败')
+        toast(error.message || '保存密钥失败', 'error')
       })
         } else if (form.id === 'settings-form') {
       const name = String(data.get('workspace')).trim()
