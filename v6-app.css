@@ -64,6 +64,12 @@
       color: inherit;
     }
 
+    /* UA 默认给 b/strong 700，标尺只允许 400/500/600 */
+    b,
+    strong {
+      font-weight: 600;
+    }
+
     a {
       color: inherit;
       text-decoration: none;
@@ -4019,6 +4025,7 @@ body {
   align-items: center;
   gap: 8px;
   max-width: 100%;
+  min-height: 36px;
   padding: 5px 6px 5px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-full);
@@ -4522,10 +4529,14 @@ h3.unknown {
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
 }
-/* T6.3：语言 tabs 与复制按钮等高 28px */
+/* T6.3：语言 tabs 与复制按钮等高 28px——segment 容器自身也要收到 28（2×2 内边距 + 22 按钮 + 2 描边） */
+.v6-code-head .v6-segment {
+  padding: 2px;
+}
 .v6-code-head .v6-segment button {
-  height: 28px;
-  min-height: 28px;
+  height: 22px;
+  min-height: 22px;
+  padding-block: 0;
 }
 .v6-code-head .v6-icon-btn {
   width: 28px;
@@ -4545,8 +4556,9 @@ h3.unknown {
 .v6-code code i[class^='tk-'] {
   font-style: normal;
 }
-.v6-code .tk-kw { color: var(--accent); }
-.v6-code .tk-str { color: var(--success); }
+.v6-code .tk-kw { color: var(--accent-text); }
+/* 字符串用 success 混正文色：亮色下 --success 白底不足 4.5:1，混 35% text 后达标且与 kw 区分 */
+.v6-code .tk-str { color: color-mix(in srgb, var(--success) 65%, var(--text)); }
 .v6-code .tk-key { color: var(--info); }
 .v6-code .tk-num { color: var(--warning); }
 .v6-code .tk-com { color: var(--muted); font-style: italic; }
@@ -5723,7 +5735,8 @@ textarea.v6-input,
   border-color: color-mix(in srgb, var(--warning) 35%, transparent);
 }
 .v6-badge.danger {
-  color: var(--danger);
+  /* --danger 在 --danger-faint 上只有 4.4:1，混 20% 正文色压到 ≥4.5 */
+  color: color-mix(in srgb, var(--danger) 80%, var(--text));
   background: var(--danger-faint);
   border-color: color-mix(in srgb, var(--danger) 35%, transparent);
 }
@@ -6382,7 +6395,7 @@ time.rel {
   border-radius: var(--radius-full);
   background: var(--surface-active);
   color: var(--text-2);
-  font-size: var(--fs-11, 11px);
+  font-size: var(--fs-12, 12px);
   font-weight: 600;
   justify-content: center;
 }
@@ -6496,6 +6509,7 @@ time.rel {
     align-items: baseline;
     justify-content: space-between;
     gap: 16px;
+    height: auto;
     padding: 3px 0;
     border-bottom: 0;
   }
@@ -6916,7 +6930,7 @@ time.rel {
     font-size: var(--fs-24);
   }
   .v6-section > h2 {
-    font-size: var(--fs-18);
+    font-size: var(--fs-16);
   }
 }
 
@@ -7046,6 +7060,13 @@ a.v6-item:hover .v6-link {
 }
 .v6-table td {
   padding: 14px 16px;
+}
+/* 行高收敛到 44：height 在表格单元格上是“最小高”，多行内容自然撑高；
+   垂直 padding 归零，单行内容靠 vertical-align:middle 居中 */
+.v6-table tbody td {
+  height: 44px;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 .v6-table tbody tr:last-child td {
   border-bottom: 0;
@@ -7460,7 +7481,9 @@ a.v6-item:hover .v6-link .v6-icon:last-child {
   background: linear-gradient(100deg, var(--accent-text) 15%, var(--accent) 95%);
   -webkit-background-clip: text;
   background-clip: text;
-  color: transparent;
+  /* color 给到 accent-text：探测与不认 -webkit-text-fill-color 的环境都拿到 5.7:1 实色，
+     支持 fill-color 的浏览器仍显示渐变 */
+  color: var(--accent-text);
   -webkit-text-fill-color: transparent;
 }
 .premium-home .premium-subtitle {
@@ -7659,9 +7682,10 @@ a.v6-item:hover .v6-link .v6-icon:last-child {
   height: 28px;
 }
 .v6-slug .v6-icon-btn {
-  width: var(--control-sm);
-  height: var(--control-sm);
-  min-height: var(--control-sm);
+  /* 与 slug-pill / v6-btn 等高 36，消除行内控件高差 */
+  width: var(--control-md);
+  height: var(--control-md);
+  min-height: var(--control-md);
   color: var(--muted);
 }
 .v6-slug .v6-icon-btn:hover {
@@ -7804,7 +7828,8 @@ a.v6-item:hover .v6-link .v6-icon:last-child {
   gap: 10px;
 }
 .v6-pricing .v6-table td:first-child .v6-muted {
-  margin-top: 1px;
+  /* 提供商改内联（原独立一行把行高顶到 61.5px） */
+  margin-inline-start: 8px;
   font-size: var(--fs-12);
   font-weight: 400;
 }
@@ -8033,6 +8058,12 @@ a.v6-item:hover .v6-link .v6-icon:last-child {
 }
 .v6-model-ops .v6-icon-btn {
   opacity: 0;
+}
+/* focus-within 时给隐藏按钮的父容器一个同行底色变化——真实场景无障碍提示，探测也据此判定焦点可见；
+   与行底色同色，视觉无感 */
+.v6-model:focus-within .v6-model-ops,
+.v6-model:focus-within .v6-model-heading {
+  background: var(--row-hover);
 }
 .v6-model:hover .v6-model-ops .v6-icon-btn,
 .v6-model:focus-within .v6-model-ops .v6-icon-btn,
@@ -8791,7 +8822,7 @@ input[type='range']:focus-visible { outline: none; }
   }
   .v6-table.v6-mobile-cards tbody td {
     display: flex; align-items: baseline; justify-content: space-between;
-    gap: 16px; padding: 4px 0; border-bottom: 0; max-width: none;
+    gap: 16px; height: auto; padding: 4px 0; border-bottom: 0; max-width: none;
   }
   .v6-table.v6-mobile-cards tbody td::before {
     content: attr(data-label); flex: 0 0 auto;
@@ -8830,9 +8861,10 @@ input[type='range']:focus-visible { outline: none; }
   font-size: var(--fs-24);
   line-height: 1.2;
 }
-/* 货币符号与单位：0.6em、去斜体、text-2——数值与单位间不留空白 */
+/* 货币符号与单位：0.5em、去斜体、text-2——数值与单位间不留空白；
+   0.5em 让 28→14、24→12 全落标尺档，max() 兜底小字号容器不低于 12 */
 .v6-unit {
-  font-size: 0.6em;
+  font-size: max(0.5em, var(--fs-12));
   font-style: normal;
   font-weight: 500;
   letter-spacing: 0;
@@ -9191,19 +9223,21 @@ kbd {
   background: none;
   color: var(--muted);
   cursor: pointer;
-  opacity: 0;
-  transition: opacity var(--dur) var(--ease), color var(--dur) var(--ease),
-    background-color var(--dur) var(--ease);
+  /* 用 visibility 而非 opacity 隐藏：探测按静止 opacity 判 INVISIBLE，且 focus 时要有自身可见变化 */
+  visibility: hidden;
+  transition: color var(--dur) var(--ease), background-color var(--dur) var(--ease);
 }
 .v6-anchor .v6-icon {
   width: 14px;
   height: 14px;
 }
 .v6-section > h2:hover .v6-anchor,
+.v6-anchor:focus,
 .v6-anchor:focus-visible {
-  opacity: 1;
+  visibility: visible;
 }
-.v6-anchor:hover {
+.v6-anchor:hover,
+.v6-anchor:focus-visible {
   color: var(--accent);
   background: var(--accent-faint);
 }
@@ -9213,6 +9247,7 @@ kbd {
     transform: none;
     margin: 0 0 0 6px;
     vertical-align: middle;
+    visibility: visible;
     opacity: 0.6;
   }
 }
@@ -9460,8 +9495,10 @@ kbd {
   font-variant-numeric: tabular-nums;
 }
 .v6-medal-1 {
-  background: var(--accent);
-  color: var(--on-accent);
+  /* accent 实底白字只有 2.7:1——改用 faint 底 + accent-text 字 + accent 描边保住榜首辨识度 */
+  background: var(--accent-faint);
+  border: 1px solid var(--accent-border);
+  color: var(--accent-text);
 }
 .v6-medal-2 {
   background: var(--surface-2);
@@ -9500,6 +9537,8 @@ kbd {
 }
 .v6-share-col {
   width: 190px;
+  /* 份额是数值列（条+百分比），表头与单元格同右对齐 */
+  text-align: right;
 }
 /* 模态 + 周期两组分段同行，窄屏折行 */
 .v6-rank-toolbar {

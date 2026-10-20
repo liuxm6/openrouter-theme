@@ -1852,7 +1852,7 @@
       // T6.8：份额 = 该项 tokens / 总量；总量为 0 时全部按 0 处理
       const total = list.reduce((sum, item) => sum + Number(item.quota || item.tokens || 0), 0)
       box.innerHTML = list.length
-        ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th class="v6-rank-col">#</th><th>模型</th><th class="num">Tokens</th><th class="v6-share-col">份额</th><th class="num">请求数</th></tr></thead><tbody>${list.slice(0, 50).map((item, i) => { const share = total ? (Number(item.quota || item.tokens || 0) / total) * 100 : 0; return `<tr><td class="v6-rank-col">${rankBadge(i)}</td><td>${esc(item.model_name || item.name || item.model || '—')}</td><td class="num">${fmtTokens(item.quota || item.tokens || 0)}</td><td><span class="v6-share"><span class="v6-progress"><i style="width:${share.toFixed(1)}%"></i></span><span class="v6-num">${share.toFixed(1)}%</span></span></td><td class="num">${Number(item.count || item.requests || 0).toLocaleString()}</td></tr>` }).join('')}</tbody></table></div>`
+        ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th class="v6-rank-col">#</th><th>模型</th><th class="num">Tokens</th><th class="v6-share-col">份额</th><th class="num">请求数</th></tr></thead><tbody>${list.slice(0, 50).map((item, i) => { const share = total ? (Number(item.quota || item.tokens || 0) / total) * 100 : 0; return `<tr><td class="v6-rank-col">${rankBadge(i)}</td><td>${esc(item.model_name || item.name || item.model || '—')}</td><td class="num">${fmtTokens(item.quota || item.tokens || 0)}</td><td class="num"><span class="v6-share"><span class="v6-progress"><i style="width:${share.toFixed(1)}%"></i></span><span class="v6-num">${share.toFixed(1)}%</span></span></td><td class="num">${Number(item.count || item.requests || 0).toLocaleString()}</td></tr>` }).join('')}</tbody></table></div>`
         : empty('还没有排行数据', '当前还没有排行统计。')
     } catch (error) {
       box.innerHTML = errorBox(
@@ -1909,7 +1909,7 @@
             .join('')}</div>`,
         )}${section('leaderboard', '模型榜单', '', `<div class="v6-toolbar"><label class="v6-row v6-small v6-ml-auto">排序<select class="v6-select" id="ranking-metric"><option value="usage" ${metric === 'usage' ? 'selected' : ''}>Token 用量</option><option value="speed" ${metric === 'speed' ? 'selected' : ''}>吞吐量</option></select></label></div>${
           list.length
-            ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>排名</th><th>模型</th><th class="num">${metric === 'speed' ? '吞吐量' : 'Tokens'}</th><th class="v6-share-col">份额</th><th class="num">变化</th></tr></thead><tbody>${list.map((model, index) => `<tr><td class="v6-rank-cell">${rankBadge(index)}</td><td>${link('models/' + model.id, `<span class="v6-row">${logo(model.provider)}<span>${esc(model.name)}<div class="v6-muted">${esc(model.provider)}</div></span></span>`, '')}</td><td class="num">${metric === 'speed' ? model.throughput : fmtTokens(model.usage * multiplier)}</td><td>${shareCell(model)}</td><td class="num"><span class="v6-delta">+${(8 + index * 3) * (period === 'month' ? 2 : 1)}%</span></td></tr>`).join('')}</tbody></table></div>`
+            ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>排名</th><th>模型</th><th class="num">${metric === 'speed' ? '吞吐量' : 'Tokens'}</th><th class="v6-share-col">份额</th><th class="num">变化</th></tr></thead><tbody>${list.map((model, index) => `<tr><td class="v6-rank-cell">${rankBadge(index)}</td><td>${link('models/' + model.id, `<span class="v6-row">${logo(model.provider)}<span>${esc(model.name)}<div class="v6-muted">${esc(model.provider)}</div></span></span>`, '')}</td><td class="num">${metric === 'speed' ? model.throughput : fmtTokens(model.usage * multiplier)}</td><td class="num">${shareCell(model)}</td><td class="num"><span class="v6-delta">+${(8 + index * 3) * (period === 'month' ? 2 : 1)}%</span></td></tr>`).join('')}</tbody></table></div>`
             : empty('没有可排名的模型', '当前模态下目录为空，换个输出类型试试。')
         }`)}${section(
           'market-share',
@@ -2091,7 +2091,7 @@
             : model.audioPrice
               ? '<span class="v6-badge neutral">按分钟</span>'
               : ''
-        return `<tr><td data-th="模型">${link('models/' + encodeURIComponent(model.id), `<span class="v6-row">${logo(model.provider)}<span>${esc(model.name)}${tag}<div class="v6-muted">${esc(model.provider)}</div></span>`, '')}</td><td data-th="输出类型">${esc(model.outputs.map((o) => modalityNames[o]).join(' / '))}</td><td data-th="上下文" class="num">${esc(contextLabel(model))}</td>${
+        return `<tr><td data-th="模型">${link('models/' + encodeURIComponent(model.id), `<span class="v6-row">${logo(model.provider)}<span>${esc(model.name)}<span class="v6-muted">${esc(model.provider)}</span>${tag}</span>`, '')}</td><td data-th="输出类型">${esc(model.outputs.map((o) => modalityNames[o]).join(' / '))}</td><td data-th="上下文" class="num">${esc(contextLabel(model))}</td>${
           model.imagePrice || model.audioPrice
             ? `<td class="num" data-th="费率" colspan="2">${esc(modelPrice(model))}</td>`
             : free
