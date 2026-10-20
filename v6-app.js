@@ -576,6 +576,22 @@
     error: '',
   }
   const app = document.getElementById('app')
+  // T10.2：动态样式走 data-w/data-h/data-bg 属性 + CSSOM 注水，HTML 里不再出现内联 style
+  // MutationObserver 覆盖 innerHTML、dialog、toast 等一切渲染路径；微任务时序保证绘制前完成
+  const hydrateDataStyles = (node) => {
+    if (node.nodeType !== 1) return
+    const targets = node.matches('[data-w],[data-h],[data-bg]') ? [node] : []
+    node.querySelectorAll('[data-w],[data-h],[data-bg]').forEach((el) => targets.push(el))
+    targets.forEach((el) => {
+      if (!el.dataset || !el.style) return
+      if (el.dataset.w) el.style.width = el.dataset.w
+      if (el.dataset.h) el.style.height = el.dataset.h
+      if (el.dataset.bg) el.style.background = el.dataset.bg
+    })
+  }
+  new MutationObserver((mutations) => {
+    mutations.forEach((m) => m.addedNodes.forEach(hydrateDataStyles))
+  }).observe(document.body, { childList: true, subtree: true })
   const dialog = document.createElement('dialog')
   dialog.className = 'v6-dialog'
   document.body.append(dialog)
@@ -1023,7 +1039,7 @@
     const header = document.querySelector('.app-header')
     header.classList.add('v6-header')
     const account = !booted
-      ? '<span class="v6-skeleton" style="width:96px;height:32px;border-radius:6px" aria-hidden="true"></span>'
+      ? '<span class="v6-skeleton v6-skel-account" aria-hidden="true"></span>'
       : platform.authed
         ? `<details class="v6-dropdown"><summary class="v6-account-btn" aria-label="账户"><span class="v6-avatar">${esc(accountName().slice(0, 1))}</span><span class="v6-account-label">${esc(accountName())}</span>${icon('chevron-down')}</summary><div class="v6-menu right">${[
           ['console', '用量概览', 'layout-grid'],
@@ -1643,7 +1659,7 @@
       ['faq', '常见问题', 'circle-help'],
       ['explore', '相关模型', 'compass'],
     ]
-    app.innerHTML = `<div class="v6-shell"><header class="v6-detail-head"><div class="v6-title"><div><div class="v6-row">${logo(model.provider, 'lg')}<h1>${esc(model.provider + ': ' + model.name)}</h1></div><div class="v6-row v6-slug"><button type="button" class="v6-slug-pill" data-action="copy" data-copy="${esc(model.slug)}" aria-label="复制模型 ID" data-tip="复制模型 ID"><span class="v6-slug-text">${esc(model.slug)}</span><span class="v6-slug-ico" data-copy-icon>${icon('copy')}</span></button>${pin(model)}</div></div><div class="v6-row v6-wrap">${link('models/' + encodeURIComponent(model.id) + '?section=api', '调用示例', 'v6-btn', 'code')}${link('console/keys', '获取 API Key', 'v6-btn primary', 'key-round')}</div></div>${model.description ? `<p class="v6-detail-description">${esc(model.description)}</p>` : ''}<div class="v6-stats">${stat('输入 / 输出模态', `<span class="v6-row">${model.inputs.map((value) => `<span title="${modalityNames[value]}">${icon(modalityIcons[value])}</span>`).join('')}${icon('arrow-right')}${icon(modalityIcons[model.outputs[0]])}</span>`)}${stat('输入 / 输出价格', model.imagePrice || model.audioPrice ? modelPrice(model) : money(model.inputRate) + ' / ' + money(model.outputRate), model.imagePrice || model.audioPrice ? '' : '每百万 tokens')}${stat('上下文长度', contextLabel(model))}${model.date ? stat('发布日期', model.date) : ''}</div></header><div class="v6-section-layout">${sectionNav(sections)}<div>${section('providers', '提供商', `此模型由 ${model.hosts.length} 个提供商提供服务。${telemetry ? '可按价格、延迟、吞吐和可用性查看路由。' : '价格来自当前计费配置。'}`, `<div class="v6-toolbar">${telemetry ? `<label class="v6-row v6-small v6-ml-auto">延迟分位数<select class="v6-select" id="provider-percentile"><option value="50">P50</option><option value="90">P90</option><option value="99">P99</option></select></label>` : ''}</div><div id="provider-table" data-sort="latency">${providerTable(model)}</div>`, telemetry ? '<span class="v6-badge">演示指标</span>' : '')}${section('pricing', '价格', `模型费率与单次调用成本。${model.live ? '费率来自当前计费配置。' : '价格使用演示目录中的固定数据。'}`, `<div class="v6-stat-band"><div><small>${model.imagePrice ? '每张图像' : model.audioPrice ? '每分钟音频' : '输入 / 百万 tokens'}</small><strong>${kpi(money(model.imagePrice || model.audioPrice || model.inputRate))}</strong></div>${!model.imagePrice && !model.audioPrice ? `<div><small>输出 / 百万 tokens</small><strong>${kpi(money(model.outputRate))}</strong></div>` : ''}</div>${!model.imagePrice && !model.audioPrice ? `<div class="v6-estimator">输入 <span class="v6-input-suffix"><input class="v6-input" type="number" min="0" max="10000000" id="estimate-input" value="2000" aria-label="输入 tokens"><em>tokens</em></span> · 输出 <span class="v6-input-suffix"><input class="v6-input" type="number" min="0" max="1000000" id="estimate-output" value="800" aria-label="输出 tokens" ${model.outputs[0] === 'embeddings' ? 'disabled' : ''}><em>tokens</em></span><span class="v6-estimator-result"><small>预计单次成本</small><strong id="estimate-cost" class="v6-num">${kpi(money((model.inputRate * 2000 + model.outputRate * 800) / 1e6))}</strong></span></div>` : ''}`)}${telemetry ? section('performance', '性能', '吞吐量越高，生成越快；首 token 延迟越低，等待越短。', `<div class="v6-stat-band"><div><small>吞吐量</small><strong>${kpi(model.throughput)}</strong></div><div><small>首 token 延迟</small><strong>${kpi(model.latency)}</strong></div></div><div class="v6-row v6-between"><h3>吞吐量趋势</h3><select class="v6-select" data-chart-period="detail-performance" aria-label="性能统计周期"><option value="7">最近 7 天</option><option value="30">最近 30 天</option></select></div>${chart('detail-performance', 'performance', 'detail')}`) : ''}${model.live ? section('performance', '性能', '实测指标，按分组聚合。', `<div id="model-perf">${skeletonRows(4)}</div>`) : ''}${telemetry ? section('uptime', '可用性', '最近 30 天的服务状态，所有指标为演示样本。', `<div class="v6-row v6-between"><h3>${kpi(model.uptime)}</h3><span class="v6-badge green">服务正常</span></div><div class="v6-uptime" role="img" aria-label="最近30天每日可用性">${Array.from({ length: 30 }, (_, index) => { const day = new Date(Date.now() - (29 - index) * 864e5); const tip = `${day.getMonth() + 1}/${day.getDate()}：${index === 12 ? '99.5%' : '100%'}`; return `<i data-tip="${tip}" class="${index === 12 ? 'warning' : ''}"></i>` }).join('')}</div><div class="v6-row v6-between v6-small v6-muted"><span>30 天前</span><span>今天</span></div>${uptimeLegend()}`) : ''}${model.live ? section('uptime', '可用性', '分时段实测成功率。', `<div id="model-uptime">${skeletonRows(2)}</div>`) : ''}${section('api', 'API 调用', '使用 OpenAI 兼容 SDK。以下 Base URL 为示例地址，接入时替换为你的实际服务地址。', codeBlock(model))}${section('faq', '常见问题', '', `<details class="v6-faq"><summary>这个模型支持哪些输入？${icon('chevron-right')}</summary><p>支持${model.inputs.map((value) => modalityNames[value]).join('、')}输入，输出类型为${modalityNames[model.outputs[0]]}。</p></details><details class="v6-faq"><summary>如何选择提供商？${icon('chevron-right')}</summary><p>可在提供商列表中查看性能指标。实际请求的路由取决于服务端配置、可用性和账户策略。</p></details><details class="v6-faq"><summary>免费模型有什么限制？${icon('chevron-right')}</summary><p>免费变体通常有请求频率和每日用量限制，适合试验和评估。具体限制以服务提供商为准。</p></details>`)}${section(
+    app.innerHTML = `<div class="v6-shell"><header class="v6-detail-head"><div class="v6-title"><div><div class="v6-row">${logo(model.provider, 'lg')}<h1>${esc(model.provider + ': ' + model.name)}</h1></div><div class="v6-row v6-slug"><button type="button" class="v6-slug-pill" data-action="copy" data-copy="${esc(model.slug)}" aria-label="复制模型 ID" data-tip="复制模型 ID"><span class="v6-slug-text">${esc(model.slug)}</span><span class="v6-slug-ico" data-copy-icon>${icon('copy')}</span></button>${pin(model)}</div></div><div class="v6-row v6-wrap">${link('models/' + encodeURIComponent(model.id) + '?section=api', '调用示例', 'v6-btn', 'code')}${link('console/keys', '获取 API Key', 'v6-btn primary', 'key-round')}</div></div>${model.description ? `<p class="v6-detail-description">${esc(model.description)}</p>` : ''}<div class="v6-stats">${stat('输入 / 输出模态', `<span class="v6-row">${model.inputs.map((value) => `<span title="${modalityNames[value]}">${icon(modalityIcons[value])}</span>`).join('')}${icon('arrow-right')}${icon(modalityIcons[model.outputs[0]])}</span>`)}${stat('输入 / 输出价格', model.imagePrice || model.audioPrice ? modelPrice(model) : money(model.inputRate) + ' / ' + money(model.outputRate), model.imagePrice || model.audioPrice ? '' : '每百万 tokens')}${stat('上下文长度', contextLabel(model))}${model.date ? stat('发布日期', model.date) : ''}</div></header><div class="v6-section-layout">${sectionNav(sections)}<div>${section('providers', '提供商', `此模型由 ${model.hosts.length} 个提供商提供服务。${telemetry ? '可按价格、延迟、吞吐和可用性查看路由。' : '价格来自当前计费配置。'}`, `<div class="v6-toolbar">${telemetry ? `<label class="v6-row v6-small v6-ml-auto">延迟分位数<select class="v6-select" id="provider-percentile"><option value="50">P50</option><option value="90">P90</option><option value="99">P99</option></select></label>` : ''}</div><div id="provider-table" data-sort="latency">${providerTable(model)}</div>`, telemetry ? '<span class="v6-badge">演示指标</span>' : '')}${section('pricing', '价格', `模型费率与单次调用成本。${model.live ? '费率来自当前计费配置。' : '价格使用演示目录中的固定数据。'}`, `<div class="v6-stat-band"><div><small>${model.imagePrice ? '每张图像' : model.audioPrice ? '每分钟音频' : '输入 / 百万 tokens'}</small><strong>${kpi(money(model.imagePrice || model.audioPrice || model.inputRate))}</strong></div>${!model.imagePrice && !model.audioPrice ? `<div><small>输出 / 百万 tokens</small><strong>${kpi(money(model.outputRate))}</strong></div>` : ''}</div>${!model.imagePrice && !model.audioPrice ? `<div class="v6-estimator">输入 <span class="v6-input-suffix"><input class="v6-input" type="number" min="0" max="10000000" id="estimate-input" value="2000" aria-label="输入 tokens"><em>tokens</em></span> · 输出 <span class="v6-input-suffix"><input class="v6-input" type="number" min="0" max="1000000" id="estimate-output" value="800" aria-label="输出 tokens" ${model.outputs[0] === 'embeddings' ? 'disabled' : ''}><em>tokens</em></span><span class="v6-estimator-result"><small>预计单次成本</small><strong id="estimate-cost" class="v6-num">${kpi(money((model.inputRate * 2000 + model.outputRate * 800) / 1e6))}</strong></span></div>` : ''}`)}${telemetry ? section('performance', '性能', '吞吐量越高，生成越快；首 token 延迟越低，等待越短。', `<div class="v6-stat-band"><div><small>吞吐量</small><strong>${kpi(model.throughput)}</strong></div><div><small>首 token 延迟</small><strong>${kpi(model.latency)}</strong></div></div><div class="v6-row v6-between"><h3>吞吐量趋势</h3><select class="v6-select" data-chart-period="detail-performance" aria-label="性能统计周期"><option value="7">最近 7 天</option><option value="30">最近 30 天</option></select></div>${chart('detail-performance', 'performance', 'detail')}`) : ''}${model.live ? section('performance', '性能', '实测指标，按分组聚合。', `<div id="model-perf">${skeletonRows(4)}</div>`) : ''}${telemetry ? section('uptime', '可用性', '最近 30 天的服务状态，所有指标为演示样本。', `<div class="v6-row v6-between"><h3>${kpi(model.uptime)}</h3><span class="v6-badge green">服务正常</span></div><div class="v6-uptime" role="img" aria-label="最近 30 天每日可用性">${Array.from({ length: 30 }, (_, index) => { const day = new Date(Date.now() - (29 - index) * 864e5); const tip = `${day.getMonth() + 1}/${day.getDate()}：${index === 12 ? '99.5%' : '100%'}`; return `<i data-tip="${tip}" class="${index === 12 ? 'warning' : ''}"></i>` }).join('')}</div><div class="v6-row v6-between v6-small v6-muted"><span>30 天前</span><span>今天</span></div>${uptimeLegend()}`) : ''}${model.live ? section('uptime', '可用性', '分时段实测成功率。', `<div id="model-uptime">${skeletonRows(2)}</div>`) : ''}${section('api', 'API 调用', '使用 OpenAI 兼容 SDK。以下 Base URL 为示例地址，接入时替换为你的实际服务地址。', codeBlock(model))}${section('faq', '常见问题', '', `<details class="v6-faq"><summary>这个模型支持哪些输入？${icon('chevron-right')}</summary><p>支持${model.inputs.map((value) => modalityNames[value]).join('、')}输入，输出类型为${modalityNames[model.outputs[0]]}。</p></details><details class="v6-faq"><summary>如何选择提供商？${icon('chevron-right')}</summary><p>可在提供商列表中查看性能指标。实际请求的路由取决于服务端配置、可用性和账户策略。</p></details><details class="v6-faq"><summary>免费模型有什么限制？${icon('chevron-right')}</summary><p>免费变体通常有请求频率和每日用量限制，适合试验和评估。具体限制以服务提供商为准。</p></details>`)}${section(
       'explore',
       '相关模型',
       '',
@@ -1826,7 +1842,7 @@
       `<div class="v6-prov-bars">${providerCounts
         .map(
           ([name, count]) =>
-            `<a class="v6-prov-row" href="#/models?provider=${encodeURIComponent(name)}"><span class="v6-prov-name">${logo(name)}<span>${esc(name)}</span></span><span class="v6-progress v6-prov-track"><i style="width:${Math.round((count / providerMax) * 100)}%"></i></span><span class="v6-prov-num">${count}</span></a>`,
+            `<a class="v6-prov-row" href="#/models?provider=${encodeURIComponent(name)}"><span class="v6-prov-name">${logo(name)}<span>${esc(name)}</span></span><span class="v6-progress v6-prov-track"><i data-w="${Math.round((count / providerMax) * 100)}%"></i></span><span class="v6-prov-num">${count}</span></a>`,
         )
         .join('')}</div>`,
     )
@@ -1852,7 +1868,7 @@
       // T6.8：份额 = 该项 tokens / 总量；总量为 0 时全部按 0 处理
       const total = list.reduce((sum, item) => sum + Number(item.quota || item.tokens || 0), 0)
       box.innerHTML = list.length
-        ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th class="v6-rank-col">#</th><th>模型</th><th class="num">Tokens</th><th class="v6-share-col">份额</th><th class="num">请求数</th></tr></thead><tbody>${list.slice(0, 50).map((item, i) => { const share = total ? (Number(item.quota || item.tokens || 0) / total) * 100 : 0; return `<tr><td class="v6-rank-col">${rankBadge(i)}</td><td>${esc(item.model_name || item.name || item.model || '—')}</td><td class="num">${fmtTokens(item.quota || item.tokens || 0)}</td><td class="num"><span class="v6-share"><span class="v6-progress"><i style="width:${share.toFixed(1)}%"></i></span><span class="v6-num">${share.toFixed(1)}%</span></span></td><td class="num">${Number(item.count || item.requests || 0).toLocaleString()}</td></tr>` }).join('')}</tbody></table></div>`
+        ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th class="v6-rank-col">#</th><th>模型</th><th class="num">Tokens</th><th class="v6-share-col">份额</th><th class="num">请求数</th></tr></thead><tbody>${list.slice(0, 50).map((item, i) => { const share = total ? (Number(item.quota || item.tokens || 0) / total) * 100 : 0; return `<tr><td class="v6-rank-col">${rankBadge(i)}</td><td>${esc(item.model_name || item.name || item.model || '—')}</td><td class="num">${fmtTokens(item.quota || item.tokens || 0)}</td><td class="num"><span class="v6-share"><span class="v6-progress"><i data-w="${share.toFixed(1)}%"></i></span><span class="v6-num">${share.toFixed(1)}%</span></span></td><td class="num">${Number(item.count || item.requests || 0).toLocaleString()}</td></tr>` }).join('')}</tbody></table></div>`
         : empty('还没有排行数据', '当前还没有排行统计。')
     } catch (error) {
       box.innerHTML = errorBox(
@@ -1879,7 +1895,7 @@
     // T6.8：行内份额条（tnum 百分比），徽标用 rankBadge()
     const shareCell = (model) => {
       const share = totalUsage ? (model.usage / totalUsage) * 100 : 0
-      return `<span class="v6-share"><span class="v6-progress"><i style="width:${share.toFixed(1)}%"></i></span><span class="v6-num">${share.toFixed(1)}%</span></span>`
+      return `<span class="v6-share"><span class="v6-progress"><i data-w="${share.toFixed(1)}%"></i></span><span class="v6-num">${share.toFixed(1)}%</span></span>`
     }
     const demoSections = [
       ['top-models', '热门模型', 'chart-no-axes-combined'],
@@ -1904,7 +1920,7 @@
             .slice(0, 5)
             .map(
               (model, index) =>
-                `<span><i style="--series-color:var(${['--accent', '--info', '--warning', '--muted', '--accent-soft'][index]})"></i>${esc(model.name)}</span>`,
+                `<span><i data-series="${index}"></i>${esc(model.name)}</span>`,
             )
             .join('')}</div>`,
         )}${section('leaderboard', '模型榜单', '', `<div class="v6-toolbar"><label class="v6-row v6-small v6-ml-auto">排序<select class="v6-select" id="ranking-metric"><option value="usage" ${metric === 'usage' ? 'selected' : ''}>Token 用量</option><option value="speed" ${metric === 'speed' ? 'selected' : ''}>吞吐量</option></select></label></div>${
@@ -1926,7 +1942,7 @@
                         totalUsage) *
                       100
                     : 0
-                  return `<div><div class="v6-row v6-between"><span>${esc(provider)}</span><span class="v6-num">${share.toFixed(1)}%</span></div><div class="v6-progress"><i style="width:${share}%"></i></div></div>`
+                  return `<div><div class="v6-row v6-between"><span>${esc(provider)}</span><span class="v6-num">${share.toFixed(1)}%</span></div><div class="v6-progress"><i data-w="${share}%"></i></div></div>`
                 })
                 .join('')}</div>`
             : empty('还没有用量数据', '当前目录还没有可统计的用量。'),
@@ -2173,7 +2189,7 @@
             `<tr><td class="num"><span class="v6-badge mono ${code.startsWith('5') ? 'danger' : 'warning'}">${code}</span></td><td>${meaning}</td><td>${handling}</td></tr>`,
         )
         .join('')}</tbody></table></div>`,
-    )}${section('business', '企业接入', '从应用密钥、数据策略与预算开始配置工作区。', `<p>在接入前确认模型覆盖、数据保留要求和流量规模。控制台提供工作区名称、零数据保留与自动回退策略的本地配置。</p>${link('console/settings', '配置工作区', 'v6-btn', 'settings')}`)}</article><aside class="v6-docs-toc"><div class="v6-eyebrow">本页内容</div>${sectionNav(items)}</aside></div>`
+    )}${section('business', '企业接入', '从 API Key、数据策略与预算开始配置工作区。', `<p>在接入前确认模型覆盖、数据保留要求和流量规模。控制台提供工作区名称、零数据保留与自动回退策略的本地配置。</p>${link('console/settings', '配置工作区', 'v6-btn', 'settings')}`)}</article><aside class="v6-docs-toc"><div class="v6-eyebrow">本页内容</div>${sectionNav(items)}</aside></div>`
   }
 
   function accountNav() {
@@ -2294,7 +2310,7 @@
     if (!requests)
       checklist.push(['发起第一次调用', '用密钥按调用示例发出首个请求。', 'docs', 'code', '查看示例'])
     if (quota <= 0)
-      checklist.push(['充值余额', '兑换充值码后余额立即到账。', 'console/credits', 'wallet', '去充值'])
+      checklist.push(['充值余额', '使用兑换码充值后余额立即到账。', 'console/credits', 'wallet', '去充值'])
     const checklistHtml = checklist.length
       ? card(
           '新手清单',
@@ -2317,9 +2333,9 @@
           `<div class="v6-metric"><span class="v6-muted v6-small">${label}</span><strong>${kpi(value)}</strong></div>`,
       )
       .join('')}</div><div class="v6-row v6-between v6-block-head"><h2>近 7 天用量</h2>${link('console/activity', '查看活动', 'v6-link', 'arrow-right', true)}</div><div class="v6-chart-sm" id="overview-usage">${chart('account-usage')}</div><div class="v6-row v6-between v6-block-head"><h2>最近请求</h2>${link('console/activity', '查看全部', 'v6-link', 'arrow-right', true)}</div><div id="overview-recent">${skeletonRows(3)}</div><div class="v6-ws-grid">${[
-      ['console/keys', 'API Keys', '创建和管理此工作区的 API 密钥。', 'key-round'],
+      ['console/keys', 'API Keys', '创建和管理此工作区的 API Key。', 'key-round'],
       ...(feature('guardrails') ? [['console/guardrails', '护栏', '设置预算、模型与提供商限制、隐私和内容策略。', 'shield']] : []),
-      ...(feature('byok') ? [['console/byok', 'BYOK', '在平台上使用你自己的提供商密钥。', 'lock']] : []),
+      ...(feature('byok') ? [['console/byok', 'BYOK', '在平台上使用你自己的提供商 API Key。', 'lock']] : []),
       ...(feature('routing') ? [['console/routing', '路由', '为模型和提供商设置路由策略。', 'route']] : []),
       ...(feature('presets') ? [['console/presets', '预设', '保存系统提示词和请求参数的快捷方式。', 'layers']] : []),
       ...(feature('tools') ? [['console/tools', '工具', '配置插件并控制请求可使用的服务器工具。', 'wrench']] : []),
@@ -2347,16 +2363,16 @@
     return `${head('余额', '个人账户余额与充值。', button('refresh-credits', '刷新', 'refresh-cw'))}${card(
       '可用余额',
       '',
-      `<div class="v6-balance">${kpi(money(quota))}</div><div class="v6-row v6-between v6-small"><span class="v6-muted">已用 ${money(used)} / 总额 ${money(total)}</span><span class="v6-muted">本月消费 <strong class="v6-num" id="credits-month">—</strong></span></div><div class="v6-progress${tone}"><i style="width:${pct}%"></i></div>`,
+      `<div class="v6-balance">${kpi(money(quota))}</div><div class="v6-row v6-between v6-small"><span class="v6-muted">已用 ${money(used)} / 总额 ${money(total)}</span><span class="v6-muted">本月消费 <strong class="v6-num" id="credits-month">—</strong></span></div><div class="v6-progress${tone}"><i data-w="${pct}%"></i></div>`,
       link('console/activity', '查看用量', 'v6-btn'),
     )}${card(
-      '兑换充值码',
+      '兑换码',
       '兑换成功后余额立即到账。',
       `<form id="topup-inline-form" class="v6-inline-form" novalidate><input class="v6-input" name="key" required autocomplete="off" placeholder="输入兑换码" aria-label="兑换码"><button class="v6-btn primary" type="submit" data-action="redeem-code">兑换</button></form>`,
     )}<div id="topup-history"></div>${card('说明', '', `<p class="v6-muted v6-small">余额与消费数据与账户实时同步。使用兑换码充值后余额立即到账。</p>`)}`
   }
   function pageSettings() {
-    return `${head('设置', '管理工作区标识、支出控制和集成。')}${card('常规', '管理工作区名称。', field('名称', '在工作区成员间显示。', `<input class="v6-input" name="workspace" value="${esc(state.settings.name)}" maxlength="60" form="settings-form" data-dirty-watch>`), `<span class="v6-save-state v6-muted v6-small" id="settings-save-state" hidden>有未保存的更改</span><button class="v6-btn primary" type="submit" form="settings-form">保存</button>`)}<form id="settings-form" novalidate></form>${card('预算与数据', '管理支出上限和数据共享。更改即时生效，仅保存在本机。', `${field('工作区预算', '设置每日、每周或每月支出上限。', `<span class="v6-muted v6-small">未设置上限 · 需在服务端配置</span>`)}${field('自动故障回退', '当前提供商不可用时切换到其他路由。', toggle('fallback', state.settings.fallback))}`)}${card('隐私', '更改即时生效，仅保存在本机。', field('零数据保留', '优先使用不保留请求数据的提供商。', toggle('zdr', state.settings.zdr)))}${card('危险操作', '', `<div class="v6-row v6-between"><div><strong>删除工作区</strong><p class="v6-muted v6-small">删除后无法恢复。当前为唯一工作区，暂不能删除。</p></div><button class="v6-btn danger" disabled>删除工作区</button></div>`, '', 'danger')}`
+    return `${head('设置', '管理工作区标识、支出控制和集成。')}${card('常规', '管理工作区名称。仅保存在本机。', field('名称', '在工作区成员间显示。', `<input class="v6-input" name="workspace" value="${esc(state.settings.name)}" maxlength="60" form="settings-form" data-dirty-watch>`), `<span class="v6-save-state v6-muted v6-small" id="settings-save-state" hidden>有未保存的更改</span><button class="v6-btn primary" type="submit" form="settings-form">保存</button>`)}<form id="settings-form" novalidate></form>${card('预算与数据', '管理支出上限和数据共享。更改即时生效，仅保存在本机。', `${field('工作区预算', '设置每日、每周或每月支出上限。', `<span class="v6-muted v6-small">未设置上限 · 需在服务端配置</span>`)}${field('自动故障回退', '当前提供商不可用时切换到其他路由。', toggle('fallback', state.settings.fallback))}`)}${card('隐私', '更改即时生效，仅保存在本机。', field('零数据保留', '优先使用不保留请求数据的提供商。', toggle('zdr', state.settings.zdr)))}${card('危险操作', '', `<div class="v6-row v6-between"><div><strong>删除工作区</strong><p class="v6-muted v6-small">删除后无法恢复。当前为唯一工作区，暂不能删除。</p></div><button class="v6-btn danger" disabled>删除工作区</button></div>`, '', 'danger')}`
   }
   function pageActivity() {
     if (!platform.authed)
@@ -2371,7 +2387,7 @@
         ([l, w], i) =>
           `<div class="v6-metric"><span class="v6-muted v6-small">${l}</span><strong>${
             w
-              ? '<span class="v6-skeleton" style="display:inline-block;width:' + w + ';height:20px"></span>'
+              ? '<span class="v6-skeleton v6-skel-metric" data-w="' + w + '"></span>'
               : kpi(money(Number(platform.user?.used_quota || 0) / SkinAPI.quotaPerUnit()))
           }</strong></div>`,
       )
@@ -2384,7 +2400,7 @@
     return `${head('护栏', '设置预算、模型与提供商限制、隐私和内容策略。')}${card('支出上限', '', `<p class="v6-muted">未配置支出上限。</p>`, button('add-guardrail', '添加护栏', 'plus'))}${card('模型限制', '限制此工作区可调用的模型。', `<p class="v6-muted">允许所有模型。</p>`)}${card('提供商限制', '', `<p class="v6-muted">允许所有提供商。</p>`)}`
   }
   function pageByok() {
-    return `${head('BYOK', '使用你自己的提供商 API 密钥。')}${card('提供商密钥', '添加提供商密钥后，对应请求将走你的账户计费。', `<p class="v6-muted">尚未配置任何提供商密钥。</p>`, button('add-byok', '添加提供商密钥', 'plus'))}`
+    return `${head('BYOK', '使用你自己的提供商 API Key。')}${card('提供商 API Key', '添加提供商 API Key 后，对应请求将走你的账户计费。', `<p class="v6-muted">尚未配置任何提供商 API Key。</p>`, button('add-byok', '添加提供商 API Key', 'plus'))}`
   }
   function pageRouting() {
     return `${head('路由', '为模型和提供商设置路由策略。')}${card('提供商排序', '拖动调整提供商优先级，请求将按顺序尝试。', `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>提供商</th><th class="num">优先级</th><th>状态</th></tr></thead><tbody>${['OpenAI', 'Anthropic', 'Google', 'DeepSeek'].map((p, i) => `<tr><td>${p}</td><td class="num">${i + 1}</td><td><span class="v6-badge green">启用</span></td></tr>`).join('')}</tbody></table></div>`)}${field('允许回退', '主要提供商不可用时尝试其他提供商。', toggle('fallback', state.settings.fallback))}`
@@ -2449,7 +2465,7 @@
     const total = used + remain
     const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0
     const tone = pct >= 90 ? ' danger' : pct >= 70 ? ' warn' : ''
-    return `<span class="v6-num">${money(used)} / ${money(total)}</span><div class="v6-progress${tone}"><i style="width:${pct}%"></i></div>`
+    return `<span class="v6-num">${money(used)} / ${money(total)}</span><div class="v6-progress${tone}"><i data-w="${pct}%"></i></div>`
   }
   function relTime(ts) {
     // KY-02：相对时间（3 天前 / 2 小时后），完整时间放 title
@@ -2806,7 +2822,7 @@
     }
     node.innerHTML =
       state === 'loading'
-        ? '<span class="v6-skeleton" style="display:block;width:60%;height:14px"></span><span class="v6-skeleton" style="display:block;width:40%;height:14px"></span>'
+        ? '<span class="v6-skeleton v6-skel-line" data-w="60%"></span><span class="v6-skeleton v6-skel-line" data-w="40%"></span>'
         : state === 'error'
           ? `${icon('info')}<span>用量数据加载失败</span><button type="button" class="v6-btn sm" data-action="chart-retry" data-chart-id="${esc(canvas.id)}">重试</button>`
           : `${icon('chart-no-axes-combined')}<span>还没有用量数据</span>`
@@ -3634,7 +3650,7 @@
     renderHeader()
     // G-32：boot 未完成时只渲染骨架，避免闪"需要登录"/演示目录等错误内容
     if (!booted && route !== 'home') {
-      app.innerHTML = `<div class="v6-shell"><div class="v6-title"><div><span class="v6-skeleton" style="display:block;width:220px;height:30px"></span><span class="v6-skeleton" style="display:block;width:340px;height:16px;margin-top:10px"></span></div></div><div class="v6-skeleton" style="display:block;height:120px;margin-bottom:24px"></div>${skeletonRows(5)}</div>`
+      app.innerHTML = `<div class="v6-shell"><div class="v6-title"><div><span class="v6-skeleton v6-skel-title"></span><span class="v6-skeleton v6-skel-sub"></span></div></div><div class="v6-skeleton v6-skel-hero"></div>${skeletonRows(5)}</div>`
       app.insertAdjacentHTML('afterend', footer())
       return
     }
@@ -3871,7 +3887,7 @@
       // 契约保留 data-action，其余入口（如旧模板）仍走弹窗
       if (!target.closest('#topup-inline-form'))
         showDialog(
-          '兑换充值码',
+          '兑换码',
           `<form id="topup-form" novalidate><label class="v6-form-label">兑换码<input class="v6-input" name="key" required autocomplete="off" placeholder="输入兑换码"></label><p class="v6-muted v6-small">兑换成功后余额立即到账。</p><div class="v6-dialog-foot">${button('close-dialog', '取消')}<button class="v6-btn primary" type="submit">兑换</button></div></form>`,
         )
     }
@@ -4052,6 +4068,7 @@
       ![
         'key-form',
         'topup-form',
+        'topup-inline-form',
         'reset-form',
         'settings-form',
         'auth-form',
@@ -4231,7 +4248,7 @@
       save()
       const stateNode = document.getElementById('settings-save-state')
       if (stateNode) stateNode.hidden = true
-      toast('工作区设置已保存')
+      toast('工作区设置已保存到此浏览器')
     }
   })
   document.addEventListener('input', (event) => {
@@ -4414,7 +4431,7 @@
     const rows = (record.names || [])
       .map(
         (name, i) =>
-          `<span class="v6-chart-tip-row"><i style="background:${record.colors?.[i] || 'var(--accent)'}"></i>${esc(name)}<b class="v6-num">${fmt(point.parts ? point.parts[i] ?? 0 : point.value)}</b></span>`,
+          `<span class="v6-chart-tip-row"><i data-bg="${record.colors?.[i] || 'var(--accent)'}"></i>${esc(name)}<b class="v6-num">${fmt(point.parts ? point.parts[i] ?? 0 : point.value)}</b></span>`,
       )
       .join('')
     const total =
