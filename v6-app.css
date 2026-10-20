@@ -3660,7 +3660,7 @@
 .v6-input,
 .v6-select {
   min-width: 0;
-  min-height: 37px;
+  min-height: var(--control-md);
   padding: 8px 12px;
   border: 1px solid var(--border);
   background: var(--surface-1);
@@ -7115,6 +7115,8 @@ a.v6-item:hover .v6-link {
   --skeleton-base: color-mix(in srgb, var(--text) 7%, var(--surface-1));
   --skeleton-hi: color-mix(in srgb, var(--text) 2%, var(--surface-1));
   --input-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  --input-ring-danger: 0 0 0 3px var(--danger-faint);
+  --nav-indicator: inset 0 -2px 0 var(--accent);
 }
 
 /* ---------- 焦点环 ---------- */
@@ -8229,34 +8231,6 @@ html.theme-transition::view-transition-new(root) {
   }
 }
 
-/* ---------- 无品牌图标的首字母徽标：按名称取色相，深浅主题各一套明度 ---------- */
-.v6-logo.v6-logo-initial {
-  border-color: var(--c-77) 55% 86%);
-  background: var(--c-77) 80% 96%);
-  color: var(--c-77) 55% 34%);
-}
-.premium-home .sr-model-logo .v6-logo.v6-logo-initial {
-  color: var(--c-77) 55% 34%);
-}
-:root[data-theme='dark'] .v6-logo.v6-logo-initial {
-  border-color: var(--c-77) 30% 26%);
-  background: var(--c-77) 35% 15%);
-  color: var(--c-77) 70% 76%);
-}
-:root[data-theme='dark'] .premium-home .sr-model-logo .v6-logo.v6-logo-initial {
-  color: var(--c-77) 70% 76%);
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) .v6-logo.v6-logo-initial {
-    border-color: var(--c-77) 30% 26%);
-    background: var(--c-77) 35% 15%);
-    color: var(--c-77) 70% 76%);
-  }
-  :root:not([data-theme='light']) .premium-home .sr-model-logo .v6-logo.v6-logo-initial {
-    color: var(--c-77) 70% 76%);
-  }
-}
-
 /* 上下文未知时卡片只剩价格一项：它同时是 :last-child，要撤掉为第二列准备的右对齐 */
 .premium-home .sr-model-data span:only-child {
   text-align: left;
@@ -8345,7 +8319,6 @@ html.theme-transition::view-transition-new(root) {
   --c-74: rgba(16, 24, 40, 0.04);
   --c-75: #000;
   --c-76: #d9f7ea;
-  --c-77: hsl(var(--logo-h);
 }
 
 :root {
@@ -8377,4 +8350,569 @@ html.theme-transition::view-transition-new(root) {
   --glow-m24: var(--input-ring);
   --glow-m25: var(--btn-highlight);
   --glow-m26: -1px 0 0 var(--border), 0 -1px 0 var(--border);
+}
+
+/* ===== T2.1 按钮体系（尺寸 28/36/40/44 · 变体 · 状态 · busy） ===== */
+.v6-btn {
+  min-height: var(--control-md);
+  padding: 5px 14px;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+.v6-btn:active:not(:disabled):not(.is-busy) {
+  transform: scale(0.98);
+}
+.v6-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* 尺寸档 */
+.v6-btn-sm { min-height: var(--control-sm); padding: 3px 10px; font-size: var(--fs-12); gap: 6px; }
+.v6-btn-lg { min-height: var(--control-lg); padding: 7px 16px; font-size: var(--fs-14); }
+.v6-btn-xl { min-height: 44px; padding: 9px 20px; font-size: var(--fs-14); }
+/* 变体：secondary 即默认描边样式；danger / danger-ghost / link */
+.v6-btn.danger { background: var(--danger-button); border-color: var(--danger-button); color: var(--on-accent); }
+.v6-btn.danger:hover { background: var(--danger-button-hover); border-color: var(--danger-button-hover); }
+.v6-btn.danger-ghost { background: transparent; border-color: var(--danger-button); color: var(--danger-button); }
+.v6-btn.danger-ghost:hover { background: var(--danger-faint); }
+/* busy 态：文案保持渲染（不跳宽），spinner 覆盖居中 */
+.v6-btn.is-busy { position: relative; pointer-events: none; color: transparent !important; }
+.v6-btn.is-busy > * { visibility: hidden; }
+.v6-btn.is-busy::after {
+  content: ''; position: absolute; inset: 0; margin: auto;
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid var(--on-accent);
+  border-top-color: transparent;
+  animation: v6Spin .8s linear infinite;
+}
+.v6-btn.is-busy:not(.primary):not(.danger)::after {
+  border-color: var(--text-2) var(--text-2) transparent;
+}
+@keyframes v6Spin { to { transform: rotate(360deg) } }
+@media (prefers-reduced-motion: reduce) { .v6-btn.is-busy::after { animation: v6Spin 1.6s linear infinite } }
+/* 图标按钮统一正方形 = 所在尺寸档高度 */
+.v6-icon-btn { width: var(--control-md); height: var(--control-md); }
+.v6-btn-sm .v6-icon-btn, .v6-icon-btn.v6-btn-sm { width: var(--control-sm); height: var(--control-sm); }
+
+/* ===== T2.2 输入类：36px 高 · hover 深描边 · focus accent 环 · 错误态 · 前后缀 · 清除按钮 ===== */
+/* readonly ≠ disabled：readonly 保留正文色、淡背景；disabled 降低对比+禁手型 */
+.v6-input[readonly]:not(:disabled),
+.v6-select[readonly]:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text-2);
+  border-style: dashed;
+}
+.v6-input:disabled,
+.v6-select:disabled {
+  background: var(--surface-2);
+  color: var(--muted);
+  border-color: var(--border);
+  cursor: not-allowed;
+  opacity: .7;
+}
+/* 字段错误提示 12px */
+.v6-field-msg {
+  display: block;
+  margin-top: 6px;
+  font-size: var(--fs-12);
+  color: var(--danger);
+  line-height: 1.4;
+}
+.v6-input[aria-invalid='true']:focus { border-color: var(--danger); box-shadow: var(--input-ring-danger); }
+/* 单位前后缀 */
+.v6-input-affix {
+  display: inline-flex; align-items: stretch; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: var(--surface-1); overflow: hidden;
+  min-height: var(--control-md);
+}
+.v6-input-affix > .v6-input { border: 0; border-radius: 0; min-height: 34px; flex: 1; }
+.v6-input-affix > .v6-input:focus { box-shadow: none; }
+.v6-input-affix:focus-within { border-color: var(--accent-text); box-shadow: var(--glow-m14); }
+.v6-affix {
+  display: inline-flex; align-items: center; padding: 0 10px;
+  font-size: var(--fs-12); color: var(--muted); background: var(--surface-2);
+  font-family: var(--font-mono); white-space: nowrap;
+}
+.v6-affix.prefix { border-right: 1px solid var(--border); }
+.v6-affix.suffix { border-left: 1px solid var(--border); }
+/* 搜索清除按钮：命中区撑满整行（与 input 同高），视觉仍是 20px 圆点 */
+.v6-search-clear {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 32px;
+  border: 0; border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: transparent; color: var(--muted); font-size: var(--fs-14); line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease), visibility 0s var(--dur-fast);
+}
+.v6-search-clear::before {
+  content: ''; position: absolute; inset: 0; margin: auto;
+  width: 20px; height: 20px; border-radius: var(--radius-full);
+  background: var(--surface-2); transition: background var(--dur-fast) var(--ease);
+}
+.v6-search-clear i { position: relative; font-style: normal; }
+.v6-search .v6-input:not(:placeholder-shown) ~ .v6-search-clear {
+  opacity: 1; visibility: visible; pointer-events: auto; transition-delay: 0s;
+}
+.v6-search .v6-search-clear:disabled { opacity: 0; visibility: hidden; pointer-events: none; }
+.v6-search-clear:hover { color: var(--text); }
+.v6-search-clear:hover::before { background: var(--surface-3); }
+.v6-search .v6-input { padding-right: 32px; }
+/* 撤销原生 search 清除按钮（双按钮） */
+.v6-search .v6-input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+
+/* ===== T2.3 选择类：开关 36×20 · 自绘 checkbox/radio/segment · range 轨道拇指 ===== */
+.v6-switch { width: 36px; height: 20px; }
+.v6-switch span::after { top: 2px; left: 2px; width: 14px; height: 14px; }
+.v6-switch input:checked + span::after { transform: translateX(16px); }
+/* 焦点环画在轨道上 */
+.v6-switch input:focus-visible + span { box-shadow: var(--focus-ring); }
+/* 自绘 checkbox / radio */
+.v6-check input[type='checkbox'],
+.v6-check input[type='radio'] {
+  appearance: none; -webkit-appearance: none;
+  width: 16px; height: 16px; margin: 0; flex: 0 0 auto;
+  border: 1.5px solid var(--border-strong); background: var(--surface-1);
+  cursor: pointer; position: relative;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.v6-check input[type='checkbox'] { border-radius: var(--radius-xs); }
+.v6-check input[type='radio'] { border-radius: var(--radius-full); }
+.v6-check input[type='checkbox']:checked { background: var(--accent); border-color: var(--accent); }
+.v6-check input[type='checkbox']:checked::after {
+  content: ''; position: absolute; left: 4px; top: 1px;
+  width: 5px; height: 9px; border: solid var(--on-accent);
+  border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+.v6-check input[type='radio']:checked { border-color: var(--accent); }
+.v6-check input[type='radio']:checked::after {
+  content: ''; position: absolute; inset: 3px; border-radius: 50%; background: var(--accent);
+}
+.v6-check input:focus-visible { box-shadow: var(--focus-ring); outline: none; }
+.v6-check input:disabled { opacity: .5; cursor: not-allowed; }
+/* 分段控件与选择类视觉统一 */
+.v6-segment button { transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }
+.v6-segment button:focus-visible { box-shadow: var(--focus-ring); outline: none; z-index: 1; }
+/* range 自绘轨道与拇指（G-31） */
+input[type='range'] { accent-color: var(--accent); }
+input[type='range'] { -webkit-appearance: none; appearance: none; background: transparent; height: 20px; }
+input[type='range']::-webkit-slider-runnable-track {
+  height: 4px; border-radius: var(--radius-full); background: var(--surface-3);
+}
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 14px; height: 14px; margin-top: -5px;
+  border-radius: 50%; background: var(--accent); border: 2px solid var(--surface-1);
+  box-shadow: var(--glow-m5); cursor: pointer;
+}
+input[type='range']::-moz-range-track {
+  height: 4px; border-radius: var(--radius-full); background: var(--surface-3);
+}
+input[type='range']::-moz-range-thumb {
+  width: 10px; height: 10px; border-radius: 50%; background: var(--accent);
+  border: 2px solid var(--surface-1); cursor: pointer;
+}
+input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: var(--focus-ring); }
+input[type='range']:focus-visible { outline: none; }
+
+/* ===== T2.4 卡片族：panel / ws-card / metric / stat 统一 r8 · e1 · 20pad(紧凑16) ===== */
+.v6-panel, .v6-metric, .v6-ws-card, .v6-stat { border-radius: var(--radius-md); }
+.v6-panel, .v6-metric { box-shadow: var(--shadow-1); }
+/* 卡头：标题 15/600，描述 13px */
+.v6-panel-head h3, .v6-ws-card h3 { font-size: var(--fs-15); }
+.v6-panel-head p, .v6-ws-card p { font-size: var(--fs-13); }
+/* 卡尾：右对齐、间距 8 */
+.v6-panel-foot { justify-content: flex-end; gap: 8px; }
+/* 指标卡上下留白对称 */
+.v6-metric { padding: var(--space-5); }
+.v6-stat { padding: var(--space-3) var(--space-4); }
+/* 交互卡 hover：只换描边与底色，不位移 */
+.v6-ws-card:hover { border-color: var(--border-strong); background: var(--surface-hover); }
+
+/* ===== T2.5 表格：sticky 表头 · 行高 44(紧凑36) · 数字右对齐 tnum · 375px 卡片化 ===== */
+.v6-table th {
+  position: sticky; top: 0; z-index: var(--z-base);
+  font-size: var(--fs-12); font-weight: 500; color: var(--muted);
+  background: var(--surface-2);
+}
+.v6-table td { padding: 11px 16px; }               /* 行高 ≈44 */
+.v6-table.compact td { padding: 7px 16px; }        /* 行高 ≈36 */
+.v6-table tr:hover td { background: var(--surface-hover); }
+.v6-table td.num, .v6-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.v6-table td { overflow: hidden; text-overflow: ellipsis; max-width: 340px; }
+/* 首列图标与表头文字左缘对齐 */
+.v6-table td:first-child .v6-row { justify-content: flex-start; }
+/* ≤375px：标记表改卡片布局，td::before 显示 data-label */
+@media (max-width: 375px) {
+  .v6-table.v6-mobile-cards thead { display: none; }
+  .v6-table.v6-mobile-cards { white-space: normal; }
+  .v6-table.v6-mobile-cards tbody tr {
+    display: block; padding: 12px 14px; margin: 10px 0;
+    border: 1px solid var(--border); border-radius: var(--radius-md);
+    background: var(--surface-1); box-shadow: var(--shadow-1);
+  }
+  .v6-table.v6-mobile-cards tbody td {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 16px; padding: 4px 0; border-bottom: 0; max-width: none;
+  }
+  .v6-table.v6-mobile-cards tbody td::before {
+    content: attr(data-label); flex: 0 0 auto;
+    font-size: var(--fs-12); color: var(--muted); font-weight: 500;
+  }
+  .v6-table.v6-mobile-cards tbody td:first-child { padding-bottom: 8px; font-weight: 500; }
+  .v6-table.v6-mobile-cards tbody td:first-child::before { content: none; }
+  .v6-table.v6-mobile-cards tbody td.num { text-align: right; }
+  .v6-table.v6-mobile-cards { min-width: 0; }
+}
+
+/* ===== T2.6 徽标与计数：五语义 × soft/outline · 高 20/24 · 计数 tnum ===== */
+.v6-badge { min-height: 20px; padding: 2px 8px; }
+.v6-badge-lg { min-height: 24px; padding: 3px 10px; font-size: var(--fs-13); }
+/* neutral 为默认样式；outline 变体去掉底、只留描边 */
+.v6-badge.neutral { color: var(--text-2); background: var(--surface-2); border-color: var(--border); }
+.v6-badge.outline { background: transparent; }
+.v6-badge.success.outline { border-color: var(--accent-border); }
+.v6-badge.warning.outline { border-color: var(--warning); }
+.v6-badge.danger.outline { border-color: var(--danger); }
+.v6-badge.info.outline { border-color: var(--info); }
+/* 计数胶囊：12px + tnum；0 计数用 R-03 定的 surface-2/text-2（非透明度降级） */
+.v6-count { font-size: var(--fs-12); font-variant-numeric: tabular-nums; }
+
+/* ===== T2.7 指标单元（KPI）：标签 12/500 muted · 数值 28/600 tnum（控制台 24）· 单位 0.6em text-2 · 骨架/空态 ===== */
+/* 详情页统计格（公共页）：数值升到 28/600，与 stat-band 同级 */
+.v6-stat strong {
+  font-size: var(--fs-28);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: var(--track-heading);
+  font-variant-numeric: tabular-nums;
+}
+/* 控制台指标卡：数值 24（T2.7 控制台档） */
+.v6-metric strong {
+  font-size: var(--fs-24);
+  line-height: 1.2;
+}
+/* 货币符号与单位：0.6em、去斜体、text-2——数值与单位间不留空白 */
+.v6-unit {
+  font-size: 0.6em;
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--text-2);
+}
+/* KPI 空态："—" 用 muted；悬停提示由 kpi() 的 data-tip 提供（T2.12 统一样式） */
+.v6-na { color: var(--muted); font-weight: 500; }
+/* 骨架：strong 内的骨架条与基线对齐，避免撑高 */
+.v6-stat strong .v6-skeleton,
+.v6-stat-band strong .v6-skeleton,
+.v6-metric strong .v6-skeleton {
+  display: inline-block;
+  vertical-align: -2px;
+}
+
+/* ===== T2.8 页面标题区：眉标 12/500 muted · H1 公共28/控制台24 · 描述14 text-2 · 操作区贴 H1 · H1 距顶栏 40/32 ===== */
+/* 描述统一 14px（公共页原 15），与 H1 间距 8 */
+.v6-title p { font-size: var(--fs-14); }
+/* 文档页 H1 36→28（DC-03） */
+.v6-docs-layout article h1 { font-size: var(--fs-28); font-weight: 600; }
+/* 眉标页补偿：页面上内边距 40→14，眉标约占 26px 后 H1 仍落在距顶栏 40（G-07/PR-05/DC-03） */
+.v6-shell.v6-pricing,
+.v6-shell.v6-docs-layout { padding-top: 14px; }
+/* 操作区与 H1 基线对齐：存在眉标时下移眉标占高，使按钮/badge 对齐 H1 行 */
+.v6-title:has(.v6-eyebrow) > .v6-btn,
+.v6-title:has(.v6-eyebrow) > .v6-badge,
+.v6-title:has(.v6-eyebrow) > a { margin-top: 26px; }
+
+/* ===== T2.9 当前态：统一 text 色 + 600；顶栏/tabs 贴底 2px accent 条；侧栏/分区导航 surface-hover + accent 图标 ===== */
+/* 顶栏：去掉浮起阴影，改为贴底 2px accent 条 + 600 */
+.v6-header .nav-link.active {
+  font-weight: 600;
+  box-shadow: var(--nav-indicator);
+}
+/* tabs：贴底 2px accent 条已有，当前项升到 600 */
+.v6-tabs .active,
+.v6-tabs button.active { font-weight: 600; }
+/* 侧栏/分区导航/移动抽屉：surface-hover 底 + accent 图标 + 600（与 hover 的 5% 浅色底区分） */
+.v6-side-link.active,
+.v6-section-nav a.active,
+.v6-nav-sheet a.active {
+  background: var(--surface-hover);
+  font-weight: 600;
+}
+
+/* ===== T2.10 头像：accent-faint 底 + accent-text 字（亮 ≥5:1 / 暗 ≥4.5:1，修 G-20）· 12px/600 · 20/24/32 三档 ===== */
+.v6-avatar {
+  width: 24px;
+  height: 24px;
+  background: var(--accent-faint);
+  color: var(--accent-text);
+  font-size: var(--fs-12);
+  font-weight: 600;
+}
+.v6-avatar.sm { width: 20px; height: 20px; }
+.v6-avatar.lg { width: 32px; height: 32px; }
+/* 侧栏工作区头像：20 档，同样改为 accent-faint/accent-text */
+.v6-ws-avatar {
+  width: 20px;
+  height: 20px;
+  background: var(--accent-faint);
+  color: var(--accent-text);
+}
+
+/* ===== T2.11 品牌标识块：统一中性方块（surface-1 底 + hairline + r6）· 24/28/40 · 单色标识 currentColor · 无 logo 用首字母 ===== */
+.v6-logo {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+}
+.v6-logo svg { width: 100%; height: 100%; }
+/* 28 档：详情页头部沿用上下文尺寸 */
+.v6-logo-md,
+.v6-detail-head .v6-title .v6-row:first-child .v6-logo { width: 28px; height: 28px; padding: 4px; }
+/* 40 档：提供商信息弹窗等强调位 */
+.v6-logo-lg { width: 40px; height: 40px; padding: 8px; border-radius: var(--radius-md); font-size: var(--fs-16); }
+/* 首字母徽标：同样中性方块（覆盖早期 surface-2 规则） */
+.v6-logo:not(:has(svg)) { background: var(--surface-1); }
+/* 首页搜索预览卡内的大 logo 位保持裸装，不套方块 */
+.premium-home .sr-model-logo .v6-logo { border: 0; background: none; padding: 0; }
+/* 首页路由图提供商节点：30px 容器内套 24px 中性方块 */
+.premium-home .route-provider b.provider-logo,
+.route-provider b.provider-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+  color: var(--text);
+}
+
+/* ===== T2.12 提示与按键：data-tip 12px/inverse/r6/偏移6/100ms（已在 G-54 + v6-tip-in 达成）；kbd 11px/500 r4 hairline；icon-btn aria-label 即 tip ===== */
+/* kbd 全局：11px/500、r4、hairline 描边 */
+kbd {
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  font-weight: 500;
+  line-height: 1.5;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--surface-1);
+  color: var(--text-2);
+}
+.v6-palette-foot kbd { font-size: var(--fs-11); }
+/* 触屏无 hover：防止 tip 在 tap 后粘留（focus-visible 只在键盘聚焦时触发） */
+@media (hover: none) {
+  [data-tip]:hover::after { content: none; }
+}
+
+/* ===== T3.1 对话框与菜单：宽度 400/520/720 · 头16/600+可选描述 · 体 · 尾右对齐 · backdrop+2px 模糊 · 150ms 淡入 scale(.98)→1 · ≤640 底部抽屉 · 菜单 100ms ===== */
+/* 宽度三档：默认 md 520 */
+.v6-dialog { width: min(520px, calc(100% - 32px)); }
+.v6-dialog.v6-dialog-sm { width: min(400px, calc(100% - 32px)); }
+.v6-dialog.v6-dialog-lg { width: min(720px, calc(100% - 32px)); }
+/* 头部标题 16/600，可带描述 */
+.v6-dialog-head h2 { font-size: var(--fs-16); font-weight: 600; }
+.v6-dialog-head .v6-dialog-desc { margin: 4px 0 0; font-size: var(--fs-13); color: var(--text-2); }
+/* 遮罩：--backdrop + 2px 模糊 */
+.v6-dialog::backdrop {
+  background: var(--backdrop);
+  backdrop-filter: blur(2px);
+}
+/* 打开动画：150ms 淡入 + scale(.98)→1（覆盖早期 translateY 版本——同名 @keyframes 后者生效） */
+@keyframes v6-dialog-in {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+/* ≤640：底部抽屉，圆角 12 12 0 0（⌘K 面板与移动导航抽屉除外） */
+@media (max-width: 640px) {
+  .v6-dialog:not(.v6-palette):not(.v6-nav-sheet) {
+    margin: auto auto 0;
+    width: 100%;
+    max-height: 78dvh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-bottom: 0;
+  }
+  .v6-dialog:not(.v6-palette):not(.v6-nav-sheet)[open] {
+    animation: v6-sheet-in var(--dur) var(--ease);
+  }
+}
+@keyframes v6-sheet-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+/* 菜单：100ms 打开；快捷键提示右对齐 */
+.v6-dropdown[open] > .v6-menu { animation-duration: var(--dur-fast); }
+.v6-menu kbd { margin-left: auto; }
+/* 菜单项当前勾选（主题项等 aria-checked/当前态） */
+.v6-menu [aria-checked='true'],
+.v6-menu .is-current { font-weight: 600; color: var(--text); }
+.v6-menu [aria-checked='true']::after,
+.v6-menu .is-current::after {
+  content: '✓';
+  margin-left: auto;
+  color: var(--accent-text);
+  font-size: var(--fs-12);
+}
+
+/* ===== T3.2 登录/注册：品牌头部（标记+标题+说明）· 字段级校验 · OAuth 等宽网格 · 注册条款 ===== */
+/* 品牌标记嵌入对话框头部左侧 */
+.v6-dialog-head:has(.v6-auth-mark) { justify-content: flex-start; gap: 12px; }
+.v6-dialog-head:has(.v6-auth-mark) > .v6-btn { margin-left: auto; }
+.v6-auth-mark { display: inline-flex; align-items: center; flex-shrink: 0; }
+.v6-auth-mark svg { width: 26px; height: 26px; display: block; }
+/* OAuth：等宽网格 + 居中（auto-fit 兼顾 1~N 个提供商） */
+.v6-oauth-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+}
+.v6-oauth-grid .v6-btn { justify-content: center; min-width: 0; }
+/* 注册条款说明 */
+.v6-auth-terms {
+  margin: 14px 0 0;
+  font-size: var(--fs-12);
+  color: var(--muted);
+  text-align: center;
+}
+
+/* ---------- T3.3 toast / 就地复制反馈 ---------- */
+/* 屏幕阅读器专用（v6-live 播报区） */
+.v6-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+/* OL-04：复制按钮 ✓ 反馈用 accent 着色，不再限于 input-eye */
+[data-action='copy'].copied,
+[data-action='copy-code'].copied,
+.v6-btn.copied {
+  color: var(--accent);
+}
+/* 移动端：toast 移到顶部居中（popover 用 inset，两处都改） */
+@media (max-width: 640px) {
+  #v6-toasts {
+    top: 12px;
+    bottom: auto;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: min(92vw, 380px);
+  }
+  #v6-toasts:popover-open {
+    inset: 12px auto auto 50%;
+    transform: translateX(-50%);
+    width: min(92vw, 380px);
+  }
+}
+
+/* ---------- T3.4 ⌘K 命令面板 ---------- */
+/* 命中文字高亮：accent-faint 底（在 active 行上改用略强的 accent 混合，避免被行底色吞掉） */
+.v6-command-item mark {
+  background: var(--accent-faint);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: inherit;
+  border-radius: var(--radius-xs);
+  padding: 0 1px;
+}
+.v6-command-item.active mark {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+/* 名称单行省略；右侧 meta（provider · 上下文 · 价格）用 tnum 小字 */
+.v6-command-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v6-command-meta {
+  flex: none;
+  margin-left: auto;
+  font-size: var(--fs-12);
+  color: var(--muted);
+}
+.v6-command-item.active .v6-command-meta {
+  color: var(--accent-soft);
+}
+/* 面板内品牌标识块紧凑一档 */
+.v6-command-item .v6-logo {
+  width: 22px;
+  height: 22px;
+  padding: 2px;
+}
+/* 空态：图标 + 文案居中 */
+.v6-palette-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 28px 12px;
+}
+.v6-palette-empty .v6-icon {
+  width: 15px;
+  height: 15px;
+}
+
+/* ---------- T3.5 移动导航抽屉 ---------- */
+/* 顶部账户块：头像 + 用户名 + 余额，登出收进右侧图标按钮 */
+.v6-nav-account {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.v6-nav-account .v6-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.v6-nav-account-meta {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+.v6-nav-account-meta strong {
+  font-size: var(--fs-14);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.v6-nav-account-meta span {
+  font-size: var(--fs-12);
+}
+.v6-nav-account .v6-btn.primary {
+  flex: none;
+}
+/* 分组标题：12px / 500 */
+.v6-nav-sheet .nav-group {
+  font-weight: 500;
+}
+/* 底部主题开关：分段控件占满一行 */
+.v6-nav-sheet .nav-foot .v6-segment {
+  flex: 1;
+  display: flex;
+}
+.v6-nav-sheet .nav-foot .v6-segment button {
+  flex: 1;
+  justify-content: center;
+  margin-left: 0;
+}
+
+/* ---------- T3.3b toast 宽度修复 ---------- */
+/* .v6-toast 的 max-width 原用 calc(100% - 48px)，与容器 fit-content 构成循环收敛，
+   toast 被压成窄列换行；改用视口宽度让容器按内容收缩 */
+#v6-toasts .v6-toast {
+  max-width: min(400px, calc(100vw - 48px));
 }

@@ -769,18 +769,18 @@
       .map((p) => `<i class="${successLevel(p.success_rate)}"></i>`)
       .join('')}</span>`
   }
-  function logo(provider) {
+  // T2.11：品牌标识块——size 可选 'md'(28)/'lg'(40)，默认 24
+  function logo(provider, size = '') {
+    const cls = size ? ` v6-logo-${size}` : ''
     const prefix = 'v6-logo-' + ++logoIndex + '-'
     const svg = logos[provider.toLowerCase()]
       ?.replaceAll('id="', 'id="' + prefix)
       .replaceAll('url(#', 'url(#' + prefix)
-    if (svg) return `<span class="v6-logo" aria-hidden="true">${svg}</span>`
-    // 无品牌图标时用首字母徽标，色相由名称哈希得出：同一提供商处处同色，不同提供商可区分
+    if (svg) return `<span class="v6-logo${cls}" aria-hidden="true">${svg}</span>`
+    // 无品牌图标时用首字母徽标（中性方块）
     const name = String(provider || '')
     const letter = (name.match(/[\p{L}\p{N}]/u) || ['?'])[0].toUpperCase()
-    let hue = 0
-    for (const char of name.toLowerCase()) hue = (hue * 31 + char.codePointAt(0)) % 360
-    return `<span class="v6-logo v6-logo-initial" style="--logo-h:${hue}" aria-hidden="true">${esc(letter)}</span>`
+    return `<span class="v6-logo v6-logo-initial${cls}" aria-hidden="true">${esc(letter)}</span>`
   }
   function link(path, label, className = 'v6-btn', symbol = '', iconAfter = false) {
     const svg = symbol ? icon(symbol) : ''
@@ -814,7 +814,8 @@
     return `<div class="v6-tabs" role="tablist" aria-label="${label}">${items.map(([value, text, symbol]) => `<button type="button" role="tab" aria-selected="${value === active}" tabindex="${value === active ? 0 : -1}" class="${value === active ? 'active' : ''}" data-action="${action}" data-value="${value}">${symbol ? icon(symbol) : ''}${text}</button>`).join('')}</div>`
   }
   function search(id, placeholder, value = '') {
-    return `<div class="v6-search">${icon('search')}<input class="v6-input" type="search" id="${id}" aria-label="${placeholder}" placeholder="${placeholder}" value="${esc(value)}" autocomplete="off"></div>`
+    // T2.2：搜索框带清除按钮（:placeholder-shown 控制显隐）
+    return `<div class="v6-search">${icon('search')}<input class="v6-input" type="search" id="${id}" aria-label="${placeholder}" placeholder="${placeholder}" value="${esc(value)}" autocomplete="off"><button type="button" class="v6-search-clear" data-action="search-clear" tabindex="-1" aria-label="清除搜索"${value ? '' : ' disabled'}><i aria-hidden="true">×</i></button></div>`
   }
   function empty(title, detail, action = '', symbol = 'box') {
     // G-37：空态统一为 图标圆底 + 标题 + 说明 + 操作
@@ -846,22 +847,71 @@
     tick()
   }
   async function withBusy(el, task, busyLabel = '') {
-    // G-27/AU-01：提交期间禁用按钮、显示 spinner 与进行中文案，防重复提交
+    // G-27/AU-01/T2.1：提交期间禁用按钮、显示 spinner 与进行中文案，防重复提交；
+    // is-busy 用覆盖层 spinner，文案原样保留不跳动
     if (!el || el.getAttribute('aria-busy') === 'true') return undefined
     const label = el.innerHTML
+    el.classList.add('is-busy')
     el.setAttribute('aria-busy', 'true')
     el.disabled = true
     if (busyLabel) el.textContent = busyLabel
     try {
       return await (typeof task === 'function' ? task() : task)
     } finally {
+      el.classList.remove('is-busy')
       el.removeAttribute('aria-busy')
       el.disabled = false
       if (busyLabel) el.innerHTML = label
     }
   }
+  // T2.7：KPI 数值排印——货币符号/单位缩到 0.6em（v6-unit），数值本体不加空白。
+  // 规则：按数字串切分，非数字片段去首尾分隔符后，含字母/货币/%/× 的才缩小；
+  // 纯分隔符（" / "、"-"）保持原尺寸；无数字的纯文本与含 HTML 的值原样透传。
+  function kpi(value) {
+    const v = String(value)
+    if (v.includes('<') || !/\d/.test(v)) return v === '—' ? '<span class="v6-na" data-tip="暂无数据">—</span>' : v
+    const SEP_S = /^[\s/\-–—_:.,()·]+/
+    const SEP_E = /[\s/\-–—_:.,()·]+$/
+    const UNITISH = /[a-zA-Z$¥€£%×°]/
+    return v
+      .split(/(\d[\d,.]*)/)
+      .map((p, i) => {
+        if (!p) return ''
+        if (i % 2 === 1) return esc(p)
+        const lead = (p.match(SEP_S) || [''])[0]
+        const trail = (p.slice(lead.length).match(SEP_E) || [''])[0]
+        const mid = p.slice(lead.length, p.length - trail.length)
+        return esc(lead) + (mid && UNITISH.test(mid) ? `<em class="v6-unit">${esc(mid)}</em>` : esc(mid)) + esc(trail)
+      })
+      .join('')
+  }
+  // T3.2 / G-38：字段级校验——aria-invalid + 字段下方 v6-field-msg 提示
+  function fieldError(input, msg) {
+    input.setAttribute('aria-invalid', 'true')
+    const host = input.closest('.v6-field') || input.parentElement
+    let hint = host?.querySelector('.v6-field-msg')
+    if (!hint && host) {
+      hint = document.createElement('div')
+      hint.className = 'v6-field-msg'
+      host.append(hint)
+    }
+    if (hint) hint.textContent = msg
+  }
+  function fieldValidate(form, rules) {
+    // rules: [[fieldName, 是否出错, 提示], …]；标记全部出错字段并聚焦第一个
+    let firstBad = null
+    rules.forEach(([name, bad, msg]) => {
+      if (!bad) return
+      const input = form.elements[name]
+      if (!input || typeof input.focus !== 'function') return
+      fieldError(input, msg)
+      if (!firstBad) firstBad = input
+    })
+    firstBad?.focus()
+    return !firstBad
+  }
   function stat(label, value, note = '') {
-    return `<div class="v6-stat"><small>${label}</small><strong>${value}</strong>${note ? `<div class="v6-muted v6-small">${note}</div>` : ''}</div>`
+    return `<div class="v6-stat"><small>${label}</small><strong>${kpi(value)}</strong>${note ? `<div class="v6-muted v6-small">${note}</div>` : ''}</div>`
   }
   function check(name, value, label, checked = false, count = '') {
     return `<label class="v6-check"><input type="checkbox" name="${name}" value="${esc(value)}" ${checked ? 'checked' : ''}><span>${label}</span>${count !== '' ? `<small>${count}</small>` : ''}</label>`
@@ -941,7 +991,7 @@
   }
   function themeToggle() {
     const label = themeToggleLabel()
-    return `<button type="button" class="v6-btn ghost v6-icon-btn v6-theme-toggle" data-action="theme-toggle" aria-label="${label}" title="${label}">${icon('sun')}${icon('moon')}</button>`
+    return `<button type="button" class="v6-btn ghost v6-icon-btn v6-theme-toggle" data-action="theme-toggle" aria-label="${label}" data-tip="${label}">${icon('sun')}${icon('moon')}</button>`
   }
   function footer() {
     return `<footer class="v6-footer"><div><a href="#/home" class="brand"><span class="brand-mark" aria-hidden="true">${BRAND_MARK}</span><span class="brand-word">aitokens<em>flux</em></span></a><p class="v6-small v6-muted">一个 API，连接多种模型。</p></div><div><h3>产品</h3>${link('models', '模型目录', '')}${link('discover', '发现模型', '')}${feat_nav('rankings')}${link('providers', '提供商', '')}${link('pricing', '价格', '')}${link('status', '服务状态', '')}</div><div><h3>开发者</h3>${link('docs', '文档', '')}${link('console/keys', 'API Keys', '')}</div><div><h3>账户</h3>${link('console', '用量概览', '')}${link('console/credits', '余额与账单', '')}${link('console/settings', '设置', '')}</div></footer>`
@@ -1476,15 +1526,15 @@
     const metricCells = (row) =>
       live
         ? ''
-        : `<td class="v6-col-metric num">${(row.latency / 1000).toFixed(2)} s</td><td class="v6-col-metric num">${row.throughput} ${model.imagePrice ? 'img/s' : model.audioPrice ? 'sec/s' : 'tok/s'}</td><td class="v6-col-metric"><span class="v6-badge success">${row.uptime.toFixed(2)}%</span></td>`
-    return `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>提供商</th>${columns
+        : `<td class="v6-col-metric num" data-label="延迟">${(row.latency / 1000).toFixed(2)} s</td><td class="v6-col-metric num" data-label="吞吐量">${row.throughput} ${model.imagePrice ? 'img/s' : model.audioPrice ? 'sec/s' : 'tok/s'}</td><td class="v6-col-metric" data-label="可用性"><span class="v6-badge success">${row.uptime.toFixed(2)}%</span></td>`
+    return `<div class="v6-table-wrap"><table class="v6-table v6-mobile-cards"><thead><tr><th>提供商</th>${columns
       .map(
         ([value, label]) =>
           `<th class="${['latency', 'throughput', 'uptime'].includes(value) ? 'v6-col-metric' : ''}${value === 'uptime' ? '' : ' num'}"><button data-action="provider-sort" data-value="${value}" aria-label="按${label}排序">${label} ${icon('arrow-down-up')}</button></th>`,
       )
       .join(
         '',
-      )}</tr></thead><tbody>${rows.map((row) => `<tr><td><button type="button" class="v6-provider-name" data-action="provider-info" data-name="${esc(row.name)}" data-model="${esc(model.id)}">${icon('server')}${esc(row.name)}</button></td><td class="num">${model.imagePrice || model.audioPrice ? modelPrice(model) : money(row.input)}</td><td class="num">${model.imagePrice || model.audioPrice ? '不适用' : money(row.output)}</td>${metricCells(row)}</tr>`).join('')}</tbody></table></div>`
+      )}</tr></thead><tbody>${rows.map((row) => `<tr><td data-label="提供商"><button type="button" class="v6-provider-name" data-action="provider-info" data-name="${esc(row.name)}" data-model="${esc(model.id)}">${logo(row.name)}${esc(row.name)}</button></td><td class="num" data-label="输入 /M">${model.imagePrice || model.audioPrice ? modelPrice(model) : money(row.input)}</td><td class="num" data-label="输出 /M">${model.imagePrice || model.audioPrice ? '不适用' : money(row.output)}</td>${metricCells(row)}</tr>`).join('')}</tbody></table></div>`
   }
   function renderDetail(id) {
     const model = getModel(id)
@@ -1503,7 +1553,7 @@
       ['faq', '常见问题', 'circle-help'],
       ['explore', '相关模型', 'compass'],
     ]
-    app.innerHTML = `<div class="v6-shell"><header class="v6-detail-head"><div class="v6-title"><div><div class="v6-row">${logo(model.provider)}<h1>${esc(model.provider + ': ' + model.name)}</h1></div><div class="v6-row v6-slug"><span>${esc(model.slug)}</span>${iconButton('copy', '复制模型 ID', 'copy', `data-copy="${esc(model.slug)}"`)}${pin(model)}</div></div><div class="v6-row v6-wrap">${link('models/' + encodeURIComponent(model.id) + '?section=api', '调用示例', 'v6-btn', 'code')}${link('console/keys', '获取 API Key', 'v6-btn primary', 'key-round')}</div></div>${model.description ? `<p class="v6-detail-description">${esc(model.description)}</p>` : ''}<div class="v6-stats">${stat('输入 / 输出模态', `<span class="v6-row">${model.inputs.map((value) => `<span title="${modalityNames[value]}">${icon(modalityIcons[value])}</span>`).join('')}${icon('arrow-right')}${icon(modalityIcons[model.outputs[0]])}</span>`)}${stat('输入 / 输出价格', model.imagePrice || model.audioPrice ? modelPrice(model) : money(model.inputRate) + ' / ' + money(model.outputRate), model.imagePrice || model.audioPrice ? '' : '每百万 tokens')}${stat('上下文长度', model.context)}${model.date ? stat('发布日期', model.date) : ''}</div></header><div class="v6-section-layout">${sectionNav(sections)}<div>${section('providers', '提供商', `此模型由 ${model.hosts.length} 个提供商提供服务。${telemetry ? '可按价格、延迟、吞吐和可用性查看路由。' : '价格来自当前计费配置。'}`, `<div class="v6-toolbar">${telemetry ? `<label class="v6-row v6-small v6-ml-auto">延迟分位数<select class="v6-select" id="provider-percentile"><option value="50">P50</option><option value="90">P90</option><option value="99">P99</option></select></label>` : ''}</div><div id="provider-table" data-sort="latency">${providerTable(model)}</div>`, telemetry ? '<span class="v6-badge">演示指标</span>' : '')}${section('pricing', '价格', `模型费率与单次调用成本。${model.live ? '费率来自当前计费配置。' : '价格使用演示目录中的固定数据。'}`, `<div class="v6-stat-band"><div><small>${model.imagePrice ? '每张图像' : model.audioPrice ? '每分钟音频' : '输入 / 百万 tokens'}</small><strong>${money(model.imagePrice || model.audioPrice || model.inputRate)}</strong></div>${!model.imagePrice && !model.audioPrice ? `<div><small>输出 / 百万 tokens</small><strong>${money(model.outputRate)}</strong></div>` : ''}</div>${!model.imagePrice && !model.audioPrice ? `<div class="v6-estimator">输入 <input class="v6-input" type="number" min="0" max="10000000" id="estimate-input" value="2000" aria-label="输入 tokens"> tokens · 输出 <input class="v6-input" type="number" min="0" max="1000000" id="estimate-output" value="800" aria-label="输出 tokens" ${model.outputs[0] === 'embeddings' ? 'disabled' : ''}> tokens<span class="v6-estimator-result"><small>预计单次成本</small><strong id="estimate-cost" class="v6-num">${money((model.inputRate * 2000 + model.outputRate * 800) / 1e6)}</strong></span></div>` : ''}`)}${telemetry ? section('performance', '性能', '吞吐量越高，生成越快；首 token 延迟越低，等待越短。', `<div class="v6-stat-band"><div><small>吞吐量</small><strong>${model.throughput}</strong></div><div><small>首 token 延迟</small><strong>${model.latency}</strong></div></div><div class="v6-row v6-between"><h3>吞吐量趋势</h3><select class="v6-select" data-chart-period="detail-performance" aria-label="性能统计周期"><option value="7">最近 7 天</option><option value="30">最近 30 天</option></select></div>${chart('detail-performance', 'performance')}`) : ''}${model.live ? section('performance', '性能', '实测指标，按分组聚合。', `<div id="model-perf">${skeletonRows(4)}</div>`) : ''}${telemetry ? section('uptime', '可用性', '最近 30 天的服务状态，所有指标为演示样本。', `<div class="v6-row v6-between"><h3>${model.uptime}</h3><span class="v6-badge green">服务正常</span></div><div class="v6-uptime" role="img" aria-label="最近30天每日可用性">${Array.from({ length: 30 }, (_, index) => `<i data-tip="第 ${index + 1} 天：${index === 12 ? '99.5%' : '100%'}" class="${index === 12 ? 'warn' : ''}"></i>`).join('')}</div><div class="v6-row v6-between v6-small v6-muted"><span>30 天前</span><span>今天</span></div>`) : ''}${model.live ? section('uptime', '可用性', '分时段实测成功率。', `<div id="model-uptime">${skeletonRows(2)}</div>`) : ''}${section('api', 'API 调用', '使用 OpenAI 兼容 SDK。以下 Base URL 为示例地址，接入时替换为你的实际服务地址。', codeBlock(model))}${section('faq', '常见问题', '', `<details class="v6-faq"><summary>这个模型支持哪些输入？${icon('chevron-right')}</summary><p>支持${model.inputs.map((value) => modalityNames[value]).join('、')}输入，输出类型为${modalityNames[model.outputs[0]]}。</p></details><details class="v6-faq"><summary>如何选择提供商？${icon('chevron-right')}</summary><p>可在提供商列表中查看性能指标。实际请求的路由取决于服务端配置、可用性和账户策略。</p></details><details class="v6-faq"><summary>免费模型有什么限制？${icon('chevron-right')}</summary><p>免费变体通常有请求频率和每日用量限制，适合试验和评估。具体限制以服务提供商为准。</p></details>`)}${section(
+    app.innerHTML = `<div class="v6-shell"><header class="v6-detail-head"><div class="v6-title"><div><div class="v6-row">${logo(model.provider)}<h1>${esc(model.provider + ': ' + model.name)}</h1></div><div class="v6-row v6-slug"><span>${esc(model.slug)}</span>${iconButton('copy', '复制模型 ID', 'copy', `data-copy="${esc(model.slug)}"`)}${pin(model)}</div></div><div class="v6-row v6-wrap">${link('models/' + encodeURIComponent(model.id) + '?section=api', '调用示例', 'v6-btn', 'code')}${link('console/keys', '获取 API Key', 'v6-btn primary', 'key-round')}</div></div>${model.description ? `<p class="v6-detail-description">${esc(model.description)}</p>` : ''}<div class="v6-stats">${stat('输入 / 输出模态', `<span class="v6-row">${model.inputs.map((value) => `<span title="${modalityNames[value]}">${icon(modalityIcons[value])}</span>`).join('')}${icon('arrow-right')}${icon(modalityIcons[model.outputs[0]])}</span>`)}${stat('输入 / 输出价格', model.imagePrice || model.audioPrice ? modelPrice(model) : money(model.inputRate) + ' / ' + money(model.outputRate), model.imagePrice || model.audioPrice ? '' : '每百万 tokens')}${stat('上下文长度', model.context)}${model.date ? stat('发布日期', model.date) : ''}</div></header><div class="v6-section-layout">${sectionNav(sections)}<div>${section('providers', '提供商', `此模型由 ${model.hosts.length} 个提供商提供服务。${telemetry ? '可按价格、延迟、吞吐和可用性查看路由。' : '价格来自当前计费配置。'}`, `<div class="v6-toolbar">${telemetry ? `<label class="v6-row v6-small v6-ml-auto">延迟分位数<select class="v6-select" id="provider-percentile"><option value="50">P50</option><option value="90">P90</option><option value="99">P99</option></select></label>` : ''}</div><div id="provider-table" data-sort="latency">${providerTable(model)}</div>`, telemetry ? '<span class="v6-badge">演示指标</span>' : '')}${section('pricing', '价格', `模型费率与单次调用成本。${model.live ? '费率来自当前计费配置。' : '价格使用演示目录中的固定数据。'}`, `<div class="v6-stat-band"><div><small>${model.imagePrice ? '每张图像' : model.audioPrice ? '每分钟音频' : '输入 / 百万 tokens'}</small><strong>${kpi(money(model.imagePrice || model.audioPrice || model.inputRate))}</strong></div>${!model.imagePrice && !model.audioPrice ? `<div><small>输出 / 百万 tokens</small><strong>${kpi(money(model.outputRate))}</strong></div>` : ''}</div>${!model.imagePrice && !model.audioPrice ? `<div class="v6-estimator">输入 <input class="v6-input" type="number" min="0" max="10000000" id="estimate-input" value="2000" aria-label="输入 tokens"> tokens · 输出 <input class="v6-input" type="number" min="0" max="1000000" id="estimate-output" value="800" aria-label="输出 tokens" ${model.outputs[0] === 'embeddings' ? 'disabled' : ''}> tokens<span class="v6-estimator-result"><small>预计单次成本</small><strong id="estimate-cost" class="v6-num">${kpi(money((model.inputRate * 2000 + model.outputRate * 800) / 1e6))}</strong></span></div>` : ''}`)}${telemetry ? section('performance', '性能', '吞吐量越高，生成越快；首 token 延迟越低，等待越短。', `<div class="v6-stat-band"><div><small>吞吐量</small><strong>${kpi(model.throughput)}</strong></div><div><small>首 token 延迟</small><strong>${kpi(model.latency)}</strong></div></div><div class="v6-row v6-between"><h3>吞吐量趋势</h3><select class="v6-select" data-chart-period="detail-performance" aria-label="性能统计周期"><option value="7">最近 7 天</option><option value="30">最近 30 天</option></select></div>${chart('detail-performance', 'performance')}`) : ''}${model.live ? section('performance', '性能', '实测指标，按分组聚合。', `<div id="model-perf">${skeletonRows(4)}</div>`) : ''}${telemetry ? section('uptime', '可用性', '最近 30 天的服务状态，所有指标为演示样本。', `<div class="v6-row v6-between"><h3>${kpi(model.uptime)}</h3><span class="v6-badge green">服务正常</span></div><div class="v6-uptime" role="img" aria-label="最近30天每日可用性">${Array.from({ length: 30 }, (_, index) => `<i data-tip="第 ${index + 1} 天：${index === 12 ? '99.5%' : '100%'}" class="${index === 12 ? 'warn' : ''}"></i>`).join('')}</div><div class="v6-row v6-between v6-small v6-muted"><span>30 天前</span><span>今天</span></div>`) : ''}${model.live ? section('uptime', '可用性', '分时段实测成功率。', `<div id="model-uptime">${skeletonRows(2)}</div>`) : ''}${section('api', 'API 调用', '使用 OpenAI 兼容 SDK。以下 Base URL 为示例地址，接入时替换为你的实际服务地址。', codeBlock(model))}${section('faq', '常见问题', '', `<details class="v6-faq"><summary>这个模型支持哪些输入？${icon('chevron-right')}</summary><p>支持${model.inputs.map((value) => modalityNames[value]).join('、')}输入，输出类型为${modalityNames[model.outputs[0]]}。</p></details><details class="v6-faq"><summary>如何选择提供商？${icon('chevron-right')}</summary><p>可在提供商列表中查看性能指标。实际请求的路由取决于服务端配置、可用性和账户策略。</p></details><details class="v6-faq"><summary>免费模型有什么限制？${icon('chevron-right')}</summary><p>免费变体通常有请求频率和每日用量限制，适合试验和评估。具体限制以服务提供商为准。</p></details>`)}${section(
       'explore',
       '相关模型',
       '',
@@ -1548,7 +1598,7 @@
       const perfEl = document.getElementById('model-perf')
       const upEl = document.getElementById('model-uptime')
       if (!perfEl || !upEl) return
-      perfEl.innerHTML = `<div class="v6-stat-band"><div><small>成功率</small><strong class="${successLevel(summary.success_rate)}">${fmtRate(summary.success_rate)}</strong></div><div><small>平均延迟</small><strong>${fmtMs(summary.avg_latency_ms)}</strong></div><div><small>平均吞吐</small><strong>${fmtTps(summary.avg_tps)}</strong></div></div>${
+      perfEl.innerHTML = `<div class="v6-stat-band"><div><small>成功率</small><strong class="${successLevel(summary.success_rate)}">${kpi(fmtRate(summary.success_rate))}</strong></div><div><small>平均延迟</small><strong>${kpi(fmtMs(summary.avg_latency_ms))}</strong></div><div><small>平均吞吐</small><strong>${kpi(fmtTps(summary.avg_tps))}</strong></div></div>${
         groups.length
           ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>分组</th><th class="num">吞吐</th><th class="num">首 token 延迟</th><th class="num">端到端延迟</th><th class="num">成功率</th><th>近时段表现</th></tr></thead><tbody>${groups
               .map(
@@ -1565,7 +1615,7 @@
         .map(([v, n]) => `<option value="${v}" ${win === v ? 'selected' : ''}>${n}</option>`)
         .join('')}</select></div>${chart('detail-perf-tps', 'perf-live')}`
       const level = successLevel(summary.success_rate)
-      upEl.innerHTML = `<div class="v6-row v6-between"><h3 class="${level}">${fmtRate(summary.success_rate)}</h3><span class="v6-badge ${level === 'excellent' || level === 'good' ? 'green' : ''}">${level === 'excellent' || level === 'good' ? '服务正常' : level === 'warning' ? '轻微波动' : '可用性异常'}</span></div><div class="v6-uptime" role="img" aria-label="最近 ${win} 小时分时段成功率">${series
+      upEl.innerHTML = `<div class="v6-row v6-between"><h3 class="${level}">${kpi(fmtRate(summary.success_rate))}</h3><span class="v6-badge ${level === 'excellent' || level === 'good' ? 'green' : ''}">${level === 'excellent' || level === 'good' ? '服务正常' : level === 'warning' ? '轻微波动' : '可用性异常'}</span></div><div class="v6-uptime" role="img" aria-label="最近 ${win} 小时分时段成功率">${series
         .map(
           (p) =>
             `<i data-tip="${perfHourLabel(p.ts, win)}：${fmtRate(p.success_rate)}" class="${successLevel(p.success_rate)}"></i>`,
@@ -1645,11 +1695,11 @@
             map[key] = (map[key] || 0) + 1
             return map
           }, {})
-          return `<section class="v6-home-band"><div class="v6-stat-band"><div><small>目录模型</small><strong>${models.length}</strong></div>${Object.entries(
+          return `<section class="v6-home-band"><div class="v6-stat-band"><div><small>目录模型</small><strong>${kpi(models.length)}</strong></div>${Object.entries(
             modalityCount,
           )
-            .map(([key, count]) => `<div><small>${modalityNames[key] || key}输出</small><strong>${count}</strong></div>`)
-            .join('')}<div><small>提供商</small><strong>${new Set(models.map((model) => model.provider)).size}</strong></div></div><div class="v6-grid-3 v6-picks">${picks
+            .map(([key, count]) => `<div><small>${modalityNames[key] || key}输出</small><strong>${kpi(count)}</strong></div>`)
+            .join('')}<div><small>提供商</small><strong>${kpi(new Set(models.map((model) => model.provider)).size)}</strong></div></div><div class="v6-grid-3 v6-picks">${picks
             .map(
               ([symbol, label, model, metric]) =>
                 `<a class="v6-item" href="#/models/${esc(model.id)}"><span class="v6-row v6-muted v6-small">${icon(symbol)}${label}</span><div class="v6-row">${logo(model.provider)}<h3>${esc(model.name)}</h3></div><p>${esc(metric)}</p></a>`,
@@ -1846,7 +1896,7 @@
       ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>提供商</th><th class="num">模型数量</th><th>模型</th></tr></thead><tbody>${list
           .map((name) => {
             const available = models.filter((model) => model.hosts.includes(name))
-            return `<tr><td><button type="button" class="v6-provider-name" data-action="provider-info" data-name="${esc(name)}">${icon('server')}${esc(name)}</button></td><td class="num">${available.length}</td><td>${link('models?provider=' + encodeURIComponent(name), '浏览模型 →', 'v6-link')}</td></tr>`
+            return `<tr><td><button type="button" class="v6-provider-name" data-action="provider-info" data-name="${esc(name)}">${logo(name)}${esc(name)}</button></td><td class="num">${available.length}</td><td>${link('models?provider=' + encodeURIComponent(name), '浏览模型 →', 'v6-link')}</td></tr>`
           })
           .join('')}</tbody></table></div>`
       : empty('没有找到提供商', '尝试其他名称。')
@@ -1866,7 +1916,7 @@
           }<td data-th="操作">${link('models/' + encodeURIComponent(model.id) + '?section=api', '调用示例', 'v6-link')}</td></tr>`,
       )
       .join('')
-    app.innerHTML = `<div class="v6-shell v6-pricing"><div class="v6-title"><div><div class="v6-eyebrow">按量付费</div><h1>价格</h1><p>按实际使用量付费；价格以实际计费为准。</p></div><span class="v6-badge">${catalogLive ? '实时价格' : '演示价格'}</span></div>${priced.length ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>模型</th><th>输出类型</th><th>上下文</th><th class="num">输入 $/M</th><th class="num">输出 $/M</th><th>操作</th></tr></thead><tbody>${rows}</tbody></table></div>` : empty('暂无价格数据', '暂未获取到定价信息。')}${section(
+    app.innerHTML = `<div class="v6-shell v6-pricing">${head('价格', '按实际使用量付费；价格以实际计费为准。', `<span class="v6-badge">${catalogLive ? '实时价格' : '演示价格'}</span>`, '按量付费')}${priced.length ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>模型</th><th>输出类型</th><th>上下文</th><th class="num">输入 $/M</th><th class="num">输出 $/M</th><th>操作</th></tr></thead><tbody>${rows}</tbody></table></div>` : empty('暂无价格数据', '暂未获取到定价信息。')}${section(
       'pricing-faq',
       '常见问题',
       '',
@@ -1987,8 +2037,9 @@
     if (route === 'console') loadOverviewUsage()
   }
 
-  const head = (title, desc, action = '') =>
-    `<div class="v6-title"><div><h1>${title}</h1>${desc ? `<p>${desc}</p>` : ''}</div>${action}</div>`
+  // T2.8：统一标题区结构——眉标(可选 12/500 muted) + H1 + 描述 + 操作区
+  const head = (title, desc, action = '', eyebrow = '') =>
+    `<div class="v6-title"><div>${eyebrow ? `<div class="v6-eyebrow">${eyebrow}</div>` : ''}<h1>${title}</h1>${desc ? `<p>${desc}</p>` : ''}</div>${action}</div>`
   const card = (title, desc, body, foot = '', cls = '') =>
     `<section class="v6-panel${cls ? ' ' + cls : ''}"><div class="v6-panel-head"><h3>${title}</h3>${desc ? `<p>${desc}</p>` : ''}</div><div class="v6-panel-body">${body}</div>${foot ? `<div class="v6-panel-foot">${foot}</div>` : ''}</section>`
   const field = (label, hint, input) =>
@@ -2013,7 +2064,7 @@
     ]
       .map(
         ([label, value]) =>
-          `<div class="v6-metric"><span class="v6-muted v6-small">${label}</span><strong>${value}</strong></div>`,
+          `<div class="v6-metric"><span class="v6-muted v6-small">${label}</span><strong>${kpi(value)}</strong></div>`,
       )
       .join('')}</div><div class="v6-row v6-between v6-block-head"><h2>近 7 天用量</h2>${link('console/activity', '查看活动', 'v6-link', 'arrow-right', true)}</div><div class="v6-chart-sm" id="overview-usage">${chart('account-usage')}</div><div class="v6-ws-grid">${[
       ['console/keys', 'API Keys', '创建和管理此工作区的 API 密钥。', 'key-round'],
@@ -2040,7 +2091,7 @@
     const unit = SkinAPI.quotaPerUnit()
     const quota = Number(platform.user.quota || 0) / unit
     const used = Number(platform.user.used_quota || 0) / unit
-    return `${head('余额', '个人账户余额与充值。', button('refresh-credits', '刷新', 'refresh-cw'))}${card('可用余额', '', `<div class="v6-balance">${money(quota)}</div><p class="v6-muted v6-small">剩余额度（累计消费 ${money(used)}）</p>`, `${button('redeem-code', '兑换充值码', 'plus', '', 'v6-btn primary')}${link('console/activity', '查看用量', 'v6-btn')}`)}${card('说明', '', `<p class="v6-muted v6-small">余额与消费数据与账户实时同步。使用兑换码充值后余额立即到账。</p>`)}`
+    return `${head('余额', '个人账户余额与充值。', button('refresh-credits', '刷新', 'refresh-cw'))}${card('可用余额', '', `<div class="v6-balance">${kpi(money(quota))}</div><p class="v6-muted v6-small">剩余额度（累计消费 ${money(used)}）</p>`, `${button('redeem-code', '兑换充值码', 'plus', '', 'v6-btn primary')}${link('console/activity', '查看用量', 'v6-btn')}`)}${card('说明', '', `<p class="v6-muted v6-small">余额与消费数据与账户实时同步。使用兑换码充值后余额立即到账。</p>`)}`
   }
   function pageSettings() {
     return `${head('设置', '管理工作区标识、支出控制和集成。')}${card('常规', '管理工作区名称。', field('名称', '在工作区成员间显示。', `<input class="v6-input" name="workspace" value="${esc(state.settings.name)}" maxlength="60" form="settings-form" data-dirty-watch>`), `<span class="v6-save-state v6-muted v6-small" id="settings-save-state" hidden>有未保存的更改</span><button class="v6-btn primary" type="submit" form="settings-form">保存</button>`)}<form id="settings-form" novalidate></form>${card('预算与数据', '管理支出上限和数据共享。开关更改即时保存到当前浏览器。', `${field('工作区预算', '设置每日、每周或每月支出上限。', `<span class="v6-muted v6-small">未设置上限 · 需在服务端配置</span>`)}${field('自动故障回退', '当前提供商不可用时切换到其他路由。', toggle('fallback', state.settings.fallback))}`)}${card('隐私', '开关更改即时保存到当前浏览器。', field('零数据保留', '优先使用不保留请求数据的提供商。', toggle('zdr', state.settings.zdr)))}${card('危险操作', '', `<div class="v6-row v6-between"><div><strong>删除工作区</strong><p class="v6-muted v6-small">删除后无法恢复。当前为唯一工作区，暂不能删除。</p></div><button class="v6-btn danger" disabled>删除工作区</button></div>`, '', 'danger')}`
@@ -2059,7 +2110,7 @@
           `<div class="v6-metric"><span class="v6-muted v6-small">${l}</span><strong>${
             w
               ? '<span class="v6-skeleton" style="display:inline-block;width:' + w + ';height:20px"></span>'
-              : money(Number(platform.user?.used_quota || 0) / SkinAPI.quotaPerUnit())
+              : kpi(money(Number(platform.user?.used_quota || 0) / SkinAPI.quotaPerUnit()))
           }</strong></div>`,
       )
       .join('')}</div><div class="v6-row v6-between v6-block-head"><h2>Token 用量</h2><select class="v6-select" data-chart-period="account-usage"><option value="7">最近 7 天</option><option value="30">最近 30 天</option></select></div>${chart('account-usage')}<div class="v6-row v6-between v6-block-head"><h2>请求记录</h2>${button('export-activity', '导出 CSV', 'download')}</div><div class="v6-toolbar">${search('activity-search', '搜索模型…')}<select class="v6-select" id="activity-status"><option value="all">全部类型</option><option value="2">消费</option><option value="1">充值</option><option value="3">管理</option></select><select class="v6-select" id="activity-period"><option value="7">最近 7 天</option><option value="1">最近 24 小时</option><option value="30">最近 30 天</option></select></div><div id="activity-results" class="v6-mt-4">${skeletonRows(6)}</div><div class="v6-pager"><span id="activity-page-info" class="v6-muted v6-small"></span><button class="v6-btn" data-action="activity-prev" id="activity-prev" disabled>${icon('chevron-left')}上一页</button><button class="v6-btn" data-action="activity-next" id="activity-next" disabled>下一页${icon('chevron-right')}</button></div>`
@@ -2170,10 +2221,10 @@
     const query = document.getElementById('key-search')?.value.toLowerCase() || ''
     const list = (platform.tokens || []).filter((key) => key.name.toLowerCase().includes(query))
     box.innerHTML = list.length
-      ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>密钥</th><th>分组</th><th>过期时间</th><th>最近使用</th><th>用量</th><th>状态</th><th>操作</th></tr></thead><tbody>${list
+      ? `<div class="v6-table-wrap"><table class="v6-table v6-mobile-cards"><thead><tr><th>密钥</th><th>分组</th><th>过期时间</th><th>最近使用</th><th>用量</th><th>状态</th><th>操作</th></tr></thead><tbody>${list
           .map((key) => {
             const enabled = key.status === 1
-            return `<tr><td><strong>${esc(key.name)}</strong><div class="v6-muted mono v6-row">${esc(maskedKey(key))}${iconButton('copy', '复制密钥标识', 'copy', `data-copy="${esc(maskedKey(key))}"`)}</div></td><td>${esc(key.group || platform.group || '—')}<div class="v6-muted v6-small">${key.model_limits_enabled ? '已限制模型' : '不限制模型'}</div></td><td>${expiryText(key)}</td><td>${accessText(key)}</td><td>${quotaHtml(key)}</td><td><label class="v6-switch" title="${enabled ? '已启用，点击停用' : '已停用，点击启用'}"><input type="checkbox" role="switch" data-key-toggle="${esc(key.id)}" ${enabled ? 'checked' : ''} aria-label="启用或停用密钥"><span></span></label></td><td class="v6-nowrap">${iconButton('edit-key', '编辑密钥', 'pencil', `data-id="${esc(key.id)}"`)}${iconButton('delete-key', '删除密钥', 'trash-2', `data-id="${esc(key.id)}"`, 'v6-btn ghost v6-icon-btn danger')}</td></tr>`
+            return `<tr><td data-label="密钥"><strong title="${esc(key.name)}">${esc(key.name)}</strong><div class="v6-muted mono v6-row">${esc(maskedKey(key))}${iconButton('copy', '复制密钥标识', 'copy', `data-copy="${esc(maskedKey(key))}"`)}</div></td><td data-label="分组">${esc(key.group || platform.group || '—')}<div class="v6-muted v6-small">${key.model_limits_enabled ? '已限制模型' : '不限制模型'}</div></td><td data-label="过期时间">${expiryText(key)}</td><td data-label="最近使用">${accessText(key)}</td><td data-label="用量">${quotaHtml(key)}</td><td data-label="状态"><label class="v6-switch" title="${enabled ? '已启用，点击停用' : '已停用，点击启用'}"><input type="checkbox" role="switch" data-key-toggle="${esc(key.id)}" ${enabled ? 'checked' : ''} aria-label="启用或停用密钥"><span></span></label></td><td data-label="操作" class="v6-nowrap">${iconButton('edit-key', '编辑密钥', 'pencil', `data-id="${esc(key.id)}"`)}${iconButton('delete-key', '删除密钥', 'trash-2', `data-id="${esc(key.id)}"`, 'v6-btn ghost v6-icon-btn danger')}</td></tr>`
           })
           .join(
             '',
@@ -2199,7 +2250,8 @@
   }
   function activityTable(list) {
     const unit = SkinAPI.quotaPerUnit()
-    return `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>时间</th><th>模型</th><th>输入 / 输出</th><th>密钥</th><th>成本</th><th>类型</th></tr></thead><tbody>${list.map((item) => `<tr><td>${formatTime(item.created_at)}</td><td>${esc(item.model_name || '—')}</td><td class="num">${Number(item.prompt_tokens || 0).toLocaleString()} / ${Number(item.completion_tokens || 0).toLocaleString()}</td><td>${esc(item.token_name || '—')}</td><td class="num">${money(Number(item.quota || 0) / unit)}</td><td>${logTypeBadge(item.type)}</td></tr>`).join('')}</tbody></table></div>`
+    // T2.5：data-label 供 375px 卡片布局显示列名
+    return `<div class="v6-table-wrap"><table class="v6-table v6-mobile-cards"><thead><tr><th>时间</th><th>模型</th><th>输入 / 输出</th><th>密钥</th><th>成本</th><th>类型</th></tr></thead><tbody>${list.map((item) => `<tr><td data-label="时间">${formatTime(item.created_at)}</td><td data-label="模型" title="${esc(item.model_name || '—')}">${esc(item.model_name || '—')}</td><td class="num" data-label="输入 / 输出">${Number(item.prompt_tokens || 0).toLocaleString()} / ${Number(item.completion_tokens || 0).toLocaleString()}</td><td data-label="密钥" title="${esc(item.token_name || '—')}">${esc(item.token_name || '—')}</td><td class="num" data-label="成本">${money(Number(item.quota || 0) / unit)}</td><td data-label="类型">${logTypeBadge(item.type)}</td></tr>`).join('')}</tbody></table></div>`
   }
   function activityFilters() {
     const status = document.getElementById('activity-status')?.value || 'all'
@@ -2218,7 +2270,7 @@
     const unit = SkinAPI.quotaPerUnit()
     const cells = row.querySelectorAll('strong')
     // AC-01：指标统一千分位
-    if (cells[0]) cells[0].textContent = money(Number(liveData.stats.quota || 0) / unit)
+    if (cells[0]) cells[0].innerHTML = kpi(money(Number(liveData.stats.quota || 0) / unit))
     if (cells[1]) cells[1].textContent = Number(liveData.stats.rpm ?? 0).toLocaleString()
     if (cells[2]) cells[2].textContent = Number(liveData.stats.tpm ?? 0).toLocaleString()
   }
@@ -2404,10 +2456,11 @@
       try { box.showPopover() } catch {}
     }
   }
-  function showDialog(title, body) {
+  // T3.1：desc 可选——头 = 标题 16/600 + 描述，体 = body，尾 = 内容里的 .v6-dialog-foot（右对齐）
+  function showDialog(title, body, desc = '') {
     if (!dialog.open) dialogOpener = document.activeElement
     dialog.className = 'v6-dialog'
-    dialog.innerHTML = `<div class="v6-dialog-head"><h2 id="v6-dialog-title">${title}</h2>${iconButton('close-dialog', '关闭', 'x')}</div><div class="v6-dialog-body">${body}</div>`
+    dialog.innerHTML = `<div class="v6-dialog-head"><div><h2 id="v6-dialog-title">${title}</h2>${desc ? `<p class="v6-dialog-desc">${desc}</p>` : ''}</div>${iconButton('close-dialog', '关闭', 'x')}</div><div class="v6-dialog-body">${body}</div>`
     dialog.setAttribute('aria-labelledby', 'v6-dialog-title')
     if (!dialog.open) dialog.showModal()
     moveToastsInto(dialog)
@@ -2467,7 +2520,7 @@
     const items = oauthProviders()
     if (!items.length) return ''
     // AU-06：各提供商用区分度更高的图标，不再清一色 log-in
-    return `<div class="v6-oauth-divider"><span>或使用以下方式继续</span></div><div class="v6-row v6-wrap">${items
+    return `<div class="v6-oauth-divider"><span>或使用以下方式继续</span></div><div class="v6-oauth-grid">${items
       .map(
         (item) =>
           button(
@@ -2563,7 +2616,7 @@
     const turnstile = Boolean(platform.status?.turnstile_check)
     const siteKey = platform.status?.turnstile_site_key
     showDialog(
-      mode === 'register' ? '注册' : '登录',
+      mode === 'register' ? '创建账户' : '欢迎回来',
       `<form id="auth-form" data-mode="${mode}" novalidate><label class="v6-form-label" for="auth-username">用户名</label><input class="v6-input" id="auth-username" name="username" required autocomplete="username" placeholder="用户名">${
         mode === 'register'
           ? `<label class="v6-form-label" for="auth-email">邮箱${emailVerification ? '' : '（可选）'}</label><input class="v6-input" id="auth-email" name="email" type="email" autocomplete="email" placeholder="name@example.com" ${emailVerification ? 'required' : ''}>${
@@ -2572,8 +2625,13 @@
                 : ''
             }`
           : ''
-      }<div class="v6-field"><div class="v6-field-head"><label class="v6-form-label" for="auth-password">密码</label>${mode === 'login' ? button('forgot-password', '忘记密码？', '', '', 'v6-link') : ''}</div><div class="v6-input-wrap"><input class="v6-input" id="auth-password" name="password" type="password" required autocomplete="${mode === 'register' ? 'new-password' : 'current-password'}" placeholder="${mode === 'register' ? '至少 8 位' : '密码'}">${button('toggle-password', '', 'eye', 'aria-label="显示密码" aria-pressed="false"', 'v6-input-eye')}</div></div>${turnstile ? `<div id="cf-turnstile" class="v6-my-2"></div><input type="hidden" name="turnstile">${siteKey ? '' : '<label class="v6-form-label">Turnstile Token<input class="v6-input" name="turnstile_input"></label>'}` : ''}<p class="v6-error" id="auth-error" role="alert"></p><button class="v6-btn primary v6-btn-block" type="submit">${mode === 'register' ? '注册并登录' : '登录'}</button>${oauthButtons()}<p class="v6-auth-alt">${mode === 'register' ? '已有账号？' : '没有账号？'}<button type="button" class="v6-link" data-action="${mode === 'register' ? 'show-login' : 'show-register'}">${mode === 'register' ? '去登录' : '去注册'}</button></p></form>`,
+      }<div class="v6-field"><div class="v6-field-head"><label class="v6-form-label" for="auth-password">密码</label>${mode === 'login' ? button('forgot-password', '忘记密码？', '', '', 'v6-link') : ''}</div><div class="v6-input-wrap"><input class="v6-input" id="auth-password" name="password" type="password" required autocomplete="${mode === 'register' ? 'new-password' : 'current-password'}" placeholder="${mode === 'register' ? '至少 8 位' : '密码'}">${button('toggle-password', '', 'eye', 'aria-label="显示密码" aria-pressed="false"', 'v6-input-eye')}</div></div>${turnstile ? `<div id="cf-turnstile" class="v6-my-2"></div><input type="hidden" name="turnstile">${siteKey ? '' : '<label class="v6-form-label">Turnstile Token<input class="v6-input" name="turnstile_input"></label>'}` : ''}<p class="v6-error" id="auth-error" role="alert"></p><button class="v6-btn primary v6-btn-block" type="submit">${mode === 'register' ? '注册并登录' : '登录'}</button>${oauthButtons()}<p class="v6-auth-alt">${mode === 'register' ? '已有账号？' : '没有账号？'}<button type="button" class="v6-link" data-action="${mode === 'register' ? 'show-login' : 'show-register'}">${mode === 'register' ? '去登录' : '去注册'}</button></p>${mode === 'register' ? '<p class="v6-auth-terms">注册即表示同意服务条款与隐私政策。</p>' : ''}</form>`,
+      mode === 'register' ? '一个账号即可调用目录中的全部模型。' : '登录以管理密钥、用量与工作区。',
     )
+    // ✦ 品牌头部：品牌标记置于标题区左侧
+    dialog
+      .querySelector('.v6-dialog-head')
+      ?.insertAdjacentHTML('afterbegin', `<span class="v6-auth-mark" aria-hidden="true">${BRAND_MARK}</span>`)
     if (turnstile && siteKey) loadTurnstile()
   }
 
@@ -2668,7 +2726,8 @@
     render()
   }
   // OL-03/07：toast 走 popover top layer（弹窗打开时不再被遮罩压住），
-  // 支持 success/error/info 变体、可关闭、错误停留更久
+  // 支持 success/error/info 变体、可关闭、错误停留更久；
+  // T3.3：悬停暂停计时、aria-live 按重要程度分级
   function toastContainer() {
     let box = document.getElementById('v6-toasts')
     if (!box) {
@@ -2695,20 +2754,64 @@
     node.className = 'v6-toast'
     node.dataset.kind = kind
     node.setAttribute('role', kind === 'error' ? 'alert' : 'status')
+    node.setAttribute('aria-live', kind === 'error' ? 'assertive' : 'polite')
     node.innerHTML = `<span class="v6-toast-icon">${icon(iconName)}</span><span>${esc(message)}</span><button type="button" class="v6-toast-close" aria-label="关闭">×</button>`
-    const timer = setTimeout(() => node.remove(), kind === 'error' ? 6000 : 3200)
+    // T3.3：悬停暂停倒计时，移出继续
+    let remaining = kind === 'error' ? 6000 : 3200
+    let startedAt = 0
+    let timer = 0
+    const drop = () => node.remove()
+    const start = () => {
+      startedAt = Date.now()
+      timer = setTimeout(drop, remaining)
+    }
+    node.addEventListener('mouseenter', () => {
+      clearTimeout(timer)
+      remaining = Math.max(0, remaining - (Date.now() - startedAt))
+    })
+    node.addEventListener('mouseleave', start)
     node.querySelector('.v6-toast-close').addEventListener('click', () => {
       clearTimeout(timer)
       node.remove()
     })
     box.append(node)
+    start()
     while (box.children.length > 3) box.firstElementChild.remove()
     return node
   }
-  async function copy(value) {
+  // T3.3 / OL-04：就地反馈的屏幕阅读器播报（不弹 toast 的场景也保留听觉反馈）
+  let liveNode = null
+  function announce(message) {
+    if (!liveNode) {
+      liveNode = document.createElement('div')
+      liveNode.id = 'v6-live'
+      liveNode.className = 'v6-sr'
+      liveNode.setAttribute('role', 'status')
+      liveNode.setAttribute('aria-live', 'polite')
+      document.body.append(liveNode)
+    }
+    liveNode.textContent = ''
+    requestAnimationFrame(() => {
+      if (liveNode) liveNode.textContent = message
+    })
+  }
+  async function copy(value, btn) {
     try {
       await navigator.clipboard.writeText(value)
-      toast('已复制到剪贴板')
+      if (btn) {
+        // OL-04：有触发按钮时改为就地反馈——图标变 ✓ 1.2s + aria-live，不弹 toast
+        const html = btn.innerHTML
+        btn.innerHTML = icon('check')
+        btn.classList.add('copied')
+        announce('已复制到剪贴板')
+        setTimeout(() => {
+          if (!btn.isConnected) return
+          btn.innerHTML = html
+          btn.classList.remove('copied')
+        }, 1200)
+      } else {
+        toast('已复制到剪贴板')
+      }
       return true
     } catch {
       showDialog(
@@ -2739,30 +2842,97 @@
     dialog.querySelector('#global-search').focus()
     renderSearchResults()
   }
+  // T3.4：命令面板数据源与渲染
+  const palettePages = () => [
+    ['models', '模型目录', 'layers'],
+    ['discover', '发现模型', 'compass'],
+    ['providers', '提供商', 'server'],
+    ['console/keys', 'API Keys', 'key-round'],
+    ['console/credits', '余额与账单', 'wallet'],
+    ['console/activity', '活动记录', 'activity'],
+    ['docs', '文档', 'book-open'],
+    ['status', '服务状态', 'activity'],
+  ]
+  const paletteModelMeta = (model) => {
+    const price =
+      model.imagePrice || model.audioPrice
+        ? money(model.imagePrice || model.audioPrice)
+        : model.inputRate != null
+          ? `${money(model.inputRate)} / ${money(model.outputRate ?? model.inputRate)}`
+          : ''
+    return [model.provider, model.context, price].filter(Boolean).join(' · ')
+  }
+  // 最近访问的 5 条只存 path，名称/图标/价格在渲染时取实时数据，模型下线后自动剔除
+  function paletteRemember(path) {
+    try {
+      const list = JSON.parse(localStorage.getItem('v6-palette-recent') || '[]').filter(
+        (entry) => entry !== path,
+      )
+      list.unshift(path)
+      localStorage.setItem('v6-palette-recent', JSON.stringify(list.slice(0, 5)))
+    } catch {
+      /* 隐私模式下静默跳过 */
+    }
+  }
+  function paletteRecents() {
+    let paths = []
+    try {
+      const parsed = JSON.parse(localStorage.getItem('v6-palette-recent') || '[]')
+      paths = Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+    return paths
+      .filter((path) => typeof path === 'string')
+      .map((path) => {
+        if (path.startsWith('models/')) {
+          const model = getModel(path.slice(7))
+          return model
+            ? {
+                path,
+                name: model.name,
+                provider: model.provider,
+                meta: paletteModelMeta(model),
+              }
+            : null
+        }
+        const page = palettePages().find(([p]) => p === path)
+        return page ? { path, name: page[1], symbol: page[2], meta: '' } : null
+      })
+      .filter(Boolean)
+      .slice(0, 5)
+  }
+  // 命中文字用 <mark> 高亮（accent-faint 底）；未命中返回纯转义文本
+  function markMatch(text, query) {
+    const source = String(text ?? '')
+    const index = query ? source.toLowerCase().indexOf(query) : -1
+    if (index < 0) return esc(source)
+    return (
+      esc(source.slice(0, index)) +
+      '<mark>' +
+      esc(source.slice(index, index + query.length)) +
+      '</mark>' +
+      esc(source.slice(index + query.length))
+    )
+  }
   function renderSearchResults() {
     const query = document.getElementById('global-search').value.toLowerCase().trim()
-    const pages = [
-      ['models', '模型目录', 'layers'],
-      ['discover', '发现模型', 'compass'],
-      ['providers', '提供商', 'server'],
-      ['console/keys', 'API Keys', 'key-round'],
-      ['console/credits', '余额与账单', 'wallet'],
-      ['console/activity', '活动记录', 'activity'],
-      ['docs', '文档', 'book-open'],
-      ['status', '服务状态', 'activity'],
-    ]
-    const pageMatches = pages
+    const pageMatches = palettePages()
       .filter(([path, name]) => (path + name).toLowerCase().includes(query))
-      .map(([path, name, symbol]) => ({ path, name, symbol, kind: '页面' }))
-    const modelMatches = models
-      .filter((model) => (model.name + model.provider + model.slug).toLowerCase().includes(query))
-      .slice(0, 8)
-      .map((model) => ({
-        path: 'models/' + model.id,
-        name: model.name,
-        symbol: 'layers',
-        kind: model.provider,
-      }))
+      .map(([path, name, symbol]) => ({ path, name, symbol, meta: '' }))
+    const modelMatches = query
+      ? models
+          .filter((model) =>
+            (model.name + model.provider + model.slug).toLowerCase().includes(query),
+          )
+          .slice(0, 8)
+          .map((model) => ({
+            path: 'models/' + model.id,
+            name: model.name,
+            provider: model.provider,
+            meta: paletteModelMeta(model),
+          }))
+      : []
     const dark = effectiveTheme() === 'dark'
     const actions = [
       {
@@ -2772,34 +2942,50 @@
         keywords: 'theme dark light 主题 深色 浅色 夜间 日间 白天 黑夜 模式 切换',
       },
       ...((state.settings.theme || 'system') !== 'system'
-        ? [{ action: 'theme-system', name: '主题跟随系统', symbol: 'monitor', keywords: 'theme system 主题 跟随系统 自动' }]
+        ? [
+            {
+              action: 'theme-system',
+              name: '主题跟随系统',
+              symbol: 'monitor',
+              keywords: 'theme system 主题 跟随系统 自动',
+            },
+          ]
         : []),
+      {
+        action: 'create-key',
+        name: '新建密钥',
+        symbol: 'key-round',
+        keywords: 'key token api 密钥 新建 创建 keys',
+      },
+      {
+        action: 'copy-base-url',
+        name: '复制 Base URL',
+        symbol: 'copy',
+        keywords: 'base url endpoint 复制 接口 地址 api',
+      },
     ]
-    const actionMatches = actions
-      .filter((item) => (item.name + item.keywords).toLowerCase().includes(query))
-      .map((item) => ({ ...item, kind: '操作' }))
-    const items = [...pageMatches, ...modelMatches, ...actionMatches]
+    const actionMatches = actions.filter((item) =>
+      (item.name + item.keywords).toLowerCase().includes(query),
+    )
     let index = 0
+    const linkRow = (item) =>
+      `<a class="v6-command-item ${index++ === 0 ? 'active' : ''}" href="#/${esc(item.path)}" role="option" data-path="${esc(item.path)}">${item.provider ? logo(item.provider) : icon(item.symbol)}<span class="v6-command-name">${markMatch(item.name, query)}</span>${item.meta ? `<small class="v6-command-meta v6-num">${markMatch(item.meta, query)}</small>` : ''}</a>`
     const groupHtml = (label, group) =>
-      group.length
-        ? `<div class="v6-palette-group">${label}</div>${group
-            .map(
-              (item) =>
-                `<a class="v6-command-item ${index++ === 0 ? 'active' : ''}" href="#/${item.path}" role="option">${icon(item.symbol)}${esc(item.name)}<small>${esc(item.kind)}</small></a>`,
-            )
-            .join('')}`
-        : ''
+      group.length ? `<div class="v6-palette-group">${label}</div>${group.map(linkRow).join('')}` : ''
     const actionHtml = actionMatches.length
       ? `<div class="v6-palette-group">操作</div>${actionMatches
           .map(
             (item) =>
-              `<button type="button" class="v6-command-item ${index++ === 0 ? 'active' : ''}" data-action="${item.action}" role="option">${icon(item.symbol)}${esc(item.name)}<small>${esc(item.kind)}</small></button>`,
+              `<button type="button" class="v6-command-item ${index++ === 0 ? 'active' : ''}" data-action="${item.action}" role="option">${icon(item.symbol)}<span class="v6-command-name">${markMatch(item.name, query)}</span></button>`,
           )
           .join('')}`
       : ''
-    document.getElementById('global-results').innerHTML = items.length
+    const recents = query ? [] : paletteRecents()
+    const html = query
       ? groupHtml('页面', pageMatches) + groupHtml('模型', modelMatches) + actionHtml
-      : '<p class="v6-muted v6-palette-empty">没有匹配结果。</p>'
+      : groupHtml('最近', recents) + groupHtml('页面', pageMatches) + actionHtml
+    document.getElementById('global-results').innerHTML =
+      html || `<p class="v6-muted v6-palette-empty">${icon('search')}没有匹配「${esc(query)}」的结果。</p>`
   }
 
   function drawCharts() {
@@ -3063,6 +3249,9 @@
     }
     const anchor = event.target.closest('a[href^="#/"]')
     if (anchor) {
+      // T3.4：面板内选中的页面/模型记入最近 5 条
+      if (anchor.classList.contains('v6-command-item') && anchor.dataset.path)
+        paletteRemember(anchor.dataset.path)
       if (dialog.open) closeDialog()
       if (location.hash === anchor.getAttribute('href')) {
         event.preventDefault()
@@ -3079,19 +3268,22 @@
     }
     const { action, id, value } = target.dataset
     if (action === 'search') searchDialog()
-    else if (action === 'close-dialog') closeDialog()
-    else if (action === 'copy')
-      copy(target.dataset.copy).then((ok) => {
-        if (!ok || !target.closest('.v6-input-wrap')) return
-        target.innerHTML = icon('check')
-        target.classList.add('copied')
-        setTimeout(() => {
-          target.innerHTML = icon('copy')
-          target.classList.remove('copied')
-        }, 1600)
-      })
+    else if (action === 'search-clear') {
+      const input = target.parentElement?.querySelector('input')
+      if (input) {
+        input.value = ''
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+        input.focus()
+      }
+    } else if (action === 'close-dialog') closeDialog()
+    else if (action === 'copy') copy(target.dataset.copy, target)
     else if (action === 'copy-code')
-      copy(target.closest('.v6-code').querySelector('code').textContent)
+      copy(target.closest('.v6-code').querySelector('code').textContent, target)
+    else if (action === 'copy-base-url') {
+      // T3.4：⌘K 操作项——复制接口地址；关面板后用 toast 反馈
+      closeDialog()
+      copy(apiBaseURL())
+    }
     else if (action === 'pin') {
       state.pins = state.pins.includes(id)
         ? state.pins.filter((item) => item !== id)
@@ -3178,7 +3370,7 @@
       const available = models.filter((model) => model.hosts.includes(name))
       showDialog(
         esc(name),
-        `<p class="v6-muted">当前目录中 ${available.length} 个模型由该提供商承载。</p><div class="v6-stack">${available.map((model) => link('models/' + model.id, esc(model.name), 'v6-link')).join('')}</div><div class="v6-dialog-foot">${link('models?provider=' + encodeURIComponent(name), '浏览全部模型', 'v6-btn primary')}</div>`,
+        `<div class="v6-row">${logo(name, 'lg')}<p class="v6-muted">当前目录中 ${available.length} 个模型由该提供商承载。</p></div><div class="v6-stack">${available.map((model) => link('models/' + model.id, esc(model.name), 'v6-link')).join('')}</div><div class="v6-dialog-foot">${link('models?provider=' + encodeURIComponent(name), '浏览全部模型', 'v6-btn primary')}</div>`,
       )
     } else if (action === 'ranking-output') updateQuery('output', value)
     else if (action === 'chart-scale') {
@@ -3212,14 +3404,17 @@
         `<p>确认删除「${esc(key.name)}」？删除后使用该密钥的请求会立即失败，此操作不可撤销。</p><div class="v6-dialog-foot">${button('close-dialog', '取消')}${button('confirm-delete-key', '删除密钥', 'trash-2', `data-id="${esc(id)}"`, 'v6-btn danger')}</div>`,
       )
     } else if (action === 'confirm-delete-key') {
-      SkinAPI.deleteToken(id)
-        .then(async () => {
-          await refreshTokens()
-          closeDialog()
-          renderKeys()
-          toast('密钥已删除')
-        })
-        .catch((error) => toast(error.message || '删除密钥失败', 'error'))
+      // T2.1：确认删除接入 withBusy
+      withBusy(target, () =>
+        SkinAPI.deleteToken(id)
+          .then(async () => {
+            await refreshTokens()
+            closeDialog()
+            renderKeys()
+            toast('密钥已删除')
+          })
+          .catch((error) => toast(error.message || '删除密钥失败', 'error')),
+      )
     } else if (action === 'refresh-credits') {
       withBusy(target, () =>
         refreshSession()
@@ -3310,9 +3505,11 @@
           if ((result.items || []).length < 20) break
         }
       }
-      fetchAll()
-        .catch(() => {})
-        .then(() => {
+      // T2.1：导出按钮带 busy 态
+      withBusy(target, () =>
+        fetchAll()
+          .catch(() => {})
+          .then(() => {
           const csv =
             '\uFEFF' +
             rows
@@ -3325,7 +3522,8 @@
           download.click()
           setTimeout(() => URL.revokeObjectURL(url), 1000)
           toast(`已导出 ${rows.length - 1} 条记录`)
-        })
+        }),
+      )
     } else if (action === 'logs-refresh') {
       withBusy(target, loadLogs)
     } else if (action === 'mobile-menu') {
@@ -3357,7 +3555,26 @@
       dialog.className = 'v6-dialog v6-nav-sheet'
       dialog.removeAttribute('aria-labelledby')
       dialog.setAttribute('aria-label', '导航')
-      dialog.innerHTML = `${navGroups
+      // T3.5：顶部账户块（头像 / 用户名 / 余额）+ 底部主题分段开关
+      const balance =
+        platform.authed && typeof SkinAPI !== 'undefined'
+          ? money(Number(platform.user?.quota || 0) / SkinAPI.quotaPerUnit())
+          : ''
+      const accountBlock = platform.authed
+        ? `<div class="v6-nav-account"><span class="v6-avatar lg" aria-hidden="true">${esc(accountName().slice(0, 1))}</span><div class="v6-nav-account-meta"><strong>${esc(accountName())}</strong><span class="v6-muted v6-num">${balance}</span></div><button type="button" class="v6-btn ghost danger v6-icon-btn" data-action="logout" aria-label="退出登录" data-tip="退出登录">${icon('log-out')}</button></div>`
+        : `<div class="v6-nav-account"><span class="v6-avatar lg" aria-hidden="true">${icon('user')}</span><div class="v6-nav-account-meta"><strong>未登录</strong><span class="v6-muted">登录后管理密钥与用量</span></div>${button('open-login', '登录 / 注册', 'log-in', '', 'v6-btn primary')}</div>`
+      const themeValue = state.settings.theme || 'system'
+      const themeSwitch = `<div class="nav-foot"><div class="v6-segment" role="radiogroup" aria-label="界面主题">${[
+        ['system', '跟随系统', 'monitor'],
+        ['light', '浅色', 'sun'],
+        ['dark', '深色', 'moon'],
+      ]
+        .map(
+          ([value, label, symbol]) =>
+            `<button type="button" class="${themeValue === value ? 'active' : ''}" data-action="theme-set" data-value="${value}" role="radio" aria-checked="${themeValue === value}" aria-pressed="${themeValue === value}">${icon(symbol)}${label}</button>`,
+        )
+        .join('')}</div></div>`
+      dialog.innerHTML = `${accountBlock}${navGroups
         .map(
           ([label, items]) =>
             `<div class="nav-group">${label}</div>${items
@@ -3367,15 +3584,13 @@
               )
               .join('')}`,
         )
-        .join('')}<div class="nav-foot">${
-        platform.authed
-          ? `<span class="v6-row v6-muted">${icon('user')}${esc(accountName())}</span><button type="button" class="v6-btn ghost danger" data-action="logout">退出登录</button>`
-          : button('open-login', '登录 / 注册', 'log-in', '', 'v6-btn primary')
-      }</div>`
+        .join('')}${themeSwitch}`
       if (!dialog.open) {
         dialogOpener = document.activeElement
         dialog.showModal()
       }
+      // 抽屉内「切换主题」的 toast 也要压过遮罩
+      moveToastsInto(dialog)
     }
   })
 
@@ -3401,19 +3616,32 @@
         String(data.get('turnstile_input') || '').trim()
       const mode = form.dataset.mode
       const errorNode = document.getElementById('auth-error')
-      if (!username || !password) return
+      const emailRequired = mode === 'register' && Boolean(platform.status?.email_verification)
+      // G-38：空提交逐字段提示 + 聚焦首个出错字段
+      const emailVal = String(data.get('email') || '').trim()
+      if (
+        !fieldValidate(form, [
+          ['username', !username, '请输入用户名'],
+          ['email', emailRequired && !emailVal, '请输入邮箱'],
+          ['password', !password, '请输入密码'],
+        ])
+      )
+        return
       // 与后端 User 模型 validate tag 对齐：username max=20，password min=8,max=128。
       // 提前在表单内给出友好提示，避免把后端原始校验错误透传给用户。
       if (mode === 'register') {
         if (username.length > 20) {
+          fieldValidate(form, [['username', true, '用户名最长 20 个字符']])
           if (errorNode) errorNode.textContent = '用户名最长 20 个字符'
           return
         }
         if (password.length < 8) {
+          fieldValidate(form, [['password', true, '密码至少 8 位']])
           if (errorNode) errorNode.textContent = '密码至少 8 位'
           return
         }
         if (password.length > 128) {
+          fieldValidate(form, [['password', true, '密码最长 128 位']])
           if (errorNode) errorNode.textContent = '密码最长 128 位'
           return
         }
@@ -3421,7 +3649,7 @@
       const credentials = {
         username,
         password,
-        email: String(data.get('email') || '').trim(),
+        email: emailVal,
         emailCode: String(data.get('email_code') || '').trim(),
         turnstile,
       }
@@ -3554,6 +3782,17 @@
     }
   })
   document.addEventListener('input', (event) => {
+    // G-38：字段重新输入即清除校验态
+    const t = event.target
+    if (t instanceof HTMLElement && t.hasAttribute('aria-invalid')) {
+      t.removeAttribute('aria-invalid')
+      const host = t.closest('.v6-field') || t.parentElement
+      host?.querySelector('.v6-field-msg')?.remove()
+    }
+    if (t instanceof HTMLElement) {
+      const clear = t.closest('.v6-search')?.querySelector('.v6-search-clear')
+      if (clear) clear.disabled = !t.value
+    }
     if (event.target.dataset.dirtyWatch !== undefined) {
       const stateNode = document.getElementById('settings-save-state')
       if (stateNode) stateNode.hidden = false
@@ -3578,8 +3817,8 @@
         0,
         Math.min(1000000, Number(document.getElementById('estimate-output').value) || 0),
       )
-      document.getElementById('estimate-cost').textContent = money(
-        (input * model.inputRate + output * model.outputRate) / 1e6,
+      document.getElementById('estimate-cost').innerHTML = kpi(
+        money((input * model.inputRate + output * model.outputRate) / 1e6),
       )
     }
   })
