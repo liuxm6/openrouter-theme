@@ -1003,11 +1003,19 @@
   function hasContext(model) {
     return Boolean(model.context) && model.context !== '—'
   }
+  // 目录里没有任何模型带上下文长度时，整列/整项隐藏，避免满屏 "—"
+  function catalogHasContext() {
+    return models.some(hasContext)
+  }
+  // 兜底 "Platform" 不是真实厂商，不计入厂商数与信任条
+  function realProviders() {
+    return [...new Set(models.map((model) => model.provider).filter((p) => p && p !== 'Platform'))]
+  }
   function modelCard(model) {
     // T6.2：三段式行布局——左 28px logo + 名称/slug，中右对齐三列数值，右复制/收藏
     const detail = '#/models/' + encodeURIComponent(model.id)
     const priced = !(model.imagePrice || model.audioPrice)
-    const numCells = `<span class="v6-mnum"><b>${hasContext(model) ? esc(contextLabel(model)) : '—'}</b><small>上下文</small></span>${
+    const numCells = `${catalogHasContext() ? `<span class="v6-mnum"><b>${hasContext(model) ? esc(contextLabel(model)) : '—'}</b><small>上下文</small></span>` : ''}${
       priced
         ? `<span class="v6-mnum"><b>${money(model.inputRate)}</b><small>输入 $/百万</small></span><span class="v6-mnum"><b>${money(model.outputRate)}</b><small>输出 $/百万</small></span>`
         : `<span class="v6-mnum"><b>${money(model.imagePrice || model.audioPrice)}</b><small>${model.imagePrice ? '每张图像' : '每分钟音频'}</small></span><span class="v6-mnum"><b>—</b><small>输出 $/百万</small></span>`
@@ -1066,7 +1074,7 @@
 
   function homeModelCard(model) {
     const priced = !(model.imagePrice || model.audioPrice)
-    return `<article class="sr-model-card" data-route="#/models/${encodeURIComponent(model.id)}" tabindex="0" role="link"><div class="sr-model-head"><span class="sr-model-logo">${logo(model.provider)}</span><p><strong>${esc(model.name)}</strong><small>${esc(model.slug || model.id)}</small></p></div><div class="sr-model-data">${priced ? `<span><small>输入 / 百万</small><b>${money(model.inputRate)}</b></span><span><small>输出 / 百万</small><b>${money(model.outputRate)}</b></span>` : `<span><small>计价</small><b>${modelPrice(model)}</b></span>`}${hasContext(model) ? `<span><small>上下文</small><b>${esc(contextLabel(model))}</b></span>` : ''}</div></article>`
+    return `<article class="sr-model-card" data-route="#/models/${encodeURIComponent(model.id)}" tabindex="0" role="link"><div class="sr-model-head"><span class="sr-model-logo">${logo(model.provider)}</span><p><strong>${esc(model.name)}</strong><small>${esc((model.slug || model.id) === model.name ? model.provider : model.slug || model.id)}</small></p></div><div class="sr-model-data">${priced ? `<span><small>输入 / 百万</small><b>${money(model.inputRate)}</b></span><span><small>输出 / 百万</small><b>${money(model.outputRate)}</b></span>` : `<span><small>计价</small><b>${modelPrice(model)}</b></span>`}${hasContext(model) ? `<span><small>上下文</small><b>${esc(contextLabel(model))}</b></span>` : ''}</div></article>`
   }
   function renderHome() {
     app.append(document.getElementById('page-home').content.cloneNode(true))
@@ -1081,7 +1089,7 @@
     const ready = catalogReady && models.length
     setMetric('sr-metric-models', ready ? String(models.length) : '')
     if (ready) {
-      setMetric('sr-metric-providers', String(new Set(models.map((model) => model.provider)).size))
+      setMetric('sr-metric-providers', String(realProviders().length))
       const longest = models.reduce(
         (best, model) => ((model.contextTokens || 0) > (best?.contextTokens || 0) ? model : best),
         null,
@@ -1096,7 +1104,7 @@
     const trustBar = home.querySelector('#sr-trust-bar')
     const trustList = home.querySelector('#sr-trust-list')
     if (trustBar && trustList) {
-      const names = [...new Set(models.map((model) => model.provider).filter(Boolean))].slice(0, 6)
+      const names = realProviders().slice(0, 6)
       if (ready && names.length) {
         trustList.textContent = names.join(' · ')
         trustBar.hidden = false
@@ -1201,12 +1209,14 @@
           .join(''),
         true,
       ) +
-      group(
-        '上下文长度',
-        'scan-text',
-        `<label>至少 <output id="context-label">${Number(params.get('context') || 0)}K</output><input type="range" id="context-range" min="0" max="1000" step="8" value="${Number(params.get('context') || 0)}"></label>`,
-        Boolean(params.get('context')),
-      ) +
+      (catalogHasContext()
+        ? group(
+            '上下文长度',
+            'scan-text',
+            `<label>至少 <output id="context-label">${Number(params.get('context') || 0)}K</output><input type="range" id="context-range" min="0" max="1000" step="8" value="${Number(params.get('context') || 0)}"></label>`,
+            Boolean(params.get('context')),
+          )
+        : '') +
       group(
         '输入价格',
         'circle-dollar-sign',
@@ -1305,7 +1315,7 @@
       ...(catalogLive ? [] : [['popular', '本周热门']]),
       ['price', '输入价格：低到高'],
       ['outputprice', '输出价格：低到高'],
-      ['context', '上下文：长到短'],
+      ...(catalogHasContext() ? [['context', '上下文：长到短']] : []),
       ['name', '名称 A–Z'],
     ]
       .map(
@@ -1363,7 +1373,7 @@
       hosts = selected('host'),
       categories = selected('category'),
       parameters = selected('parameter')
-    const minContext = Number(document.getElementById('context-range').value) * 1000
+    const minContext = Number(document.getElementById('context-range')?.value || 0) * 1000
     const maxPrice = Number(document.getElementById('price-range').value)
     const maxOutput = Number(document.getElementById('output-price-range').value)
     const isOpen = selected('open').length > 0
@@ -1430,8 +1440,9 @@
         )
       : catalogFilter.view === 'list'
         ? `<div class="v6-models">${list.map(modelCard).join('')}</div>`
-        : `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>模型</th><th class="num">输入 $/百万</th><th class="num">输出 $/百万</th><th class="num">上下文</th><th>输出模态</th><th class="num">延迟</th><th class="num">成功率</th><th class="v6-pin-cell">收藏</th></tr></thead><tbody>${list.map((model) => `<tr><td>${link('models/' + model.id, `<span class="v6-row">${logo(model.provider)}${esc(model.name)}</span>`, '')}</td><td class="num">${model.imagePrice || model.audioPrice ? modelPrice(model) : money(model.inputRate)}</td><td class="num">${model.imagePrice || model.audioPrice ? '不适用' : money(model.outputRate)}</td><td class="num">${esc(contextLabel(model))}</td><td>${modalityNames[model.outputs[0]]}</td><td class="num" data-perf-latency-for="${esc(model.id)}">—</td><td class="num" data-perf-rate-for="${esc(model.id)}">—</td><td class="v6-pin-cell">${pin(model)}</td></tr>`).join('')}</tbody></table></div>`
-    document.getElementById('context-label').textContent = fmtContext(minContext)
+        : `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>模型</th><th class="num">输入 $/百万</th><th class="num">输出 $/百万</th>${catalogHasContext() ? '<th class="num">上下文</th>' : ''}<th>输出模态</th><th class="num">延迟</th><th class="num">成功率</th><th class="v6-pin-cell">收藏</th></tr></thead><tbody>${list.map((model) => `<tr><td>${link('models/' + model.id, `<span class="v6-row">${logo(model.provider)}${esc(model.name)}</span>`, '')}</td><td class="num">${model.imagePrice || model.audioPrice ? modelPrice(model) : money(model.inputRate)}</td><td class="num">${model.imagePrice || model.audioPrice ? '不适用' : money(model.outputRate)}</td>${catalogHasContext() ? `<td class="num">${esc(contextLabel(model))}</td>` : ''}<td>${modalityNames[model.outputs[0]]}</td><td class="num" data-perf-latency-for="${esc(model.id)}">—</td><td class="num" data-perf-rate-for="${esc(model.id)}">—</td><td class="v6-pin-cell">${pin(model)}</td></tr>`).join('')}</tbody></table></div>`
+    const contextOut = document.getElementById('context-label')
+    if (contextOut) contextOut.textContent = fmtContext(minContext)
     document.getElementById('price-label').textContent = maxPrice === 20 ? '不限' : money(maxPrice)
     document.getElementById('output-price-label').textContent =
       maxOutput === 30 ? '不限' : money(maxOutput)
@@ -1659,7 +1670,7 @@
       ['faq', '常见问题', 'circle-help'],
       ['explore', '相关模型', 'compass'],
     ]
-    app.innerHTML = `<div class="v6-shell"><header class="v6-detail-head"><div class="v6-title"><div><div class="v6-row">${logo(model.provider, 'lg')}<h1>${esc(model.provider + ': ' + model.name)}</h1></div><div class="v6-row v6-slug"><button type="button" class="v6-slug-pill" data-action="copy" data-copy="${esc(model.slug)}" aria-label="复制模型 ID" data-tip="复制模型 ID"><span class="v6-slug-text">${esc(model.slug)}</span><span class="v6-slug-ico" data-copy-icon>${icon('copy')}</span></button>${pin(model)}</div></div><div class="v6-row v6-wrap">${link('models/' + encodeURIComponent(model.id) + '?section=api', '调用示例', 'v6-btn', 'code')}${link('console/keys', '获取 API Key', 'v6-btn primary', 'key-round')}</div></div>${model.description ? `<p class="v6-detail-description">${esc(model.description)}</p>` : ''}<div class="v6-stats">${stat('输入 / 输出模态', `<span class="v6-row">${model.inputs.map((value) => `<span title="${modalityNames[value]}">${icon(modalityIcons[value])}</span>`).join('')}${icon('arrow-right')}${icon(modalityIcons[model.outputs[0]])}</span>`)}${stat('输入 / 输出价格', model.imagePrice || model.audioPrice ? modelPrice(model) : money(model.inputRate) + ' / ' + money(model.outputRate), model.imagePrice || model.audioPrice ? '' : '每百万 tokens')}${stat('上下文长度', contextLabel(model))}${model.date ? stat('发布日期', model.date) : ''}</div></header><div class="v6-section-layout">${sectionNav(sections)}<div>${section('providers', '提供商', `此模型由 ${model.hosts.length} 个提供商提供服务。${telemetry ? '可按价格、延迟、吞吐和可用性查看路由。' : '价格来自当前计费配置。'}`, `<div class="v6-toolbar">${telemetry ? `<label class="v6-row v6-small v6-ml-auto">延迟分位数<select class="v6-select" id="provider-percentile"><option value="50">P50</option><option value="90">P90</option><option value="99">P99</option></select></label>` : ''}</div><div id="provider-table" data-sort="latency">${providerTable(model)}</div>`, telemetry ? '<span class="v6-badge">演示指标</span>' : '')}${section('pricing', '价格', `模型费率与单次调用成本。${model.live ? '费率来自当前计费配置。' : '价格使用演示目录中的固定数据。'}`, `<div class="v6-stat-band"><div><small>${model.imagePrice ? '每张图像' : model.audioPrice ? '每分钟音频' : '输入 / 百万 tokens'}</small><strong>${kpi(money(model.imagePrice || model.audioPrice || model.inputRate))}</strong></div>${!model.imagePrice && !model.audioPrice ? `<div><small>输出 / 百万 tokens</small><strong>${kpi(money(model.outputRate))}</strong></div>` : ''}</div>${!model.imagePrice && !model.audioPrice ? `<div class="v6-estimator">输入 <span class="v6-input-suffix"><input class="v6-input" type="number" min="0" max="10000000" id="estimate-input" value="2000" aria-label="输入 tokens"><em>tokens</em></span> · 输出 <span class="v6-input-suffix"><input class="v6-input" type="number" min="0" max="1000000" id="estimate-output" value="800" aria-label="输出 tokens" ${model.outputs[0] === 'embeddings' ? 'disabled' : ''}><em>tokens</em></span><span class="v6-estimator-result"><small>预计单次成本</small><strong id="estimate-cost" class="v6-num">${kpi(money((model.inputRate * 2000 + model.outputRate * 800) / 1e6))}</strong></span></div>` : ''}`)}${telemetry ? section('performance', '性能', '吞吐量越高，生成越快；首 token 延迟越低，等待越短。', `<div class="v6-stat-band"><div><small>吞吐量</small><strong>${kpi(model.throughput)}</strong></div><div><small>首 token 延迟</small><strong>${kpi(model.latency)}</strong></div></div><div class="v6-row v6-between"><h3>吞吐量趋势</h3><select class="v6-select" data-chart-period="detail-performance" aria-label="性能统计周期"><option value="7">最近 7 天</option><option value="30">最近 30 天</option></select></div>${chart('detail-performance', 'performance', 'detail')}`) : ''}${model.live ? section('performance', '性能', '实测指标，按分组聚合。', `<div id="model-perf">${skeletonRows(4)}</div>`) : ''}${telemetry ? section('uptime', '可用性', '最近 30 天的服务状态，所有指标为演示样本。', `<div class="v6-row v6-between"><h3>${kpi(model.uptime)}</h3><span class="v6-badge green">服务正常</span></div><div class="v6-uptime" role="img" aria-label="最近 30 天每日可用性">${Array.from({ length: 30 }, (_, index) => { const day = new Date(Date.now() - (29 - index) * 864e5); const tip = `${day.getMonth() + 1}/${day.getDate()}：${index === 12 ? '99.5%' : '100%'}`; return `<i data-tip="${tip}" class="${index === 12 ? 'warning' : ''}"></i>` }).join('')}</div><div class="v6-row v6-between v6-small v6-muted"><span>30 天前</span><span>今天</span></div>${uptimeLegend()}`) : ''}${model.live ? section('uptime', '可用性', '分时段实测成功率。', `<div id="model-uptime">${skeletonRows(2)}</div>`) : ''}${section('api', 'API 调用', '使用 OpenAI 兼容 SDK。以下 Base URL 为示例地址，接入时替换为你的实际服务地址。', codeBlock(model))}${section('faq', '常见问题', '', `<details class="v6-faq"><summary>这个模型支持哪些输入？${icon('chevron-right')}</summary><p>支持${model.inputs.map((value) => modalityNames[value]).join('、')}输入，输出类型为${modalityNames[model.outputs[0]]}。</p></details><details class="v6-faq"><summary>如何选择提供商？${icon('chevron-right')}</summary><p>可在提供商列表中查看性能指标。实际请求的路由取决于服务端配置、可用性和账户策略。</p></details><details class="v6-faq"><summary>免费模型有什么限制？${icon('chevron-right')}</summary><p>免费变体通常有请求频率和每日用量限制，适合试验和评估。具体限制以服务提供商为准。</p></details>`)}${section(
+    app.innerHTML = `<div class="v6-shell"><header class="v6-detail-head"><div class="v6-title"><div><div class="v6-row">${logo(model.provider, 'lg')}<h1>${esc(model.provider + ': ' + model.name)}</h1></div><div class="v6-row v6-slug"><button type="button" class="v6-slug-pill" data-action="copy" data-copy="${esc(model.slug)}" aria-label="复制模型 ID" data-tip="复制模型 ID"><span class="v6-slug-text">${esc(model.slug)}</span><span class="v6-slug-ico" data-copy-icon>${icon('copy')}</span></button>${pin(model)}</div></div><div class="v6-row v6-wrap">${link('models/' + encodeURIComponent(model.id) + '?section=api', '调用示例', 'v6-btn', 'code')}${link('console/keys', '获取 API Key', 'v6-btn primary', 'key-round')}</div></div>${model.description ? `<p class="v6-detail-description">${esc(model.description)}</p>` : ''}<div class="v6-stats">${stat('输入 / 输出模态', `<span class="v6-row">${model.inputs.map((value) => `<span title="${modalityNames[value]}">${icon(modalityIcons[value])}</span>`).join('')}${icon('arrow-right')}${icon(modalityIcons[model.outputs[0]])}</span>`)}${stat('输入 / 输出价格', model.imagePrice || model.audioPrice ? modelPrice(model) : money(model.inputRate) + ' / ' + money(model.outputRate), model.imagePrice || model.audioPrice ? '' : '每百万 tokens')}${hasContext(model) ? stat('上下文长度', contextLabel(model)) : ''}${model.date ? stat('发布日期', model.date) : ''}</div></header><div class="v6-section-layout">${sectionNav(sections)}<div>${section('providers', '提供商', `此模型由 ${model.hosts.length} 个提供商提供服务。${telemetry ? '可按价格、延迟、吞吐和可用性查看路由。' : '价格来自当前计费配置。'}`, `<div class="v6-toolbar">${telemetry ? `<label class="v6-row v6-small v6-ml-auto">延迟分位数<select class="v6-select" id="provider-percentile"><option value="50">P50</option><option value="90">P90</option><option value="99">P99</option></select></label>` : ''}</div><div id="provider-table" data-sort="latency">${providerTable(model)}</div>`, telemetry ? '<span class="v6-badge">演示指标</span>' : '')}${section('pricing', '价格', `模型费率与单次调用成本。${model.live ? '费率来自当前计费配置。' : '价格使用演示目录中的固定数据。'}`, `<div class="v6-stat-band"><div><small>${model.imagePrice ? '每张图像' : model.audioPrice ? '每分钟音频' : '输入 / 百万 tokens'}</small><strong>${kpi(money(model.imagePrice || model.audioPrice || model.inputRate))}</strong></div>${!model.imagePrice && !model.audioPrice ? `<div><small>输出 / 百万 tokens</small><strong>${kpi(money(model.outputRate))}</strong></div>` : ''}</div>${!model.imagePrice && !model.audioPrice ? `<div class="v6-estimator">输入 <span class="v6-input-suffix"><input class="v6-input" type="number" min="0" max="10000000" id="estimate-input" value="2000" aria-label="输入 tokens"><em>tokens</em></span> · 输出 <span class="v6-input-suffix"><input class="v6-input" type="number" min="0" max="1000000" id="estimate-output" value="800" aria-label="输出 tokens" ${model.outputs[0] === 'embeddings' ? 'disabled' : ''}><em>tokens</em></span><span class="v6-estimator-result"><small>预计单次成本</small><strong id="estimate-cost" class="v6-num">${kpi(money((model.inputRate * 2000 + model.outputRate * 800) / 1e6))}</strong></span></div>` : ''}`)}${telemetry ? section('performance', '性能', '吞吐量越高，生成越快；首 token 延迟越低，等待越短。', `<div class="v6-stat-band"><div><small>吞吐量</small><strong>${kpi(model.throughput)}</strong></div><div><small>首 token 延迟</small><strong>${kpi(model.latency)}</strong></div></div><div class="v6-row v6-between"><h3>吞吐量趋势</h3><select class="v6-select" data-chart-period="detail-performance" aria-label="性能统计周期"><option value="7">最近 7 天</option><option value="30">最近 30 天</option></select></div>${chart('detail-performance', 'performance', 'detail')}`) : ''}${model.live ? section('performance', '性能', '实测指标，按分组聚合。', `<div id="model-perf">${skeletonRows(4)}</div>`) : ''}${telemetry ? section('uptime', '可用性', '最近 30 天的服务状态，所有指标为演示样本。', `<div class="v6-row v6-between"><h3>${kpi(model.uptime)}</h3><span class="v6-badge green">服务正常</span></div><div class="v6-uptime" role="img" aria-label="最近 30 天每日可用性">${Array.from({ length: 30 }, (_, index) => { const day = new Date(Date.now() - (29 - index) * 864e5); const tip = `${day.getMonth() + 1}/${day.getDate()}：${index === 12 ? '99.5%' : '100%'}`; return `<i data-tip="${tip}" class="${index === 12 ? 'warning' : ''}"></i>` }).join('')}</div><div class="v6-row v6-between v6-small v6-muted"><span>30 天前</span><span>今天</span></div>${uptimeLegend()}`) : ''}${model.live ? section('uptime', '可用性', '分时段实测成功率。', `<div id="model-uptime">${skeletonRows(2)}</div>`) : ''}${section('api', 'API 调用', '使用 OpenAI 兼容 SDK。以下 Base URL 为示例地址，接入时替换为你的实际服务地址。', codeBlock(model))}${section('faq', '常见问题', '', `<details class="v6-faq"><summary>这个模型支持哪些输入？${icon('chevron-right')}</summary><p>支持${model.inputs.map((value) => modalityNames[value]).join('、')}输入，输出类型为${modalityNames[model.outputs[0]]}。</p></details><details class="v6-faq"><summary>如何选择提供商？${icon('chevron-right')}</summary><p>可在提供商列表中查看性能指标。实际请求的路由取决于服务端配置、可用性和账户策略。</p></details><details class="v6-faq"><summary>免费模型有什么限制？${icon('chevron-right')}</summary><p>免费变体通常有请求频率和每日用量限制，适合试验和评估。具体限制以服务提供商为准。</p></details>`)}${section(
       'explore',
       '相关模型',
       '',
@@ -2107,7 +2118,7 @@
             : model.audioPrice
               ? '<span class="v6-badge neutral">按分钟</span>'
               : ''
-        return `<tr><td data-th="模型">${link('models/' + encodeURIComponent(model.id), `<span class="v6-row">${logo(model.provider)}<span>${esc(model.name)}<span class="v6-muted">${esc(model.provider)}</span>${tag}</span>`, '')}</td><td data-th="输出类型">${esc(model.outputs.map((o) => modalityNames[o]).join(' / '))}</td><td data-th="上下文" class="num">${esc(contextLabel(model))}</td>${
+        return `<tr><td data-th="模型">${link('models/' + encodeURIComponent(model.id), `<span class="v6-row">${logo(model.provider)}<span>${esc(model.name)}<span class="v6-muted">${esc(model.provider)}</span>${tag}</span>`, '')}</td><td data-th="输出类型">${esc(model.outputs.map((o) => modalityNames[o]).join(' / '))}</td>${catalogHasContext() ? `<td data-th="上下文" class="num">${esc(contextLabel(model))}</td>` : ''}${
           model.imagePrice || model.audioPrice
             ? `<td class="num" data-th="费率" colspan="2">${esc(modelPrice(model))}</td>`
             : free
@@ -2118,7 +2129,7 @@
       .join('')
     return `<div class="v6-result-count" aria-live="polite">${list.length} 个模型 · ${catalogLive ? '实时价格' : '演示价格'}</div>${
       list.length
-        ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>模型</th><th>输出类型</th><th class="num">上下文</th><th class="num">输入<span class="v6-th-unit">$ / 百万 tokens</span></th><th class="num">输出<span class="v6-th-unit">$ / 百万 tokens</span></th><th>操作</th></tr></thead><tbody>${rows}</tbody></table></div>`
+        ? `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th>模型</th><th>输出类型</th>${catalogHasContext() ? '<th class="num">上下文</th>' : ''}<th class="num">输入<span class="v6-th-unit">$ / 百万 tokens</span></th><th class="num">输出<span class="v6-th-unit">$ / 百万 tokens</span></th><th>操作</th></tr></thead><tbody>${rows}</tbody></table></div>`
         : empty(
             priced.length ? '没有匹配的模型' : '还没有价格数据',
             priced.length ? '换个关键词或输出模态试试。' : '暂未获取到定价信息。',
@@ -2173,11 +2184,11 @@
       ['errors', '错误处理', 'circle-help'],
       ['business', '企业接入', 'building-2'],
     ]
-    app.innerHTML = `<div class="v6-shell v6-docs-layout"><nav class="v6-section-nav v6-docs-dir" aria-label="文档目录"><div class="v6-docs-dir-label">指南</div><a href="#/docs" class="active">${icon('book-open')}快速开始</a><div class="v6-docs-dir-label">资源</div><a href="#/models">${icon('layers')}模型目录</a><a href="#/providers">${icon('server')}提供商</a><a href="#/console/keys">${icon('key-round')}API Keys</a></nav><article><div class="v6-eyebrow">文档</div><h1 id="quickstart">快速开始</h1><p>使用统一的 OpenAI 兼容接口访问多个模型。在现有 SDK 中配置 Base URL、API Key 与模型标识即可开始。</p>${section('authentication', '创建 API Key', '为每个应用使用单独的密钥，设置用量上限，并避免在客户端暴露密钥。', `<div class="v6-callout">${icon('info')}<div>完整密钥只在创建时展示一次。请立即复制并妥善保管，遗失后只能重新生成。</div></div>${link('console/keys', '管理 API Keys', 'v6-btn', 'key-round')}`)}${section('request', '发出首个请求', `下方是请求结构示例，Base URL 为 ${apiBaseURL()}。`, codeBlock(models[0] || docsSampleModel))}${section('model-selection', '选择模型', '模型标识采用 provider/model-name 格式。不同模型支持的模态、上下文与参数不同。', `<p>从目录中选择模型后，可在详情页复制 ID。发送请求前，确认输入类型与模型支持的模态一致。</p>${link('models', '浏览模型目录', 'v6-link', 'arrow-right')}`)}${section('routing', '路由与故障回退', '同一模型可由多个提供商承载。网关按可用性、配置和账户策略选择服务。', `<p>连接错误和可重试的上游错误可触发故障回退。建议在应用侧设置有限的重试次数，并使用指数退避处理临时限流。</p><div class="v6-callout warning">${icon('alert-triangle')}<div>应用侧重试请限制次数并加指数退避；对 5xx 与限流的无上限重试会放大故障与计费。</div></div>${link('providers', '查看提供商', 'v6-link', 'arrow-right')}`)}${section(
+    app.innerHTML = `<div class="v6-shell v6-docs-layout"><nav class="v6-section-nav v6-docs-dir" aria-label="文档目录"><div class="v6-docs-dir-label">指南</div><a href="#/docs" class="active">${icon('book-open')}快速开始</a><div class="v6-docs-dir-label">资源</div><a href="#/models">${icon('layers')}模型目录</a><a href="#/providers">${icon('server')}提供商</a><a href="#/console/keys">${icon('key-round')}API Keys</a></nav><article><div class="v6-eyebrow">文档</div><h1 id="quickstart">快速开始</h1><p>使用统一的 OpenAI 兼容接口访问多个模型。在现有 SDK 中配置 Base URL、API Key 与模型标识即可开始。</p>${section('authentication', '创建 API Key', '为每个应用使用单独的密钥，设置用量上限，并避免在客户端暴露密钥。', `<div class="v6-callout">${icon('info')}<div>完整密钥只在创建时展示一次。请立即复制并妥善保管，遗失后只能重新生成。</div></div>${link('console/keys', '管理 API Keys', 'v6-btn', 'key-round')}`)}${section('request', '发出首个请求', `下方是请求结构示例，Base URL 为 ${apiBaseURL()}。`, codeBlock(models.find((model) => model.outputs[0] === 'text') || models[0] || docsSampleModel))}${section('model-selection', '选择模型', '模型标识采用 provider/model-name 格式。不同模型支持的模态、上下文与参数不同。', `<p>从目录中选择模型后，可在详情页复制 ID。发送请求前，确认输入类型与模型支持的模态一致。</p>${link('models', '浏览模型目录', 'v6-link', 'arrow-right')}`)}${section('routing', '路由与故障回退', '同一模型可由多个提供商承载。网关按可用性、配置和账户策略选择服务。', `<p>连接错误和可重试的上游错误可触发故障回退。建议在应用侧设置有限的重试次数，并使用指数退避处理临时限流。</p><div class="v6-callout warning">${icon('alert-triangle')}<div>应用侧重试请限制次数并加指数退避；对 5xx 与限流的无上限重试会放大故障与计费。</div></div>${link('providers', '查看提供商', 'v6-link', 'arrow-right')}`)}${section(
       'errors',
       '处理错误',
       '',
-      `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th class="num">状态码</th><th>含义</th><th>处理方式</th></tr></thead><tbody>${[
+      `<div class="v6-table-wrap"><table class="v6-table"><thead><tr><th class="v6-code-cell">状态码</th><th>含义</th><th>处理方式</th></tr></thead><tbody>${[
         ['400', '请求参数错误', '检查模型、模态和参数'],
         ['401', '身份验证失败', '检查 API Key'],
         ['402', '余额不足', '检查余额与额度'],
@@ -2186,7 +2197,7 @@
       ]
         .map(
           ([code, meaning, handling]) =>
-            `<tr><td class="num"><span class="v6-badge mono ${code.startsWith('5') ? 'danger' : 'warning'}">${code}</span></td><td>${meaning}</td><td>${handling}</td></tr>`,
+            `<tr><td class="v6-code-cell"><span class="v6-badge mono ${code.startsWith('5') ? 'danger' : 'warning'}">${code}</span></td><td>${meaning}</td><td>${handling}</td></tr>`,
         )
         .join('')}</tbody></table></div>`,
     )}${section('business', '企业接入', '从 API Key、数据策略与预算开始配置工作区。', `<p>在接入前确认模型覆盖、数据保留要求和流量规模。控制台提供工作区名称、零数据保留与自动回退策略的本地配置。</p>${link('console/settings', '配置工作区', 'v6-btn', 'settings')}`)}</article><aside class="v6-docs-toc"><div class="v6-eyebrow">本页内容</div>${sectionNav(items)}</aside></div>`
@@ -3252,7 +3263,7 @@
         : model.inputRate != null
           ? `${money(model.inputRate)} / ${money(model.outputRate ?? model.inputRate)}`
           : ''
-    return [model.provider, contextLabel(model), price].filter(Boolean).join(' · ')
+    return [model.provider, hasContext(model) ? contextLabel(model) : '', price].filter(Boolean).join(' · ')
   }
   // 最近访问的 5 条只存 path，名称/图标/价格在渲染时取实时数据，模型下线后自动剔除
   function paletteRemember(path) {

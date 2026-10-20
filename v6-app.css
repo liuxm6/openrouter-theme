@@ -1170,7 +1170,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     background: var(--surface-1);
-    box-shadow: none;
+    box-shadow: var(--shadow-1);
     color: var(--text-2);
     font: var(--fs-12) var(--data-font);
     text-overflow: ellipsis;
@@ -1644,12 +1644,12 @@
   }
   .sr-logo-dot {
     background: transparent;
-    box-shadow: none;
+    box-shadow: var(--shadow-1);
   }
   .sr-availability-node {
     border: 1px solid var(--border-strong);
     background: var(--surface-1);
-    box-shadow: none;
+    box-shadow: var(--shadow-1);
     color: var(--text-2);
   }
   .sr-model-logo {
@@ -2515,7 +2515,7 @@
   font-family: 'Inter';
   font-style: normal;
   font-display: swap;
-  font-weight: 100 900;
+  font-weight: 400 900;
   src: url('./fonts/inter-latin-wght-normal.woff2') format('woff2-variations'),
     url('./fonts/inter-latin-wght-normal.woff2') format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
@@ -2594,9 +2594,9 @@
     --text: var(--c-63); --text-2: var(--c-64); --muted: var(--c-65);
     --border: var(--c-66); --border-strong: var(--c-67);
     --accent: var(--c-34); --accent-hover: var(--c-27);
-    --accent-soft: #5fd3a5; --accent-text: #5fd3a5;
-    --accent-faint: rgba(44, 196, 140, 0.1); --accent-border: #1d5a44;
-    --accent-button: #1fae7b; --accent-button-hover: #27bd87; --accent-button-active: var(--c-33);
+    --accent-soft: var(--c-1); --accent-text: var(--c-1);
+    --accent-faint: var(--c-2); --accent-border: var(--c-3);
+    --accent-button: var(--c-4); --accent-button-hover: var(--c-5); --accent-button-active: var(--c-33);
     --success: var(--c-34); --danger: var(--c-35); --danger-button: var(--c-36); --danger-button-hover: var(--c-37);
     --danger-button-active: var(--c-38);
     --danger-faint: var(--c-39);
@@ -5382,7 +5382,7 @@ time.rel {
   font-size: var(--fs-16);
 }
 .v6-palette-head .v6-input:focus {
-  box-shadow: none;
+  box-shadow: var(--shadow-1);
 }
 .v6-palette-results {
   max-height: 420px;
@@ -5412,7 +5412,8 @@ time.rel {
 .v6-panel-foot .v6-save-state {
   margin-right: auto;
 }
-.v6-table .v6-pin-cell {
+.v6-table .v6-pin-cell,
+.v6-table .v6-code-cell {
   width: 56px;
   text-align: center;
 }
@@ -5549,7 +5550,7 @@ time.rel {
   font-size: var(--fs-28);
   font-weight: 600;
   line-height: 1.1;
-  letter-spacing: -0.025em;
+  letter-spacing: var(--track-display);
   font-variant-numeric: tabular-nums;
 }
 .v6-stat-band strong { margin-top: 6px; }
@@ -5563,7 +5564,7 @@ time.rel {
 .v6-estimator-result small {
   font-size: var(--fs-12);
   font-weight: 500;
-  letter-spacing: 0.01em;
+  letter-spacing: var(--track-caps);
   color: var(--muted);
 }
 .v6-detail-head .v6-title {
@@ -6210,8 +6211,9 @@ a.v6-item:hover .v6-link .v6-icon:last-child {
   margin-left: 2px;
 }
 .v6-detail-head .v6-title .v6-row:first-child .v6-logo {
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
+  padding: 6px;
 }
 .v6-slug .v6-icon-btn {
   width: var(--control-md);
@@ -6441,7 +6443,7 @@ a.v6-item:hover .v6-link .v6-icon:last-child {
   border: 0;
   border-radius: 0;
   background: transparent;
-  box-shadow: none;
+  box-shadow: var(--shadow-1);
   transition: background-color var(--dur) var(--ease);
 }
 .v6-models > .v6-model + .v6-model {
@@ -6451,7 +6453,7 @@ a.v6-item:hover .v6-link .v6-icon:last-child {
 .v6-models > .v6-model:focus-within {
   border-color: var(--border);
   background: var(--row-hover);
-  box-shadow: none;
+  box-shadow: var(--shadow-1);
 }
 .v6-model-title {
   font-size: var(--fs-15);
@@ -7259,7 +7261,7 @@ input[type='range']:focus-visible { outline: none; }
   background: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  box-shadow: none;
+  box-shadow: var(--shadow-1);
   color: var(--text);
 }
 kbd {
@@ -8132,4 +8134,13 @@ kbd {
 .v6-model .v6-meta > a:hover {
   color: var(--text-2);
   text-decoration-color: var(--border-strong);
+}
+
+/* T1.x 收敛：原散落字面量提为 token（像素等价） */
+:root {
+  --c-1: #5fd3a5;
+  --c-2: rgba(44, 196, 140, 0.1);
+  --c-3: #1d5a44;
+  --c-4: #1fae7b;
+  --c-5: #27bd87;
 }
