@@ -686,7 +686,7 @@
   let logoIndex = 0
   const charts = []
   const liveChartData = {}
-  const liveData = { logs: { items: [], total: 0, page: 1 }, stats: null, usage: null }
+  const liveData = { logs: { items: [], total: 0, page: 1 }, logsList: { page: 1 }, stats: null, usage: null }
   // 性能监控缓存：map=模型名→指标，series=模型名→recent_success_series，key=请求指纹（60s 内同参不重取）
   const perfState = { map: {}, series: {}, key: '', stamp: 0 }
   const PERF_TTL = 60000
@@ -2257,7 +2257,11 @@
       loadLogs()
       logsTimer = setInterval(loadLogs, 30000)
     }
-    if (route === 'console') loadOverviewUsage()
+    if (route === 'console') {
+      loadOverviewUsage()
+      loadOverviewRecent()
+    }
+    if (route === 'console/credits') loadCreditsExtras()
   }
 
   // T2.8：统一标题区结构——眉标(可选 12/500 muted) + H1 + 描述 + 操作区
@@ -2271,6 +2275,9 @@
     `<label class="v6-switch"><input type="checkbox" name="${name}" data-setting="${name}" ${on ? 'checked' : ''} ${disabled ? 'disabled' : ''}><span></span></label>`
   const wsCard = (path, title, desc, symbol) =>
     `<a class="v6-ws-card" href="#/${path}">${icon(symbol)}<div><h3>${title}</h3><p>${desc}</p></div>${icon('arrow-right')}</a>`
+  // NT-01：仅保存在本机的统一提示条
+  const localNote = () =>
+    `<div class="v6-callout">${icon('info')}<div>这些偏好仅保存在当前浏览器，不会同步到其他设备或浏览器。</div></div>`
 
   function pageOverview() {
     if (!platform.authed || !platform.user)
@@ -2280,7 +2287,27 @@
     const quota = Number(user.quota || 0) / unit
     const used = Number(user.used_quota || 0) / unit
     const requests = Number(user.request_count || 0)
-    return `${head('概览', esc(state.settings.name) + ' 工作区的用量与配置。')}<div class="v6-metric-row">${[
+    // T6.9：新手清单——无密钥/无请求/余额不足时逐项引导，满足后自动消失
+    const checklist = []
+    if (!(platform.tokens || []).length)
+      checklist.push(['创建第一个 API Key', '密钥用于在你的应用中调用模型。', 'console/keys', 'key-round', '去创建'])
+    if (!requests)
+      checklist.push(['发起第一次调用', '用密钥按调用示例发出首个请求。', 'docs', 'code', '查看示例'])
+    if (quota <= 0)
+      checklist.push(['充值余额', '兑换充值码后余额立即到账。', 'console/credits', 'wallet', '去充值'])
+    const checklistHtml = checklist.length
+      ? card(
+          '新手清单',
+          '完成以下步骤即可开始调用。',
+          `<ul class="v6-checklist">${checklist
+            .map(
+              ([title, detail, path, symbol, cta]) =>
+                `<li><span class="v6-check-dot">${icon(symbol)}</span><div class="v6-check-text"><strong>${title}</strong><small class="v6-muted">${detail}</small></div>${link(path, cta, 'v6-btn', 'arrow-right', true)}</li>`,
+            )
+            .join('')}</ul>`,
+        )
+      : ''
+    return `${head('概览', esc(state.settings.name) + ' 工作区的用量与配置。')}${checklistHtml}<div class="v6-metric-row">${[
       ['可用余额', money(quota)],
       ['累计消费', money(used)],
       ['累计请求', requests.toLocaleString()],
@@ -2289,7 +2316,7 @@
         ([label, value]) =>
           `<div class="v6-metric"><span class="v6-muted v6-small">${label}</span><strong>${kpi(value)}</strong></div>`,
       )
-      .join('')}</div><div class="v6-row v6-between v6-block-head"><h2>近 7 天用量</h2>${link('console/activity', '查看活动', 'v6-link', 'arrow-right', true)}</div><div class="v6-chart-sm" id="overview-usage">${chart('account-usage')}</div><div class="v6-ws-grid">${[
+      .join('')}</div><div class="v6-row v6-between v6-block-head"><h2>近 7 天用量</h2>${link('console/activity', '查看活动', 'v6-link', 'arrow-right', true)}</div><div class="v6-chart-sm" id="overview-usage">${chart('account-usage')}</div><div class="v6-row v6-between v6-block-head"><h2>最近请求</h2>${link('console/activity', '查看全部', 'v6-link', 'arrow-right', true)}</div><div id="overview-recent">${skeletonRows(3)}</div><div class="v6-ws-grid">${[
       ['console/keys', 'API Keys', '创建和管理此工作区的 API 密钥。', 'key-round'],
       ...(feature('guardrails') ? [['console/guardrails', '护栏', '设置预算、模型与提供商限制、隐私和内容策略。', 'shield']] : []),
       ...(feature('byok') ? [['console/byok', 'BYOK', '在平台上使用你自己的提供商密钥。', 'lock']] : []),
@@ -2314,10 +2341,22 @@
     const unit = SkinAPI.quotaPerUnit()
     const quota = Number(platform.user.quota || 0) / unit
     const used = Number(platform.user.used_quota || 0) / unit
-    return `${head('余额', '个人账户余额与充值。', button('refresh-credits', '刷新', 'refresh-cw'))}${card('可用余额', '', `<div class="v6-balance">${kpi(money(quota))}</div><p class="v6-muted v6-small">剩余额度（累计消费 ${money(used)}）</p>`, `${button('redeem-code', '兑换充值码', 'plus', '', 'v6-btn primary')}${link('console/activity', '查看用量', 'v6-btn')}`)}${card('说明', '', `<p class="v6-muted v6-small">余额与消费数据与账户实时同步。使用兑换码充值后余额立即到账。</p>`)}`
+    const total = used + quota
+    const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0
+    const tone = pct >= 90 ? ' danger' : pct >= 70 ? ' warn' : ''
+    return `${head('余额', '个人账户余额与充值。', button('refresh-credits', '刷新', 'refresh-cw'))}${card(
+      '可用余额',
+      '',
+      `<div class="v6-balance">${kpi(money(quota))}</div><div class="v6-row v6-between v6-small"><span class="v6-muted">已用 ${money(used)} / 总额 ${money(total)}</span><span class="v6-muted">本月消费 <strong class="v6-num" id="credits-month">—</strong></span></div><div class="v6-progress${tone}"><i style="width:${pct}%"></i></div>`,
+      link('console/activity', '查看用量', 'v6-btn'),
+    )}${card(
+      '兑换充值码',
+      '兑换成功后余额立即到账。',
+      `<form id="topup-inline-form" class="v6-inline-form" novalidate><input class="v6-input" name="key" required autocomplete="off" placeholder="输入兑换码" aria-label="兑换码"><button class="v6-btn primary" type="submit" data-action="redeem-code">兑换</button></form>`,
+    )}<div id="topup-history"></div>${card('说明', '', `<p class="v6-muted v6-small">余额与消费数据与账户实时同步。使用兑换码充值后余额立即到账。</p>`)}`
   }
   function pageSettings() {
-    return `${head('设置', '管理工作区标识、支出控制和集成。')}${card('常规', '管理工作区名称。', field('名称', '在工作区成员间显示。', `<input class="v6-input" name="workspace" value="${esc(state.settings.name)}" maxlength="60" form="settings-form" data-dirty-watch>`), `<span class="v6-save-state v6-muted v6-small" id="settings-save-state" hidden>有未保存的更改</span><button class="v6-btn primary" type="submit" form="settings-form">保存</button>`)}<form id="settings-form" novalidate></form>${card('预算与数据', '管理支出上限和数据共享。开关更改即时保存到当前浏览器。', `${field('工作区预算', '设置每日、每周或每月支出上限。', `<span class="v6-muted v6-small">未设置上限 · 需在服务端配置</span>`)}${field('自动故障回退', '当前提供商不可用时切换到其他路由。', toggle('fallback', state.settings.fallback))}`)}${card('隐私', '开关更改即时保存到当前浏览器。', field('零数据保留', '优先使用不保留请求数据的提供商。', toggle('zdr', state.settings.zdr)))}${card('危险操作', '', `<div class="v6-row v6-between"><div><strong>删除工作区</strong><p class="v6-muted v6-small">删除后无法恢复。当前为唯一工作区，暂不能删除。</p></div><button class="v6-btn danger" disabled>删除工作区</button></div>`, '', 'danger')}`
+    return `${head('设置', '管理工作区标识、支出控制和集成。')}${card('常规', '管理工作区名称。', field('名称', '在工作区成员间显示。', `<input class="v6-input" name="workspace" value="${esc(state.settings.name)}" maxlength="60" form="settings-form" data-dirty-watch>`), `<span class="v6-save-state v6-muted v6-small" id="settings-save-state" hidden>有未保存的更改</span><button class="v6-btn primary" type="submit" form="settings-form">保存</button>`)}<form id="settings-form" novalidate></form>${card('预算与数据', '管理支出上限和数据共享。更改即时生效，仅保存在本机。', `${field('工作区预算', '设置每日、每周或每月支出上限。', `<span class="v6-muted v6-small">未设置上限 · 需在服务端配置</span>`)}${field('自动故障回退', '当前提供商不可用时切换到其他路由。', toggle('fallback', state.settings.fallback))}`)}${card('隐私', '更改即时生效，仅保存在本机。', field('零数据保留', '优先使用不保留请求数据的提供商。', toggle('zdr', state.settings.zdr)))}${card('危险操作', '', `<div class="v6-row v6-between"><div><strong>删除工作区</strong><p class="v6-muted v6-small">删除后无法恢复。当前为唯一工作区，暂不能删除。</p></div><button class="v6-btn danger" disabled>删除工作区</button></div>`, '', 'danger')}`
   }
   function pageActivity() {
     if (!platform.authed)
@@ -2363,18 +2402,25 @@
     if (!platform.authed)
       return `${head('个人资料', '登录后显示账户信息。', button('open-login', '登录', 'log-in', '', 'v6-btn primary'))}`
     const user = platform.user || {}
-    return `${head('个人资料', '账户信息。')}${card('账户', '', `<dl class="v6-desc"><dt>用户名</dt><dd>${esc(user.username || '—')}</dd><dt>显示名称</dt><dd>${esc(user.display_name || user.username || '—')}</dd><dt>用户 ID</dt><dd><span class="mono">${esc(String(user.id ?? '—'))}</span>${iconButton('copy', '复制用户 ID', 'copy', `data-copy="${esc(String(user.id ?? ''))}"`)}</dd><dt>分组</dt><dd>${esc(user.group || platform.group || '—')}</dd></dl>`)}`
+    const displayName = user.display_name || user.username || '—'
+    const group = user.group || platform.group || '默认分组'
+    // T6.13：身份块——48px 头像 + 显示名 + 分组徽标
+    const identity = `<div class="v6-identity"><span class="v6-ws-avatar">${esc(displayName.slice(0, 1).toUpperCase())}</span><div class="v6-identity-text"><strong>${esc(displayName)}</strong><div class="v6-row"><span class="v6-badge">${esc(group)}</span><span class="v6-muted v6-small mono">#${esc(String(user.id ?? '—'))}</span></div></div></div>`
+    return `${head('个人资料', '账户信息。')}${card('账户', '', `${identity}<dl class="v6-desc"><dt>用户名</dt><dd>${esc(user.username || '—')}</dd><dt>显示名称</dt><dd>${esc(displayName)}</dd><dt>用户 ID</dt><dd><span class="mono">${esc(String(user.id ?? '—'))}</span>${iconButton('copy', '复制用户 ID', 'copy', `data-copy="${esc(String(user.id ?? ''))}"`)}</dd><dt>分组</dt><dd>${esc(group)}</dd></dl>`)}`
   }
   function pageLogs() {
     if (!platform.authed)
       return `${head('日志', '最近的 API 请求日志。')}${empty('需要登录', '登录后查看 API 请求日志。', button('open-login', '登录', 'log-in'))}`
-    return `${head('日志', '最近的 API 请求日志，每 30 秒自动刷新。', button('logs-refresh', '刷新', 'refresh-cw'))}<div id="log-results">${skeletonRows(5)}</div>`
+    const tokenOptions = (platform.tokens || [])
+      .map((key) => `<option value="${esc(key.name)}">${esc(key.name)}</option>`)
+      .join('')
+    return `${head('日志', '最近的 API 请求日志，每 30 秒自动刷新。', button('logs-refresh', '刷新', 'refresh-cw'))}<div class="v6-toolbar">${search('log-search', '搜索模型…')}<select class="v6-select" id="log-type" aria-label="日志类型"><option value="all">全部类型</option><option value="2">消费</option><option value="1">充值</option><option value="3">管理</option><option value="4">系统</option></select><select class="v6-select" id="log-token" aria-label="密钥筛选"><option value="all">全部密钥</option>${tokenOptions}</select><select class="v6-select" id="log-period" aria-label="时间范围"><option value="7">最近 7 天</option><option value="1">最近 24 小时</option><option value="30">最近 30 天</option></select></div><div id="log-results" class="v6-mt-4">${skeletonRows(5)}</div><div class="v6-pager"><span id="log-page-info" class="v6-muted v6-small"></span><button class="v6-btn" data-action="logs-prev" id="logs-prev" disabled>${icon('chevron-left')}上一页</button><button class="v6-btn" data-action="logs-next" id="logs-next" disabled>下一页${icon('chevron-right')}</button></div>`
   }
   function pageNotifications() {
-    return `${head('通知', '管理账户通知。')}${card('通知偏好', '', `${field('用量告警', '余额不足或超限时通知。', toggle('notif-usage', true))}${field('产品更新', '接收新模型和功能公告。', toggle('notif-product', true))}`)}`
+    return `${head('通知', '管理账户通知。')}${card('通知偏好', '更改即时生效，仅保存在本机。', `${field('用量告警', '余额不足或超限时通知。', toggle('notif-usage', true))}${field('产品更新', '接收新模型和功能公告。', toggle('notif-product', true))}`)}${localNote()}`
   }
   function pagePrivacy() {
-    return `${head('隐私', '控制数据和隐私设置。')}${card('数据策略', '', `${field('零数据保留', '优先使用不保留请求数据的提供商。', toggle('zdr', state.settings.zdr))}${field('允许提示词训练', '允许提供商使用你的提示词改进模型。', toggle('train', false))}`)}`
+    return `${head('隐私', '控制数据和隐私设置。')}${card('数据策略', '更改即时生效，仅保存在本机。', `${field('零数据保留', '优先使用不保留请求数据的提供商。', toggle('zdr', state.settings.zdr))}${field('允许提示词训练', '允许提供商使用你的提示词改进模型。', toggle('train', false))}`)}${localNote()}`
   }
   function pagePreferences() {
     const themeValue = state.settings.theme || 'system'
@@ -2392,7 +2438,7 @@
         )
         .join('')}</div>`,
     )
-    return `${head('偏好', '界面外观偏好。主题、收藏、工作区名称与数据偏好仅保存在当前浏览器。')}${themeCard}`
+    return `${head('偏好', '界面外观偏好。主题、收藏、工作区名称与数据偏好仅保存在当前浏览器。')}${themeCard}${localNote()}`
   }
   function quotaHtml(token) {
     // KY-04：已用 / 总额 双行 + 进度条；额度占比高时变色提示
@@ -2447,7 +2493,7 @@
       ? `<div class="v6-table-wrap"><table class="v6-table v6-mobile-cards"><thead><tr><th>密钥</th><th>分组</th><th>过期时间</th><th>最近使用</th><th class="num">用量</th><th>状态</th><th>操作</th></tr></thead><tbody>${list
           .map((key) => {
             const enabled = key.status === 1
-            return `<tr><td data-label="密钥"><strong title="${esc(key.name)}">${esc(key.name)}</strong><div class="v6-muted mono v6-row">${esc(maskedKey(key))}${iconButton('copy', '复制密钥标识', 'copy', `data-copy="${esc(maskedKey(key))}"`)}</div></td><td data-label="分组">${esc(key.group || platform.group || '—')}<div class="v6-muted v6-small">${key.model_limits_enabled ? '已限制模型' : '不限制模型'}</div></td><td data-label="过期时间">${expiryText(key)}</td><td data-label="最近使用">${accessText(key)}</td><td data-label="用量" class="num">${quotaHtml(key)}</td><td data-label="状态"><label class="v6-switch" title="${enabled ? '已启用，点击停用' : '已停用，点击启用'}"><input type="checkbox" role="switch" data-key-toggle="${esc(key.id)}" ${enabled ? 'checked' : ''} aria-label="启用或停用密钥"><span></span></label></td><td data-label="操作" class="v6-nowrap">${iconButton('edit-key', '编辑密钥', 'pencil', `data-id="${esc(key.id)}"`)}${iconButton('delete-key', '删除密钥', 'trash-2', `data-id="${esc(key.id)}"`, 'v6-btn ghost v6-icon-btn danger')}</td></tr>`
+            return `<tr><td data-label="密钥"><div class="v6-keycell"><strong title="${esc(key.name)}">${esc(key.name)}</strong><span class="v6-muted mono" title="${esc(maskedKey(key))}">${esc(maskedKey(key))}</span>${iconButton('copy', '复制密钥标识', 'copy', `data-copy="${esc(maskedKey(key))}"`)}</div></td><td data-label="分组">${esc(key.group || platform.group || '—')}<div class="v6-muted v6-small">${key.model_limits_enabled ? '已限制模型' : '不限制模型'}</div></td><td data-label="过期时间">${expiryText(key)}</td><td data-label="最近使用">${accessText(key)}</td><td data-label="用量" class="num">${quotaHtml(key)}</td><td data-label="状态"><label class="v6-switch" title="${enabled ? '已启用，点击停用' : '已停用，点击启用'}"><input type="checkbox" role="switch" data-key-toggle="${esc(key.id)}" ${enabled ? 'checked' : ''} aria-label="启用或停用密钥"><span></span></label></td><td data-label="操作" class="v6-nowrap">${iconButton('edit-key', '编辑密钥', 'pencil', `data-id="${esc(key.id)}"`)}${iconButton('delete-key', '删除密钥', 'trash-2', `data-id="${esc(key.id)}"`, 'v6-btn ghost v6-icon-btn danger')}</td></tr>`
           })
           .join(
             '',
@@ -2561,21 +2607,59 @@
   function filterActivity() {
     loadActivity(1)
   }
-  async function loadLogs() {
+  // T6.12：日志页筛选条（模型 / 密钥 / 类型 / 时间），与活动页同一套查询参数
+  function logFilters() {
+    const type = document.getElementById('log-type')?.value || 'all'
+    const token = document.getElementById('log-token')?.value || 'all'
+    const days = Number(document.getElementById('log-period')?.value || '7')
+    const model = document.getElementById('log-search')?.value.trim() || ''
+    const end = Math.floor(Date.now() / 1000)
+    const start = end - days * 86400
+    const query = { start, end }
+    if (type !== 'all') query.type = Number(type)
+    if (token !== 'all') query.token = token
+    if (model) query.model = model
+    return query
+  }
+  // LG-01：日志页与活动页一致的分页器；自动刷新停留在当前页
+  async function loadLogs(page) {
     const box = document.getElementById('log-results')
     if (!box) return
+    const target = page || liveData.logsList.page || 1
+    const prevBtn = document.getElementById('logs-prev')
+    const nextBtn = document.getElementById('logs-next')
+    if (prevBtn) prevBtn.disabled = true
+    if (nextBtn) nextBtn.disabled = true
     try {
-      const result = await SkinAPI.listLogs({ page: 1, size: 20 })
+      const result = await SkinAPI.listLogs({ ...logFilters(), page: target, size: 20 })
+      liveData.logsList = result
       const items = result.items || []
-      box.innerHTML = items.length ? activityTable(items) : empty('还没有请求记录', '调用模型后日志会显示在这里。')
+      box.innerHTML = items.length
+        ? activityTable(items)
+        : empty('没有匹配的日志', '调整筛选条件，或调用模型后再来看。')
+      const total = Number(result.total || 0)
+      const pages = Math.max(1, Math.ceil(total / 20))
+      const info = document.getElementById('log-page-info')
+      if (info) info.textContent = `共 ${total.toLocaleString()} 条 · 第 ${result.page}/${pages} 页`
+      const prev = document.getElementById('logs-prev')
+      const next = document.getElementById('logs-next')
+      if (prev) prev.disabled = result.page <= 1
+      if (next) next.disabled = items.length < 20 || result.page >= pages
     } catch (error) {
+      const prev = document.getElementById('logs-prev')
+      const next = document.getElementById('logs-next')
+      if (prev) prev.disabled = false
+      if (next) next.disabled = false
       box.innerHTML = errorBox(
         '日志加载失败',
         '请稍后重试，或检查网络连接。',
-        `<button class="v6-btn" data-action="logs-refresh">${icon('refresh-cw')}重试</button>`,
+        `<button class="v6-btn" data-action="logs-retry">${icon('refresh-cw')}重试</button>`,
         error.message,
       )
     }
+  }
+  function filterLogs() {
+    loadLogs(1)
   }
   // G-33/34：图表数据三态——只存真实值（美元），不预归一化；
   // 加载中 / 空 / 失败都由 drawCharts 渲染对应占位，绝不用假数据顶替
@@ -2637,6 +2721,61 @@
       liveChartData['account-usage'] = { state: 'error' }
       drawCharts()
     }
+  }
+  // T6.9：概览页"最近 5 条请求"——静默加载，失败只留一行提示不打断页面
+  async function loadOverviewRecent() {
+    const box = document.getElementById('overview-recent')
+    if (!box || !platform.authed) return
+    try {
+      const result = await SkinAPI.listLogs({ page: 1, size: 5 })
+      const items = result.items || []
+      box.innerHTML = items.length
+        ? activityTable(items)
+        : `<p class="v6-muted v6-small">还没有请求记录，发起第一次调用后会显示在这里。</p>`
+    } catch {
+      box.innerHTML = `<p class="v6-muted v6-small">最近请求加载失败，可在活动页重试。</p>`
+    }
+  }
+  // T6.11：余额页补充数据——本月消费（logStat 当月聚合）+ 充值记录（有数据才渲染卡片）
+  async function loadCreditsExtras() {
+    const unit = SkinAPI.quotaPerUnit()
+    const monthNode = document.getElementById('credits-month')
+    const histBox = document.getElementById('topup-history')
+    if (monthNode) {
+      const now = new Date()
+      const start = Math.floor(new Date(now.getFullYear(), now.getMonth(), 1).getTime() / 1000)
+      const end = Math.floor(Date.now() / 1000)
+      SkinAPI.logStats({ type: 2, start, end })
+        .then((stats) => {
+          monthNode.textContent = money(Number(stats.quota || 0) / unit)
+        })
+        .catch(() => {
+          monthNode.textContent = '—'
+        })
+    }
+    if (histBox)
+      SkinAPI.topupHistory()
+        .then((list) => {
+          const items = Array.isArray(list) ? list : []
+          if (!items.length) {
+            histBox.innerHTML = ''
+            return
+          }
+          histBox.innerHTML = card(
+            '充值记录',
+            '',
+            `<div class="v6-table-wrap"><table class="v6-table v6-mobile-cards"><thead><tr><th>时间</th><th class="num">金额</th><th>渠道</th></tr></thead><tbody>${items
+              .slice(0, 10)
+              .map(
+                (item) =>
+                  `<tr><td data-label="时间">${formatTime(item.create_time || item.created_at)}</td><td class="num" data-label="金额">${money(Number(item.amount ?? item.quota ?? 0) / unit)}</td><td data-label="渠道">${esc(item.pay_method || item.channel || '兑换码')}</td></tr>`,
+              )
+              .join('')}</tbody></table></div>`,
+          )
+        })
+        .catch(() => {
+          histBox.innerHTML = ''
+        })
   }
   // G-34 / R-05：nice-number 刻度——step 取 1/2/2.5/5×10ⁿ 中最小且 step×4 ≥ max 的，
   // 返回图表最大值（即 step×4），4 个刻度均匀落在整步长上
@@ -3727,11 +3866,15 @@
           .then(() => toast('余额已刷新'))
           .catch((error) => toast(error.message || '刷新失败', 'error')),
       )
-    } else if (action === 'redeem-code')
-      showDialog(
-        '兑换充值码',
-        `<form id="topup-form" novalidate><label class="v6-form-label">兑换码<input class="v6-input" name="key" required autocomplete="off" placeholder="输入兑换码"></label><p class="v6-muted v6-small">兑换成功后余额立即到账。</p><div class="v6-dialog-foot">${button('close-dialog', '取消')}<button class="v6-btn primary" type="submit">兑换</button></div></form>`,
-      )
+    } else if (action === 'redeem-code') {
+      // T6.11：兑换码主入口已改余额页内联表单——表单内的该动作由 submit 接管；
+      // 契约保留 data-action，其余入口（如旧模板）仍走弹窗
+      if (!target.closest('#topup-inline-form'))
+        showDialog(
+          '兑换充值码',
+          `<form id="topup-form" novalidate><label class="v6-form-label">兑换码<input class="v6-input" name="key" required autocomplete="off" placeholder="输入兑换码"></label><p class="v6-muted v6-small">兑换成功后余额立即到账。</p><div class="v6-dialog-foot">${button('close-dialog', '取消')}<button class="v6-btn primary" type="submit">兑换</button></div></form>`,
+        )
+    }
     else if (action === 'send-email-code') {
       const email = document.querySelector('#auth-form [name="email"]')?.value.trim()
       const err = document.getElementById('auth-error')
@@ -3786,6 +3929,10 @@
     else if (action === 'activity-prev' || action === 'activity-next') {
       const page = (liveData.logs.page || 1) + (action === 'activity-next' ? 1 : -1)
       if (page >= 1) loadActivity(page)
+    } else if (action === 'logs-retry') loadLogs(liveData.logsList.page || 1)
+    else if (action === 'logs-prev' || action === 'logs-next') {
+      const page = (liveData.logsList.page || 1) + (action === 'logs-next' ? 1 : -1)
+      if (page >= 1) loadLogs(page)
     } else if (action === 'export-activity') {
       const { query } = activityFilters()
       const rows = [['时间', '模型', '输入 tokens', '输出 tokens', '密钥', '成本', '类型']]
@@ -4022,7 +4169,8 @@
       return
     }
 
-    if (form.id === 'topup-form') {
+    // T6.11：兑换码支持内联表单（余额页）与弹窗表单两种载体
+    if (form.id === 'topup-form' || form.id === 'topup-inline-form') {
       const key = String(data.get('key') || '').trim()
       if (!key) return
       withBusy(form.querySelector('[type="submit"]'), () =>
@@ -4116,6 +4264,10 @@
       clearTimeout(activitySearchTimer)
       activitySearchTimer = setTimeout(filterActivity, 400)
     }
+    if (id === 'log-search') {
+      clearTimeout(activitySearchTimer)
+      activitySearchTimer = setTimeout(filterLogs, 400)
+    }
     if (id === 'estimate-input' || id === 'estimate-output') {
       const model = getModel(routeModelId())
       const input = Math.max(
@@ -4154,6 +4306,7 @@
     if (id === 'model-perf-hours') loadModelPerf(routeModelId(), Number(event.target.value))
     if (id === 'ranking-metric') updateQuery('metric', event.target.value)
     if (id === 'activity-status' || id === 'activity-period') filterActivity()
+    if (id === 'log-type' || id === 'log-period' || id === 'log-token') filterLogs()
     if (event.target.dataset.chartPeriod) drawCharts()
     if (event.target.dataset.setting) {
       const key = event.target.dataset.setting
