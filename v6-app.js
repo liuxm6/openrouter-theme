@@ -1117,7 +1117,8 @@
       const configured = Array.isArray(appConfig.featuredModels)
         ? appConfig.featuredModels.map(getModel).filter(Boolean)
         : []
-      const featured = configured.length ? configured : models.slice(0, 3)
+      const vendorModels = models.filter((model) => model.provider !== 'Platform')
+      const featured = configured.length ? configured : (vendorModels.length ? vendorModels : models).slice(0, 3)
       if (featured.length) {
         featuredGrid.innerHTML = featured.map(homeModelCard).join('')
         featuredSection.hidden = false
