@@ -131,7 +131,6 @@
   --focus-ring: 0 0 0 2px var(--surface-1), 0 0 0 4px var(--accent-text);
   --input-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
   --input-ring-danger: 0 0 0 3px var(--danger-faint);
-  --hairline-bottom: 0 1px 0 var(--border);
   --ring-accent-lg: 0 0 0 4px var(--accent-faint);
   --ring-accent: 0 0 0 3px var(--accent-faint);
   --ring-accent-soft: 0 0 0 3px color-mix(in srgb, var(--accent-faint) 70%, transparent);
@@ -594,7 +593,6 @@
       color: var(--text);
     }
     .app-header {
-      border-bottom-color: var(--border);
       background: color-mix(in srgb, var(--canvas) 90%, transparent);
     }
     .header-inner {
@@ -842,9 +840,6 @@
         width: min(calc(100% - 24px), 1440px);
       }
     }
-  .app-header {
-    box-shadow: var(--hairline-bottom);
-  }
   .header-inner {
     gap: 16px;
   }
@@ -4101,7 +4096,7 @@ h3.unknown {
   grid-template-columns: 2fr repeat(3, 1fr);
   gap: 24px;
   padding: 36px max(24px, calc((100% - 1280px) / 2));
-  border-top: 1px solid var(--border);
+  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
   background: var(--surface-1);
 }
 .v6-footer h3 {

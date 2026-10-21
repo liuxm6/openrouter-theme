@@ -1,6 +1,6 @@
 {
   "name": "aitokensflux-skin",
-  "version": "6.2.3",
+  "version": "6.2.4",
   "private": true,
   "description": "aitokensflux Skin — OpenRouter-style frontend for the Ai Tokens Flux / new-api Platform",
   "type": "commonjs",
