@@ -1008,6 +1008,7 @@
     return models.some(hasContext)
   }
   // 兜底 "Platform" 不是真实厂商，不计入厂商数与信任条
+  const HOME_MODEL_COUNT_MIN = 30
   function realProviders() {
     return [...new Set(models.map((model) => model.provider).filter((p) => p && p !== 'Platform'))]
   }
@@ -1059,7 +1060,7 @@
         ]
           .map(([path, name, symbol]) => link(path, name, '', symbol))
           .join('')}<span class="v6-menu-sep" aria-hidden="true"></span><button type="button" class="danger" data-action="logout">${icon('log-out')}退出登录</button></div></details>`
-        : button('open-login', '登录', 'log-in', '', 'v6-btn primary')
+        : button('open-login', '登录', 'log-in', '', 'v6-btn')
     header.innerHTML = `<div class="header-inner"><a class="brand" href="#/home" aria-label="aitokensflux 首页"><span class="brand-mark" aria-hidden="true">${BRAND_MARK}</span><span class="brand-word">aitokens<em>flux</em></span></a><nav class="primary-nav" aria-label="主导航">${link('models', '模型', 'nav-link ' + (['models', 'discover', 'providers'].includes(route.split('/')[0]) ? 'active' : ''))}${feature('rankings') ? link('rankings', '排行榜', 'nav-link ' + (route === 'rankings' ? 'active' : '')) : ''}${link('pricing', '价格', 'nav-link ' + (route === 'pricing' ? 'active' : ''))}${link('docs', '文档', 'nav-link ' + (route === 'docs' ? 'active' : ''))}</nav><div class="header-actions"><button class="header-search" data-action="search" aria-label="搜索模型与页面">${icon('search')}<span>搜索</span><span class="keycap">⌘ K</span></button>${themeToggle()}${account}${button('mobile-menu', '', 'menu', 'aria-label="打开菜单"', 'v6-btn v6-icon-btn v6-mobile-menu')}</div></div>`
   }
   function themeToggle() {
@@ -1079,37 +1080,62 @@
   function renderHome() {
     app.append(document.getElementById('page-home').content.cloneNode(true))
     const home = app.querySelector('.premium-home')
-    // 首屏统计：全部取自真实目录；目录未就绪时模型数显示占位，其余项保持隐藏
-    const setMetric = (id, value) => {
+    // 首屏 curl：示例模型优先用目录里的 Anthropic 文本模型，与右侧路由示意保持一致
+    const heroCode = home.querySelector('#gw-code')
+    if (heroCode) {
+      const textModels = catalogReady ? models.filter((model) => (model.outputs[0] || 'text') === 'text') : []
+      const anthropic = textModels.find((model) => /anthropic/i.test(model.provider))
+      const sample = anthropic || textModels[0] || docsSampleModel
+      const curl = `curl ${apiBaseURL()}/chat/completions \\\n  -H "Authorization: Bearer $TOKENFLUX_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "model": "${sample.slug}",\n    "messages": [{"role": "user", "content": "你好"}]\n  }'`
+      heroCode.innerHTML = `<div class="v6-code"><div class="v6-code-head"><span class="gw-code-label">cURL</span>${iconButton('copy-code', '复制代码', 'copy')}</div><pre><code>${highlightCode(curl, 'curl')}</code></pre></div>`
+      if (anthropic && anthropic.slug.length <= 30) {
+        const wireLabel = home.querySelector('.gw-t-wire')
+        if (wireLabel) wireLabel.textContent = 'model: ' + anthropic.slug
+        const hostsLabel = home.querySelector('.sr-hosts-model')
+        if (hostsLabel) hostsLabel.textContent = anthropic.slug
+      }
+    }
+    // 首屏统计：全部取自真实目录，没有真实值的项隐藏
+    const setMetric = (id, value, note) => {
       const node = home.querySelector('#' + id)
       if (!node) return
       node.querySelector('strong').textContent = value || '—'
-      if (id !== 'sr-metric-models') node.hidden = !value
+      node.hidden = !value
+      if (value && note) node.insertAdjacentHTML('beforeend', `<small class="sr-metric-note">${esc(note)}</small>`)
     }
     const ready = catalogReady && models.length
-    setMetric('sr-metric-models', ready ? String(models.length) : '')
+    // 模型数太少时不展示，否则会和标题「连接所有模型」互相矛盾
+    setMetric('sr-metric-models', ready && models.length >= HOME_MODEL_COUNT_MIN ? String(models.length) : '')
     if (ready) {
       setMetric('sr-metric-providers', String(realProviders().length))
-      const longest = models.reduce(
+      // 价格和上下文只在对话（文本输出）模型之间比较，嵌入等模型单价不可比
+      const chatModels = models.filter((model) => (model.outputs[0] || 'text') === 'text')
+      const longest = chatModels.reduce(
         (best, model) => ((model.contextTokens || 0) > (best?.contextTokens || 0) ? model : best),
         null,
       )
-      setMetric('sr-metric-context', longest && hasContext(longest) ? contextLabel(longest) : '')
-      const rates = models.map((model) => model.inputRate).filter((rate) => rate > 0)
-      setMetric('sr-metric-price', rates.length ? money(Math.min(...rates)) : '')
+      setMetric('sr-metric-context', longest && hasContext(longest) ? contextLabel(longest) : '', longest?.name)
+      const cheapest = chatModels
+        .filter((model) => model.inputRate > 0)
+        .reduce((best, model) => (!best || model.inputRate < best.inputRate ? model : best), null)
+      setMetric('sr-metric-price', cheapest ? money(cheapest.inputRate) : '', cheapest?.name)
     }
     const metricGroup = home.querySelector('.sr-metric-group')
-    if (metricGroup) metricGroup.dataset.count = metricGroup.querySelectorAll('.sr-metric:not([hidden])').length
-    // 信任条：列出现目录实际接入的提供商（去重取前 6），目录未就绪时整条隐藏
+    const visibleMetrics = metricGroup ? metricGroup.querySelectorAll('.sr-metric:not([hidden])').length : 0
+    if (metricGroup) metricGroup.dataset.count = visibleMetrics
+    // 信任条：列出现目录实际接入的提供商（取前 6，超出时注明总数，与「模型提供商」统计一致），目录未就绪时整条隐藏
     const trustBar = home.querySelector('#sr-trust-bar')
     const trustList = home.querySelector('#sr-trust-list')
     if (trustBar && trustList) {
-      const names = realProviders().slice(0, 6)
+      const all = realProviders()
+      const names = all.slice(0, 6)
       if (ready && names.length) {
-        trustList.textContent = names.join(' · ')
+        trustList.textContent = names.join(' · ') + (all.length > names.length ? ` 等 ${all.length} 家` : '')
         trustBar.hidden = false
       }
     }
+    const metricsSection = home.querySelector('.sr-metrics')
+    if (metricsSection) metricsSection.hidden = !visibleMetrics && (!trustBar || trustBar.hidden)
     // 精选模型：优先 config.featuredModels 指定的真实模型，否则取目录前三个；空目录整块隐藏
     const featuredSection = home.querySelector('.sr-models')
     const featuredGrid = home.querySelector('#sr-model-grid')
@@ -1137,16 +1163,9 @@
         if (id && !getModel(id)) el.remove()
       })
     }
-    // 页脚状态：绑定真实 Platform 连通性；状态未知时不展示任何声明
+    // 页脚状态：只在 Platform 确认在线时展示；落地页不向访客展示故障，详情留给 #/status
     const statusPill = home.querySelector('#sr-footer-status')
-    if (statusPill) {
-      if (!catalogReady) statusPill.remove()
-      else if (platform.online) statusPill.innerHTML = '<i aria-hidden="true"></i>服务正常'
-      else {
-        statusPill.innerHTML = '<i aria-hidden="true"></i>服务异常'
-        statusPill.classList.add('offline')
-      }
-    }
+    if (statusPill && !(catalogReady && platform.online)) statusPill.remove()
     requestAnimationFrame(() => home.classList.add('route-connected'))
   }
 

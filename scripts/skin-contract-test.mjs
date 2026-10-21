@@ -939,7 +939,45 @@ async function uiTests(pageUrl, platform) {
       `getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()`,
     )
     assert(accent === '#0f7b5f', 'theme accent changed: ' + accent)
+    await cdp.send('Emulation.setEmulatedMedia', {
+      features: [{ name: 'prefers-color-scheme', value: 'dark' }],
+    })
+    const systemDark = await evalJson(`(() => {
+      const s = getComputedStyle(document.documentElement)
+      return { canvas: s.getPropertyValue('--canvas').trim(), accent: s.getPropertyValue('--accent').trim() }
+    })()`)
+    assert(
+      systemDark.canvas === '#0a0a0a' && systemDark.accent === '#3dba92',
+      'system dark theme tokens broken: ' + JSON.stringify(systemDark),
+    )
+    await cdp.send('Emulation.setEmulatedMedia', {
+      features: [{ name: 'prefers-color-scheme', value: 'light' }],
+    })
 
+    // 首页：在线时展示状态；模型数过少时不展示；hidden 必须真正隐藏
+    await evalJson(`location.hash = '#/home'`)
+    await waitPage(`document.querySelector('.premium-home.route-connected')`, 'home renders')
+    const homeState = await evalJson(`(() => {
+      const shown = (sel) => { const n = document.querySelector(sel); return Boolean(n) && getComputedStyle(n).display !== 'none' }
+      return {
+        status: document.querySelector('#sr-footer-status')?.textContent.trim() || '',
+        modelsShown: shown('#sr-metric-models'),
+        providersShown: shown('#sr-metric-providers'),
+        trustShown: shown('#sr-trust-bar'),
+        heroButtons: document.querySelectorAll('.gw-hero .button').length,
+        curl: document.querySelector('#gw-code code')?.textContent || '',
+        curlCopy: Boolean(document.querySelector('#gw-code [data-action="copy-code"]')),
+      }
+    })()`)
+    assert(homeState.status === '服务正常', 'home status pill when online: ' + JSON.stringify(homeState))
+    assert(!homeState.modelsShown, 'home hides a small model count: ' + JSON.stringify(homeState))
+    assert(homeState.providersShown && homeState.trustShown, 'home shows provider facts: ' + JSON.stringify(homeState))
+    assert(homeState.heroButtons === 1, 'hero has a single primary action, got ' + homeState.heroButtons)
+    assert(
+      homeState.curl.startsWith('curl http') && homeState.curl.includes('/v1/chat/completions') && homeState.curlCopy,
+      'hero curl example: ' + homeState.curl.slice(0, 80),
+    )
+    await evalJson(`location.hash = '#/models'`)
     await evalJson(`document.querySelector('[data-action="open-login"]').click()`)
     await waitPage(`document.querySelector('#auth-form')`, 'login dialog')
     await evalJson(`document.querySelector('[data-action="show-register"]').click()`)
@@ -1093,12 +1131,48 @@ async function uiTests(pageUrl, platform) {
   }
 }
 
+// ── 样式契约：暗色两条路径一致、无悬空变量 ──
+function cssTests() {
+  const css = fs.readFileSync(path.join(root, 'v6-app.css'), 'utf8')
+  const bodyAfter = (marker) => {
+    const at = css.indexOf(marker)
+    assert(at >= 0, 'CSS block missing: ' + marker)
+    const start = css.indexOf('{', at + marker.length - 1) + 1
+    return css.slice(start, css.indexOf('}', start))
+  }
+  const decls = (body) =>
+    body
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .split(';')
+      .map((item) => item.trim().replace(/\s+/g, ' '))
+      .filter(Boolean)
+  const explicit = decls(bodyAfter(":root[data-theme='dark'] {"))
+  const system = decls(bodyAfter(":root:not([data-theme='light']) {"))
+  assert(explicit.length > 40, 'explicit dark block parsed, got ' + explicit.length)
+  const onlyExplicit = explicit.filter((item) => !system.includes(item))
+  const onlySystem = system.filter((item) => !explicit.includes(item))
+  assert(
+    !onlyExplicit.length && !onlySystem.length,
+    'system dark must match explicit dark: ' + JSON.stringify({ onlyExplicit, onlySystem }),
+  )
+
+  const defined = new Set([...css.matchAll(/(--[\w-]+)\s*:/g)].map((m) => m[1]))
+  const dangling = [
+    ...new Set(
+      [...css.matchAll(/var\((--[\w-]+)\s*\)/g)].map((m) => m[1]).filter((name) => !defined.has(name)),
+    ),
+  ]
+  assert(!dangling.length, 'CSS references undefined custom properties: ' + dangling.join(', '))
+  console.log('css contract checks passed')
+}
+
 const platform = createPlatform()
 const apiPort = await listen(platform.server)
 const base = `http://127.0.0.1:${apiPort}`
 const files = staticServer(base)
 const webPort = await listen(files)
 try {
+  cssTests()
   await clientTests(base, platform)
   await uiTests(`${`http://127.0.0.1:${webPort}/v6.html#/models`}`, platform)
   const header = platform.seen.selfHeaders.at(-1)
