@@ -11,20 +11,23 @@
   :root {
     color-scheme: light;
     --canvas: #fafafa; --surface: #ffffff; --border: #ebebeb;
-    --text: #171717; --muted: #737373; --accent: #0fb477; --accent-text: #067647; --danger: #b42318;
+    --text: #171717; --muted: #737373; --accent: #0f7b5f; --accent-text: #0f7b5f;
+    --logo-1: #0b3d30; --logo-2: #0d5a46; --logo-3: #0f7b5f; --logo-4: #2a9677; --logo-5: #4fae8f; --logo-6: #7cc4aa; --danger: #b42318;
     --shadow: none;
   }
   :root[data-theme='dark'] {
     color-scheme: dark;
     --canvas: #0a0a0a; --surface: #111111; --border: #262626;
-    --text: #ededed; --muted: #8f8f8f; --accent: #2cc48c; --accent-text: #5fd3a5; --danger: #f0716a;
+    --text: #ededed; --muted: #8f8f8f; --accent: #3dba92; --accent-text: #6fcfae;
+      --logo-1: #1f7a60; --logo-2: #2a9677; --logo-3: #3dba92; --logo-4: #5cc7a4; --logo-5: #7fd4b6; --logo-6: #a6e2cb; --danger: #f0716a;
     --shadow: none;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme='light']) {
       color-scheme: dark;
       --canvas: #0a0a0a; --surface: #111111; --border: #262626;
-      --text: #ededed; --muted: #8f8f8f; --accent: #2cc48c; --accent-text: #5fd3a5; --danger: #f0716a;
+      --text: #ededed; --muted: #8f8f8f; --accent: #3dba92; --accent-text: #6fcfae;
+      --logo-1: #1f7a60; --logo-2: #2a9677; --logo-3: #3dba92; --logo-4: #5cc7a4; --logo-5: #7fd4b6; --logo-6: #a6e2cb; --danger: #f0716a;
       --shadow: none;
     }
   }
@@ -41,6 +44,12 @@
   }
   .mark { display: block; width: 40px; height: 40px; margin: 0 auto 20px }
   .mark .core { fill: var(--text) }
+  .mark .p1 { fill: var(--logo-1) }
+  .mark .p2 { fill: var(--logo-2) }
+  .mark .p3 { fill: var(--logo-3) }
+  .mark .p4 { fill: var(--logo-4) }
+  .mark .p5 { fill: var(--logo-5) }
+  .mark .p6 { fill: var(--logo-6) }
   .spinner {
     width: 20px; height: 20px; margin: 0 auto 16px; border-radius: 50%;
     border: 2px solid color-mix(in srgb, var(--accent) 22%, transparent); border-top-color: var(--accent);
@@ -62,7 +71,7 @@
 </head>
 <body>
 <main class="card" id="card" aria-live="polite">
-  <svg class="mark" viewBox="0 0 512 512" fill="none" aria-hidden="true"><path d="M256 202.24C272.38 174.59 349.18 103.99 330.9 70.3A48.13 48.13 0 0 1 271.22 70.3C252.93 103.99 262.14 174.59 256 202.24Z" fill="#045e3f"/><path d="M302.56 229.12C334.69 229.48 434.24 260.69 454.27 228.01A48.13 48.13 0 0 1 424.43 176.33C386.11 177.33 329.57 220.62 302.56 229.12Z" fill="#067647"/><path d="M302.56 282.88C318.31 310.89 341.05 412.71 379.38 413.71A48.13 48.13 0 0 1 409.21 362.03C389.18 329.35 323.43 302.02 302.56 282.88Z" fill="#0a9055"/><path d="M256 309.76C239.62 337.41 162.82 408.01 181.1 441.7A48.13 48.13 0 0 1 240.78 441.7C259.07 408.01 249.86 337.41 256 309.76Z" fill="#0fb477"/><path d="M209.44 282.88C177.31 282.52 77.76 251.31 57.73 283.99A48.13 48.13 0 0 1 87.57 335.67C125.89 334.67 182.43 291.38 209.44 282.88Z" fill="#1bc98c"/><path d="M209.44 229.12C193.69 201.11 170.95 99.29 132.62 98.29A48.13 48.13 0 0 1 102.79 149.97C122.82 182.65 188.57 209.98 209.44 229.12Z" fill="#34d399"/><circle class="core" cx="256" cy="256" r="30"/></svg>
+  <svg class="mark" viewBox="0 0 512 512" fill="none" aria-hidden="true"><path d="M256 202.24C272.38 174.59 349.18 103.99 330.9 70.3A48.13 48.13 0 0 1 271.22 70.3C252.93 103.99 262.14 174.59 256 202.24Z" class="p1" fill="#0b3d30"/><path d="M302.56 229.12C334.69 229.48 434.24 260.69 454.27 228.01A48.13 48.13 0 0 1 424.43 176.33C386.11 177.33 329.57 220.62 302.56 229.12Z" class="p2" fill="#0d5a46"/><path d="M302.56 282.88C318.31 310.89 341.05 412.71 379.38 413.71A48.13 48.13 0 0 1 409.21 362.03C389.18 329.35 323.43 302.02 302.56 282.88Z" class="p3" fill="#0f7b5f"/><path d="M256 309.76C239.62 337.41 162.82 408.01 181.1 441.7A48.13 48.13 0 0 1 240.78 441.7C259.07 408.01 249.86 337.41 256 309.76Z" class="p4" fill="#2a9677"/><path d="M209.44 282.88C177.31 282.52 77.76 251.31 57.73 283.99A48.13 48.13 0 0 1 87.57 335.67C125.89 334.67 182.43 291.38 209.44 282.88Z" class="p5" fill="#4fae8f"/><path d="M209.44 229.12C193.69 201.11 170.95 99.29 132.62 98.29A48.13 48.13 0 0 1 102.79 149.97C122.82 182.65 188.57 209.98 209.44 229.12Z" class="p6" fill="#7cc4aa"/><circle class="core" cx="256" cy="256" r="30"/></svg>
   <div class="spinner" aria-hidden="true"></div>
   <h1 id="t">正在完成登录…</h1>
   <p id="m">请稍候，马上进入控制台。</p>

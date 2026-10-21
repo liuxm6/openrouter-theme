@@ -59,11 +59,11 @@
   --dur: 150ms;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   /* 基础色板 */
-  --green-50: #ecfdf3;
-  --green-100: #d1fadf;
-  --green-200: #abefc6;
-  --green-900: #03301f;
-  --green-950: #021f15;
+  --green-50: #eef6f3;
+  --green-100: #dcefe7;
+  --green-200: #c9e3d9;
+  --green-900: #0b3d30;
+  --green-950: #082e24;
   --green-975: #0b1a13;
   /* 表面 */
   --canvas: #ffffff;
@@ -87,8 +87,8 @@
   --text: #171717;
   --text-2: #525252;
   --muted: #737373;
-  --selection-bg: rgba(15, 180, 119, 0.22);
-  --selection-fg: #03301f;
+  --selection-bg: rgba(15, 123, 95, 0.18);
+  --selection-fg: #0b3d30;
   /* 边框 */
   --border: #ebebeb;
   --border-strong: #d4d4d4;
@@ -97,17 +97,23 @@
   --primary-hover: #383838;
   --primary-active: #0a0a0a;
   --on-primary: #ffffff;
-  /* 品牌绿：只用于标识、选中态和关键数字 */
-  --accent: #0fb477;
-  --accent-hover: #0aa668;
-  --accent-soft: #067647;
-  --accent-faint: #ecfdf3;
-  --accent-button: #067f52;
-  --accent-button-hover: #056a44;
-  --accent-button-active: #045538;
+  /* 品牌色·深翡翠：只用于标识、选中态和关键数字；白底对比度约 5.2:1，可直接做文字色 */
+  --accent: #0f7b5f;
+  --accent-hover: #0c6a52;
+  --accent-soft: #0f7b5f;
+  --accent-faint: #eef6f3;
+  --accent-button: #0f7b5f;
+  --accent-button-hover: #0c6a52;
+  --accent-button-active: #0a5945;
   --accent-text: var(--accent-soft);
-  --accent-border: #abefc6;
-  --brand-core: #03301f;
+  --accent-border: #c9e3d9;
+  --brand-core: #0b3d30;
+  --logo-1: #0b3d30;
+  --logo-2: #0d5a46;
+  --logo-3: #0f7b5f;
+  --logo-4: #2a9677;
+  --logo-5: #4fae8f;
+  --logo-6: #7cc4aa;
   --on-accent: #fff;
   /* 状态色（成功色与品牌绿分开） */
   --success: #1a7f37;
@@ -154,7 +160,7 @@
   --text: #ededed;
   --text-2: #a1a1a1;
   --muted: #8f8f8f;
-  --selection-bg: rgba(44, 196, 140, 0.32);
+  --selection-bg: rgba(61, 186, 146, 0.3);
   --selection-fg: var(--surface-1);
   /* 边框 */
   --border: #262626;
@@ -164,17 +170,23 @@
   --primary-hover: #ffffff;
   --primary-active: #d4d4d4;
   --on-primary: #0a0a0a;
-  /* 品牌绿：只用于标识、选中态和关键数字 */
-  --accent: #2cc48c;
-  --accent-hover: #4fd1a0;
-  --accent-soft: #5fd3a5;
-  --accent-text: #5fd3a5;
-  --accent-faint: rgba(44, 196, 140, 0.1);
-  --accent-border: #1d5a44;
-  --accent-button: #1fae7b;
-  --accent-button-hover: #27bd87;
-  --accent-button-active: #1a9c6e;
-  --brand-core: #d9f7ea;
+  /* 品牌色·深翡翠：只用于标识、选中态和关键数字 */
+  --accent: #3dba92;
+  --accent-hover: #5cc7a4;
+  --accent-soft: #6fcfae;
+  --accent-text: #6fcfae;
+  --accent-faint: rgba(61, 186, 146, 0.1);
+  --accent-border: #1e4a3c;
+  --accent-button: #2e9e7b;
+  --accent-button-hover: #36ad88;
+  --accent-button-active: #27896a;
+  --brand-core: #e3f3ec;
+  --logo-1: #1f7a60;
+  --logo-2: #2a9677;
+  --logo-3: #3dba92;
+  --logo-4: #5cc7a4;
+  --logo-5: #7fd4b6;
+  --logo-6: #a6e2cb;
   /* 状态色（成功色与品牌绿分开） */
   --success: #3fb950;
   --danger: #f0716a;
@@ -199,58 +211,64 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     /* 表面 */
-    --canvas: #0a0a0a;
-    --canvas-soft: #111111;
-    --surface-1: #0a0a0a;
-    --surface-2: #141414;
-    --surface-3: #1f1f1f;
-    --surface-hover: #1a1a1a;
-    --surface-active: #242424;
-    --overlay-bg: #141414;
-    --backdrop: rgba(0, 0, 0, 0.6);
+    --canvas: var(--c-1);
+    --canvas-soft: var(--c-2);
+    --surface-1: var(--c-1);
+    --surface-2: var(--c-3);
+    --surface-3: var(--c-4);
+    --surface-hover: var(--c-5);
+    --surface-active: var(--c-6);
+    --overlay-bg: var(--c-3);
+    --backdrop: var(--c-7);
     --segment-active: var(--surface-3);
     /* 文字 */
-    --text: #ededed;
-    --text-2: #a1a1a1;
-    --muted: #8f8f8f;
-    --selection-bg: rgba(44, 196, 140, 0.32);
+    --text: var(--c-8);
+    --text-2: var(--c-9);
+    --muted: var(--c-10);
+    --selection-bg: var(--c-11);
     --selection-fg: var(--surface-1);
     /* 边框 */
-    --border: #262626;
-    --border-strong: #3a3a3a;
+    --border: var(--c-12);
+    --border-strong: var(--c-13);
     /* 主按钮：黑底白字，暗色反转 */
-    --primary: #ededed;
+    --primary: var(--c-8);
     --primary-hover: #ffffff;
-    --primary-active: #d4d4d4;
-    --on-primary: #0a0a0a;
-    /* 品牌绿：只用于标识、选中态和关键数字 */
-    --accent: #2cc48c;
-    --accent-hover: #4fd1a0;
-    --accent-soft: #5fd3a5;
-    --accent-text: #5fd3a5;
-    --accent-faint: rgba(44, 196, 140, 0.1);
-    --accent-border: #1d5a44;
-    --accent-button: #1fae7b;
-    --accent-button-hover: #27bd87;
-    --accent-button-active: #1a9c6e;
-    --brand-core: #d9f7ea;
+    --primary-active: var(--c-14);
+    --on-primary: var(--c-1);
+    /* 品牌色·深翡翠：只用于标识、选中态和关键数字 */
+    --accent: var(--c-15);
+    --accent-hover: var(--c-16);
+    --accent-soft: var(--c-17);
+    --accent-text: var(--c-17);
+    --accent-faint: var(--c-18);
+    --accent-border: var(--c-19);
+    --accent-button: var(--c-20);
+    --accent-button-hover: var(--c-21);
+    --accent-button-active: var(--c-22);
+    --brand-core: var(--c-23);
+    --logo-1: #1f7a60;
+    --logo-2: #2a9677;
+    --logo-3: #3dba92;
+    --logo-4: #5cc7a4;
+    --logo-5: #7fd4b6;
+    --logo-6: #a6e2cb;
     /* 状态色（成功色与品牌绿分开） */
-    --success: #3fb950;
-    --danger: #f0716a;
-    --danger-button: #e5605a;
-    --danger-button-hover: #ec766f;
-    --danger-button-active: #d4524c;
-    --danger-faint: rgba(240, 113, 106, 0.1);
-    --warning: #f5b544;
-    --warning-faint: rgba(245, 181, 68, 0.1);
-    --info: #60a5fa;
-    --info-faint: rgba(96, 165, 250, 0.1);
-    --danger-border: #7a271a;
+    --success: var(--c-24);
+    --danger: var(--c-25);
+    --danger-button: var(--c-26);
+    --danger-button-hover: var(--c-27);
+    --danger-button-active: var(--c-28);
+    --danger-faint: var(--c-29);
+    --warning: var(--c-30);
+    --warning-faint: var(--c-31);
+    --info: var(--c-32);
+    --info-faint: var(--c-33);
+    --danger-border: var(--c-34);
     /* 阴影：卡片不用阴影，只用 1px 边框；sm 给浮层，lg 给弹窗 */
     --focus-ring: 0 0 0 2px var(--surface-1), 0 0 0 4px var(--accent-text);
-    --shadow-sm: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 8px 24px rgba(0, 0, 0, 0.5);
-    --shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 24px 64px rgba(0, 0, 0, 0.6);
-    --shadow-knob: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --shadow-sm: 0 0 0 1px var(--c-35), 0 8px 24px var(--c-36);
+    --shadow-lg: 0 0 0 1px var(--c-37), 0 24px 64px var(--c-7);
+    --shadow-knob: 0 1px 2px var(--c-36);
     --shadow-segment-active: 0 0 0 1px var(--border-strong);
     /* 其他 */
     color-scheme: dark;
@@ -700,7 +718,7 @@
       text-wrap: balance;
     }
     .premium-title span {
-      color: var(--accent-soft);
+      color: inherit;
       white-space: nowrap;
     }
     .premium-subtitle {
@@ -6044,7 +6062,7 @@ a.v6-item:hover .v6-link .v6-icon:last-child {
   background: linear-gradient(100deg, var(--skeleton-base) 40%, var(--skeleton-hi) 50%, var(--skeleton-base) 60%) fixed;
   background-size: 200% 100%;
   animation: v6-sweep 1.6s ease-in-out infinite;
-  --bar: linear-gradient(#000 0 0);
+  --bar: linear-gradient(var(--c-38) 0 0);
   -webkit-mask: var(--bar) 0% 100% / 9% 35% no-repeat, var(--bar) 16.66% 100% / 9% 55% no-repeat,
     var(--bar) 33.33% 100% / 9% 42% no-repeat, var(--bar) 50% 100% / 9% 70% no-repeat,
     var(--bar) 66.66% 100% / 9% 48% no-repeat, var(--bar) 83.33% 100% / 9% 82% no-repeat,
@@ -6112,11 +6130,7 @@ a.v6-item:hover .v6-link .v6-icon:last-child {
   text-wrap: balance;
 }
 .premium-home .premium-title span {
-  background: linear-gradient(100deg, var(--accent-text) 15%, var(--accent) 95%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: var(--accent-text);
-  -webkit-text-fill-color: transparent;
+  color: inherit;
 }
 .premium-home .premium-subtitle {
   color: var(--text-2);
@@ -6719,8 +6733,8 @@ a.v6-item:hover .v6-link .v6-icon:last-child {
   }
   .v6-model-main .v6-tabs {
     padding-right: 24px;
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+    -webkit-mask-image: linear-gradient(to right, var(--c-38) calc(100% - 32px), transparent);
+    mask-image: linear-gradient(to right, var(--c-38) calc(100% - 32px), transparent);
   }
   .v6-models > .v6-model {
     padding: 16px 16px;
@@ -6851,6 +6865,24 @@ a.v6-item:hover .v6-link .v6-icon:last-child {
 }
 .brand-core {
   fill: var(--brand-core);
+}
+.brand-petal-1 {
+  fill: var(--logo-1);
+}
+.brand-petal-2 {
+  fill: var(--logo-2);
+}
+.brand-petal-3 {
+  fill: var(--logo-3);
+}
+.brand-petal-4 {
+  fill: var(--logo-4);
+}
+.brand-petal-5 {
+  fill: var(--logo-5);
+}
+.brand-petal-6 {
+  fill: var(--logo-6);
 }
 .v6-header .v6-theme-toggle {
   position: relative;
@@ -8085,4 +8117,46 @@ kbd {
 /* T1.x 收敛：原散落字面量提为 token（像素等价） */
 :root {
 
+}
+
+/* T1.x 收敛：原散落字面量提为 token（像素等价） */
+:root {
+  --c-1: #0a0a0a;
+  --c-2: #111111;
+  --c-3: #141414;
+  --c-4: #1f1f1f;
+  --c-5: #1a1a1a;
+  --c-6: #242424;
+  --c-7: rgba(0, 0, 0, 0.6);
+  --c-8: #ededed;
+  --c-9: #a1a1a1;
+  --c-10: #8f8f8f;
+  --c-11: rgba(61, 186, 146, 0.3);
+  --c-12: #262626;
+  --c-13: #3a3a3a;
+  --c-14: #d4d4d4;
+  --c-15: #3dba92;
+  --c-16: #5cc7a4;
+  --c-17: #6fcfae;
+  --c-18: rgba(61, 186, 146, 0.1);
+  --c-19: #1e4a3c;
+  --c-20: #2e9e7b;
+  --c-21: #36ad88;
+  --c-22: #27896a;
+  --c-23: #e3f3ec;
+  --c-24: #3fb950;
+  --c-25: #f0716a;
+  --c-26: #e5605a;
+  --c-27: #ec766f;
+  --c-28: #d4524c;
+  --c-29: rgba(240, 113, 106, 0.1);
+  --c-30: #f5b544;
+  --c-31: rgba(245, 181, 68, 0.1);
+  --c-32: #60a5fa;
+  --c-33: rgba(96, 165, 250, 0.1);
+  --c-34: #7a271a;
+  --c-35: rgba(255, 255, 255, 0.06);
+  --c-36: rgba(0, 0, 0, 0.5);
+  --c-37: rgba(255, 255, 255, 0.08);
+  --c-38: #000;
 }

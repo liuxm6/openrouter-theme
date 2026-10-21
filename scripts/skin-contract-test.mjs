@@ -938,7 +938,7 @@ async function uiTests(pageUrl, platform) {
     const accent = await evalJson(
       `getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()`,
     )
-    assert(accent === '#0fb477', 'theme accent changed: ' + accent)
+    assert(accent === '#0f7b5f', 'theme accent changed: ' + accent)
 
     await evalJson(`document.querySelector('[data-action="open-login"]').click()`)
     await waitPage(`document.querySelector('#auth-form')`, 'login dialog')
