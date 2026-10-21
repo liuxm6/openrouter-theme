@@ -4116,7 +4116,14 @@ h3.unknown {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 22px max(24px, calc((100% - 1200px) / 2));
+  padding: 22px max(24px, calc((100% - 1280px) / 2));
+}
+/* .v6-footer a 的 block/外边距规则是为大页脚链接列设计的，
+   会压掉轻页脚里 brand 与状态链接的 inline-flex，导致行内错位 */
+.v6-footer.v6-footer-light > a {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
 }
 .v6-footer-light .brand {
   font-size: var(--fs-14);
