@@ -2525,7 +2525,7 @@
           })
           .join(
             '',
-          )}</tbody></table><div class="v6-table-note">${list.length} 个密钥 · 完整密钥只在创建时出现一次</div></div>`
+          )}</tbody></table></div><div class="v6-table-note">${list.length} 个密钥 · 完整密钥只在创建时出现一次</div>`
       : query
         ? empty(
             '没有找到密钥',
