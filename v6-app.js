@@ -1060,7 +1060,7 @@
         ]
           .map(([path, name, symbol]) => link(path, name, '', symbol))
           .join('')}<span class="v6-menu-sep" aria-hidden="true"></span><button type="button" class="danger" data-action="logout">${icon('log-out')}退出登录</button></div></details>`
-        : button('open-login', '登录', 'log-in', '', 'v6-btn')
+        : button('open-login', '登录', 'log-in', '', 'v6-btn primary')
     header.innerHTML = `<div class="header-inner"><a class="brand" href="#/home" aria-label="aitokensflux 首页"><span class="brand-mark" aria-hidden="true">${BRAND_MARK}</span><span class="brand-word">aitokens<em>flux</em></span></a><nav class="primary-nav" aria-label="主导航">${link('models', '模型', 'nav-link ' + (['models', 'discover', 'providers'].includes(route.split('/')[0]) ? 'active' : ''))}${feature('rankings') ? link('rankings', '排行榜', 'nav-link ' + (route === 'rankings' ? 'active' : '')) : ''}${link('pricing', '价格', 'nav-link ' + (route === 'pricing' ? 'active' : ''))}${link('docs', '文档', 'nav-link ' + (route === 'docs' ? 'active' : ''))}</nav><div class="header-actions"><button class="header-search" data-action="search" aria-label="搜索模型与页面">${icon('search')}<span>搜索</span><span class="keycap">⌘ K</span></button>${themeToggle()}${account}${button('mobile-menu', '', 'menu', 'aria-label="打开菜单"', 'v6-btn v6-icon-btn v6-mobile-menu')}</div></div>`
   }
   function themeToggle() {
@@ -1080,21 +1080,6 @@
   function renderHome() {
     app.append(document.getElementById('page-home').content.cloneNode(true))
     const home = app.querySelector('.premium-home')
-    // 首屏 curl：示例模型优先用目录里的 Anthropic 文本模型，与右侧路由示意保持一致
-    const heroCode = home.querySelector('#gw-code')
-    if (heroCode) {
-      const textModels = catalogReady ? models.filter((model) => (model.outputs[0] || 'text') === 'text') : []
-      const anthropic = textModels.find((model) => /anthropic/i.test(model.provider))
-      const sample = anthropic || textModels[0] || docsSampleModel
-      const curl = `curl ${apiBaseURL()}/chat/completions \\\n  -H "Authorization: Bearer $TOKENFLUX_API_KEY" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "model": "${sample.slug}",\n    "messages": [{"role": "user", "content": "你好"}]\n  }'`
-      heroCode.innerHTML = `<div class="v6-code"><div class="v6-code-head"><span class="gw-code-label">cURL</span>${iconButton('copy-code', '复制代码', 'copy')}</div><pre><code>${highlightCode(curl, 'curl')}</code></pre></div>`
-      if (anthropic && anthropic.slug.length <= 30) {
-        const wireLabel = home.querySelector('.gw-t-wire')
-        if (wireLabel) wireLabel.textContent = 'model: ' + anthropic.slug
-        const hostsLabel = home.querySelector('.sr-hosts-model')
-        if (hostsLabel) hostsLabel.textContent = anthropic.slug
-      }
-    }
     // 首屏统计：全部取自真实目录，没有真实值的项隐藏
     const setMetric = (id, value, note) => {
       const node = home.querySelector('#' + id)

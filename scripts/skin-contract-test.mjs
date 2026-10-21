@@ -964,19 +964,15 @@ async function uiTests(pageUrl, platform) {
         modelsShown: shown('#sr-metric-models'),
         providersShown: shown('#sr-metric-providers'),
         trustShown: shown('#sr-trust-bar'),
-        heroButtons: document.querySelectorAll('.gw-hero .button').length,
-        curl: document.querySelector('#gw-code code')?.textContent || '',
-        curlCopy: Boolean(document.querySelector('#gw-code [data-action="copy-code"]')),
+        heroButtons: document.querySelectorAll('.premium-hero .button').length,
+
       }
     })()`)
     assert(homeState.status === '服务正常', 'home status pill when online: ' + JSON.stringify(homeState))
     assert(!homeState.modelsShown, 'home hides a small model count: ' + JSON.stringify(homeState))
     assert(homeState.providersShown && homeState.trustShown, 'home shows provider facts: ' + JSON.stringify(homeState))
-    assert(homeState.heroButtons === 1, 'hero has a single primary action, got ' + homeState.heroButtons)
-    assert(
-      homeState.curl.startsWith('curl http') && homeState.curl.includes('/v1/chat/completions') && homeState.curlCopy,
-      'hero curl example: ' + homeState.curl.slice(0, 80),
-    )
+    assert(homeState.heroButtons === 2, 'hero keeps both actions, got ' + homeState.heroButtons)
+
     await evalJson(`location.hash = '#/models'`)
     await evalJson(`document.querySelector('[data-action="open-login"]').click()`)
     await waitPage(`document.querySelector('#auth-form')`, 'login dialog')
