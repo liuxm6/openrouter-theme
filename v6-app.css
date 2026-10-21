@@ -4812,21 +4812,11 @@ textarea.v6-input,
   align-items: flex-start;
   gap: 12px;
   padding: 12px 16px;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   font-size: var(--fs-13);
   line-height: var(--lh-snug);
   border: 1px solid var(--border);
-  border-left: 3px solid var(--border-strong);
-}
-.v6-toast[data-kind='success'] {
-  border-left-color: var(--accent-button);
-}
-.v6-toast[data-kind='error'] {
-  border-left-color: var(--danger);
-}
-.v6-toast[data-kind='info'] {
-  border-left-color: var(--info);
 }
 .v6-toast .v6-toast-icon {
   flex: 0 0 16px;
@@ -6830,7 +6820,7 @@ a.v6-item:hover .v6-link .v6-icon:last-child {
   inset: 0;
   margin: auto;
   transition:
-    transform 150ms cubic-bezier(0.34, 1.4, 0.64, 1),
+    transform 180ms cubic-bezier(0.23, 1, 0.32, 1),
     opacity 150ms var(--ease);
 }
 .v6-theme-toggle .v6-icon:first-child {
@@ -7123,8 +7113,6 @@ input[type='range']:focus-visible { outline: none; }
 }
 .v6-title p { font-size: var(--fs-14); }
 .v6-docs-layout article h1 { font-size: var(--fs-24); font-weight: 600; }
-.v6-shell.v6-pricing,
-.v6-shell.v6-docs-layout { padding-top: 16px; }
 .v6-title:has(.v6-eyebrow) > .v6-btn,
 .v6-title:has(.v6-eyebrow) > .v6-badge,
 .v6-title:has(.v6-eyebrow) > a { margin-top: 28px; }
@@ -7428,10 +7416,9 @@ kbd {
   max-width: 72ch;
   margin: 16px 0;
   padding: 12px 16px;
-  border: 1px solid var(--border);
-  border-left: 2px solid var(--info);
-  border-radius: var(--radius-md);
-  background: var(--surface-1);
+  border: 1px solid color-mix(in srgb, var(--info) 22%, var(--border));
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--info) 4%, var(--surface-1));
   color: var(--text-2);
   font-size: var(--fs-14);
   line-height: var(--lh-body);
@@ -7444,7 +7431,8 @@ kbd {
   color: var(--info);
 }
 .v6-callout.warning {
-  border-left-color: var(--warning);
+  border-color: color-mix(in srgb, var(--warning) 24%, var(--border));
+  background: color-mix(in srgb, var(--warning) 4%, var(--surface-1));
 }
 .v6-callout.warning > .v6-icon {
   color: var(--warning);
@@ -8302,4 +8290,92 @@ kbd {
   .premium-home .sr-card-link:hover::after {
     transform: none;
   }
+}
+
+/* ── 全站精修：圆角层级、页面标题、FAQ、弹窗动效 ──
+   圆角分三级：控件 8px（按钮、输入框、下拉、分段、侧栏项），
+   容器 12px（面板、表格、代码块、卡片、空状态），弹窗 16px。
+   分段控件内的选中块取 6px，与外框 2px 内边距保持同心。 */
+.v6-btn,
+.v6-input,
+.v6-select,
+.v6-textarea,
+.v6-segment,
+.v6-side-link,
+.v6-header .header-search,
+.v6-workspace-switch {
+  border-radius: var(--radius-md);
+}
+.v6-segment button,
+.v6-segment button.active {
+  border-radius: var(--radius-sm);
+}
+.v6-search-clear {
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+.v6-panel,
+.v6-models,
+.v6-stats,
+.v6-table-wrap,
+.v6-code,
+.v6-item,
+.v6-empty,
+.v6-menu {
+  border-radius: var(--radius-lg);
+}
+.v6-dialog {
+  border-radius: 16px;
+}
+.v6-dialog[open] {
+  animation: v6-dialog-in 220ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.v6-dialog::backdrop {
+  backdrop-filter: blur(3px);
+}
+
+/* 页面标题：公开页 28px，控制台保持 24px（工作区以信息密度优先） */
+.v6-shell .v6-title h1,
+.v6-directory .v6-title h1,
+.v6-docs-layout article > h1 {
+  font-size: 28px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+.v6-title p {
+  margin-top: 10px;
+}
+
+/* FAQ：改为分隔线列表，不再是外框里贴边的文字 */
+.v6-faq {
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+}
+.v6-faq summary {
+  padding: 18px 4px;
+}
+
+@media (max-width: 640px) {
+  .v6-shell .v6-title h1,
+  .v6-directory .v6-title h1,
+  .v6-docs-layout article > h1 {
+    font-size: 24px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .v6-dialog[open] {
+    animation-name: v6-fade-in;
+  }
+}
+
+/* 面板：内边距四周统一 20px，末行不再叠加外边距造成底部空一截 */
+.v6-panel-head {
+  padding-top: 20px;
+}
+.v6-panel-body > .v6-field:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
 }
