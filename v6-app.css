@@ -319,7 +319,7 @@
       transition: border-color var(--dur-fast) var(--ease);
     }
     .app-header.is-scrolled {
-      border-bottom-color: var(--border);
+      border-bottom-color: color-mix(in srgb, var(--border) 55%, transparent);
     }
     .header-inner {
       display: flex;
@@ -2176,7 +2176,7 @@
   }
   .premium-home .sr-onboarding {
     padding-block: 56px;
-    border-block: 1px solid var(--border);
+    border-top: 1px solid var(--border);
   }
   .premium-home .sr-step {
     padding-inline: 20px;
