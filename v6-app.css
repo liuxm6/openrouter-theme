@@ -1301,16 +1301,6 @@
     place-items: center;
     overflow: hidden;
   }
-  .sr-feature-visual::before {
-    position: absolute;
-    inset: 0;
-    background-image: linear-gradient(var(--border) 1px, transparent 1px),
-      linear-gradient(90deg, var(--border) 1px, transparent 1px);
-    background-size: 42px 42px;
-    content: "";
-    -webkit-mask-image: linear-gradient(to bottom, transparent, var(--text) 35%, transparent 100%);
-    mask-image: linear-gradient(to bottom, transparent, var(--text) 35%, transparent 100%);
-  }
   .sr-feature-body {
     display: flex;
     min-width: 0;
@@ -1869,9 +1859,6 @@
   .sr-feature-visual {
     border-bottom: 0;
     background: color-mix(in srgb, var(--canvas-soft) 72%, var(--surface-1));
-  }
-  .sr-feature-visual::before {
-    opacity: .22;
   }
   .sr-feature-body {
     padding: 24px;
@@ -8114,7 +8101,7 @@ kbd {
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  padding: 2px 10px;
+  padding: 4px 10px;
   border-radius: var(--radius-sm);
   font-size: var(--fs-12);
 }
@@ -8143,5 +8130,176 @@ kbd {
   .v6-footer-light .v6-footer-links a {
     display: inline-block;
     padding-block: 12px;
+  }
+}
+
+/* ── 首页精修：节奏、层级与细节 ──
+   只动间距、字号、圆角与配图尺寸，结构保持不变。
+   桌面端 hero 的线路图按 hero 高度等比拉伸（preserveAspectRatio="none"），
+   所以标题放大后要同步加高 hero，线路起点才会跟着下移、不压到按钮。 */
+.premium-home .sr-feature-visual {
+  background: linear-gradient(to bottom, var(--surface-2), color-mix(in srgb, var(--surface-2) 40%, var(--surface-1)));
+}
+.premium-home .sr-performance {
+  height: 132px;
+}
+.premium-home .sr-chart-card {
+  height: 96px;
+  box-shadow: 0 6px 16px -10px rgb(0 0 0 / 0.12);
+}
+.premium-home .sr-chart-card:first-child {
+  top: 0;
+}
+.premium-home .sr-chart-card:last-child {
+  bottom: 0;
+}
+.premium-home .sr-chart-card svg {
+  height: 60px;
+}
+.premium-home .sr-policy-visual {
+  width: 132px;
+  height: 132px;
+}
+.premium-home .sr-policy-visual > svg {
+  width: 120px;
+  height: 120px;
+}
+.premium-home .sr-feature-body h3 {
+  margin-bottom: 8px;
+  font-size: 17px;
+}
+.premium-home .sr-feature-body p {
+  line-height: 1.7;
+}
+.premium-home .sr-card-link::after {
+  transition: transform var(--dur) var(--ease);
+}
+.premium-home .sr-card-link:hover::after {
+  transform: translate(2px, -2px);
+}
+.premium-home .sr-model-card,
+.premium-home .sr-step-visual {
+  border-radius: var(--radius-lg);
+}
+.premium-home .sr-section-head p {
+  margin-top: 0;
+  color: var(--muted);
+  font-size: var(--fs-14);
+}
+.premium-home .sr-metric strong {
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.premium-home .sr-metric span {
+  margin-top: 4px;
+  font-size: var(--fs-13);
+}
+.premium-home .premium-actions .button {
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease),
+    color var(--dur) var(--ease), transform 160ms var(--ease);
+}
+.premium-home .premium-actions .button:active {
+  transform: scale(0.98);
+}
+
+@media (min-width: 901px) {
+  .premium-home .premium-hero {
+    min-height: 548px;
+    margin-top: 24px;
+  }
+  .premium-home .premium-overline {
+    margin-bottom: 20px;
+  }
+  .premium-home .premium-title {
+    margin-bottom: 16px;
+    font-size: 56px;
+    line-height: 1.12;
+    letter-spacing: -0.02em;
+  }
+  .premium-home .premium-subtitle {
+    font-size: 17px;
+    line-height: 1.65;
+  }
+  .premium-home .premium-actions {
+    margin-top: 32px;
+  }
+  .premium-home .premium-actions .button {
+    min-height: 44px;
+  }
+  .premium-home .sr-metrics {
+    padding: 40px 0 72px;
+  }
+  .premium-home .sr-metric strong {
+    font-size: 30px;
+    line-height: 1.1;
+  }
+  .premium-home .sr-feature-grid {
+    padding-bottom: 72px;
+  }
+  .premium-home .sr-feature-body {
+    padding: 24px;
+  }
+  .premium-home .sr-models,
+  .premium-home .sr-onboarding {
+    padding-block: 72px;
+  }
+  .premium-home .sr-onboarding {
+    padding-bottom: 96px;
+  }
+  .premium-home .sr-section-head {
+    margin-bottom: 40px;
+  }
+  .premium-home .sr-model-card {
+    padding: 24px;
+  }
+}
+@media (min-width: 1201px) {
+  .premium-home .sr-feature-card {
+    grid-template-rows: 168px auto;
+  }
+}
+@media (max-width: 640px) {
+  .premium-home .sr-feature-body {
+    padding: 20px;
+  }
+  .premium-home .sr-feature-body h3 {
+    font-size: var(--fs-18, 18px);
+  }
+  .premium-home .sr-feature-grid {
+    padding-bottom: 56px;
+  }
+  .premium-home .sr-models,
+  .premium-home .sr-onboarding {
+    padding-block: 56px;
+  }
+  .premium-home .sr-trust-bar {
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    text-align: center;
+  }
+  .premium-home .sr-trust-list {
+    text-wrap: balance;
+  }
+  /* 「查看全部」与标题同行，不再单独占一行 */
+  .premium-home .sr-section-head {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .premium-home .sr-section-head .sr-view-all {
+    flex: none;
+    white-space: nowrap;
+  }
+  /* 整张卡可点，手机上常显的「查看详情」会挤到上下文数值 */
+  .premium-home .sr-model-card::after {
+    content: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .premium-home .premium-actions .button:active,
+  .premium-home .sr-card-link:hover::after {
+    transform: none;
   }
 }

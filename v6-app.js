@@ -1008,7 +1008,6 @@
     return models.some(hasContext)
   }
   // 兜底 "Platform" 不是真实厂商，不计入厂商数与信任条
-  const HOME_MODEL_COUNT_MIN = 30
   function realProviders() {
     return [...new Set(models.map((model) => model.provider).filter((p) => p && p !== 'Platform'))]
   }
@@ -1089,8 +1088,7 @@
       if (value && note) node.insertAdjacentHTML('beforeend', `<small class="sr-metric-note">${esc(note)}</small>`)
     }
     const ready = catalogReady && models.length
-    // 模型数太少时不展示，否则会和标题「连接所有模型」互相矛盾
-    setMetric('sr-metric-models', ready && models.length >= HOME_MODEL_COUNT_MIN ? String(models.length) : '')
+    setMetric('sr-metric-models', ready ? String(models.length) : '')
     if (ready) {
       setMetric('sr-metric-providers', String(realProviders().length))
       // 价格和上下文只在对话（文本输出）模型之间比较，嵌入等模型单价不可比

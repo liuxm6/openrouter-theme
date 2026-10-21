@@ -954,7 +954,7 @@ async function uiTests(pageUrl, platform) {
       features: [{ name: 'prefers-color-scheme', value: 'light' }],
     })
 
-    // 首页：在线时展示状态；模型数过少时不展示；hidden 必须真正隐藏
+    // 首页：在线时展示状态与模型数；hidden 必须真正隐藏
     await evalJson(`location.hash = '#/home'`)
     await waitPage(`document.querySelector('.premium-home.route-connected')`, 'home renders')
     const homeState = await evalJson(`(() => {
@@ -969,7 +969,7 @@ async function uiTests(pageUrl, platform) {
       }
     })()`)
     assert(homeState.status === '服务正常', 'home status pill when online: ' + JSON.stringify(homeState))
-    assert(!homeState.modelsShown, 'home hides a small model count: ' + JSON.stringify(homeState))
+    assert(homeState.modelsShown, 'home shows the model count: ' + JSON.stringify(homeState))
     assert(homeState.providersShown && homeState.trustShown, 'home shows provider facts: ' + JSON.stringify(homeState))
     assert(homeState.heroButtons === 2, 'hero keeps both actions, got ' + homeState.heroButtons)
 
