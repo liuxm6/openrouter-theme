@@ -8441,6 +8441,13 @@ kbd {
   background: var(--canvas);
   color: var(--text);
   line-height: 1.6;
+  /* P0 排印精修：
+     optical-sizing 让 Newsreader 按字号自动切换 opsz（大标题更细的衬线笔画）；
+     tabular-nums 全站数字定宽（价格/用量/日期/ID 对齐）；
+     text-spacing 中西混排自动留空（不支持的浏览器静默忽略）。 */
+  font-optical-sizing: auto;
+  font-variant-numeric: tabular-nums;
+  text-spacing: ideograph-alpha ideograph-numeric;
 }
 :root[lang] body::before {
   position: fixed;
