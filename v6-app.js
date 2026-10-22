@@ -4473,6 +4473,59 @@
   const syncHeaderHairline = () => siteHeader?.classList.toggle('is-scrolled', window.scrollY > 4)
   window.addEventListener('scroll', syncHeaderHairline, { passive: true })
   syncHeaderHairline()
+  // 进入视口淡入上浮：IntersectionObserver 驱动，不监听 scroll；
+  // SPA 换页后 #app 整体重绘，用 MutationObserver 给新节点补挂
+  function initReveal() {
+    if (!('IntersectionObserver' in window)) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    document.documentElement.classList.add('v6-motion')
+    const SELECTOR = [
+      '.premium-home .sr-metrics',
+      '.premium-home .sr-feature-card',
+      '.premium-home .sr-section-head',
+      '.premium-home .sr-model-card',
+      '.premium-home .sr-step',
+      '.v6-app .v6-title',
+      '.v6-app .v6-panel',
+      '.v6-app .v6-metric',
+      '.v6-app .v6-ws-card',
+      '.v6-app .v6-table-wrap',
+      '.v6-app .v6-models',
+    ].join(',')
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return
+          entry.target.classList.add('is-in')
+          io.unobserve(entry.target)
+        })
+      },
+      { rootMargin: '0px 0px -6% 0px', threshold: 0.06 },
+    )
+    const scan = () => {
+      const groups = new Map()
+      document.querySelectorAll(SELECTOR).forEach((el) => {
+        if (el.classList.contains('v6-reveal')) return
+        const parent = el.parentElement
+        const index = groups.get(parent) || 0
+        groups.set(parent, index + 1)
+        el.style.setProperty('--reveal-index', Math.min(index, 5))
+        el.classList.add('v6-reveal')
+        io.observe(el)
+      })
+    }
+    let queued = false
+    new MutationObserver(() => {
+      if (queued) return
+      queued = true
+      requestAnimationFrame(() => {
+        queued = false
+        scan()
+      })
+    }).observe(document.body, { childList: true, subtree: true })
+    scan()
+  }
   render()
   bootPlatform()
+  initReveal()
 })()

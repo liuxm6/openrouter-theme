@@ -947,7 +947,7 @@ async function uiTests(pageUrl, platform) {
       return { canvas: s.getPropertyValue('--canvas').trim(), accent: s.getPropertyValue('--accent').trim() }
     })()`)
     assert(
-      systemDark.canvas === '#0a0a0a' && systemDark.accent === '#3dba92',
+      systemDark.canvas === '#191919' && systemDark.accent === '#3dba92',
       'system dark theme tokens broken: ' + JSON.stringify(systemDark),
     )
     await cdp.send('Emulation.setEmulatedMedia', {
